@@ -1,0 +1,6 @@
+name = "bedrockgui-designer"
+main = "worker.ts"
+compatibility_date = "2026-04-22"
+
+[assets]
+directory = "./dist"

@@ -12,6 +12,7 @@
     "build": "npm run typecheck && vite build",
     "check:bundle": "node scripts/check-bundle.mjs",
     "preview": "vite preview",
+    "deploy": "wrangler deploy",
     "test": "vitest run",
     "test:ui": "vitest",
     "e2e": "playwright test"
@@ -44,9 +45,7 @@
     "tailwindcss": "^3.4.10",
     "typescript": "^5.6.3",
     "vite": "^6.4.2",
-    "vitest": "^3.0.0"
-  },
-  "overrides": {
-    "esbuild": "0.25.0"
+    "vitest": "^3.0.0",
+    "wrangler": "^4.84.1"
   }
 }
