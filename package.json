@@ -12,7 +12,7 @@
     "build": "npm run typecheck && vite build",
     "check:bundle": "node scripts/check-bundle.mjs",
     "preview": "vite preview",
-    "deploy": "wrangler deploy",
+    "deploy": "node --input-type=module -e \"import fs from 'node:fs'; try{fs.rmSync('dist/_redirects')}catch{}; try{fs.rmSync('dist/_headers')}catch{}\" && wrangler deploy",
     "test": "vitest run",
     "test:ui": "vitest",
     "e2e": "playwright test"

@@ -1,4 +1,4 @@
-name = "bedrockgui-designer"
+name = "bgui-designer"
 main = "worker.ts"
 compatibility_date = "2026-04-22"
 
