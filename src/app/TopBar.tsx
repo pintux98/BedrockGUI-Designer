@@ -4,6 +4,8 @@ import { useImporter } from "../importers/useImporter";
 import { useDesignerStore } from "../core/store";
 import { toast } from "../core/toast";
 import { confirmDialog } from "../core/confirm";
+import { isLegacyDesign, migrateLegacyDesign } from "../core/migrate";
+import { parseProject } from "../core/projectSchemas";
 
 export function TopBar() {
   const { exportYaml } = useExporter();
@@ -68,8 +70,22 @@ export function TopBar() {
     const data = localStorage.getItem(`project_${name}`);
     if (data) {
       try {
-        const project = JSON.parse(data);
-        loadProjectIntoStore(project);
+        const parsed = JSON.parse(data);
+        if (isLegacyDesign(parsed)) {
+          const { project, notes } = migrateLegacyDesign(parsed);
+          loadProjectIntoStore(project);
+          setShowProjects(false);
+          toast.info(`Project '${name}' was saved in an old format and has been migrated.`, 6000);
+          for (const noteText of notes) toast.info(noteText, 8000);
+          return;
+        }
+        const result = parseProject(parsed);
+        if (!result.ok) {
+          console.error("Failed to load project", result.problems);
+          toast.error(`Failed to load project '${name}': ${result.problems.slice(0, 3).join("; ")}`);
+          return;
+        }
+        loadProjectIntoStore(result.project);
         setShowProjects(false);
         toast.success(`Project '${name}' loaded.`);
       } catch (e) {

@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { migrateLegacyDesign } from "../core/migrate";
+import { migrateLegacyDesign, isLegacyDesign } from "../core/migrate";
+import { parseProject } from "../core/projectSchemas";
+import { createEmptyProject } from "../core/project";
 
 const LEGACY = {
   configVersion: "1.0.0",
@@ -49,5 +51,27 @@ describe("migrateLegacyDesign", () => {
 
   it("sets the modern config version", () => {
     expect(migrateLegacyDesign(LEGACY).project.configVersion).toBe(1);
+  });
+
+  it("produces a project that parseProject accepts, closing the crash path", () => {
+    const { project } = migrateLegacyDesign(LEGACY);
+    const result = parseProject(project);
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe("isLegacyDesign", () => {
+  it("is true for the old flat shape (no forms array, has bedrock)", () => {
+    expect(isLegacyDesign(LEGACY)).toBe(true);
+  });
+
+  it("is false for a modern project (has a forms array)", () => {
+    expect(isLegacyDesign(createEmptyProject())).toBe(false);
+  });
+
+  it("is false for nullish or non-object input", () => {
+    expect(isLegacyDesign(null)).toBe(false);
+    expect(isLegacyDesign(undefined)).toBe(false);
+    expect(isLegacyDesign("not an object")).toBe(false);
   });
 });
