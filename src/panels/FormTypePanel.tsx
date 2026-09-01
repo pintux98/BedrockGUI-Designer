@@ -28,8 +28,10 @@ export function FormTypePanel() {
 }
 
 function coerceBedrockType(prev: any, type: "SIMPLE" | "MODAL" | "CUSTOM") {
+  const { buttons: _buttons, components: _components, ...shared } = prev;
   if (type === "SIMPLE") {
     return {
+      ...shared,
       type,
       title: prev.title ?? "Form",
       content: prev.content ?? "",
@@ -46,6 +48,7 @@ function coerceBedrockType(prev: any, type: "SIMPLE" | "MODAL" | "CUSTOM") {
         : [{ id: "yes", text: "Yes" }, { id: "no", text: "No" }];
     const buttons = buttonsRaw.map((b: any, i: number) => ({ id: b.id ?? (i === 0 ? "yes" : "no"), ...b }));
     return {
+      ...shared,
       type,
       title: prev.title ?? "Modal",
       content: prev.content ?? "",
@@ -53,6 +56,7 @@ function coerceBedrockType(prev: any, type: "SIMPLE" | "MODAL" | "CUSTOM") {
     };
   }
   return {
+    ...shared,
     type,
     title: prev.title ?? "Custom",
     components: Array.isArray(prev.components) ? prev.components : []

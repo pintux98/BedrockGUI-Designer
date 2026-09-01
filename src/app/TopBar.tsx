@@ -60,7 +60,14 @@ export function TopBar() {
       toast.error("Project name is required.");
       return;
     }
-    const data = JSON.stringify(useDesignerStore.getState().project);
+    const project = useDesignerStore.getState().project;
+    const result = parseProject(project);
+    if (!result.ok) {
+      console.error("Failed to save project", result.problems);
+      toast.error(`Project '${name}' is invalid and was not saved: ${result.problems.slice(0, 3).join("; ")}`);
+      return;
+    }
+    const data = JSON.stringify(project);
     localStorage.setItem(`project_${name}`, data);
     updateProjectList();
     toast.success(`Project '${name}' saved.`);

@@ -61,11 +61,3 @@ export const bedrockCustomSchema = bedrockBaseSchema.extend({
   type: z.literal("CUSTOM"),
   components: z.array(bedrockComponentSchema).min(1)
 });
-
-export const designerSchema = z.object({
-  configVersion: z.literal("1.0.0"),
-  menuName: z.string().min(1),
-  platform: z.literal("bedrock"),
-  bedrock: z.union([bedrockSimpleSchema, bedrockModalSchema, bedrockCustomSchema]).optional(),
-  globalActions: z.array(actionSchema).optional()
-});

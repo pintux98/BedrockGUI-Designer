@@ -1,19 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { designerSchema, bedrockComponentSchema, actionSchema } from "../core/schemas";
+import { bedrockComponentSchema, actionSchema, bedrockSimpleSchema } from "../core/schemas";
 
-describe("designerSchema", () => {
+describe("bedrockSimpleSchema", () => {
   it("valid SIMPLE bedrock form", () => {
-    const parsed = designerSchema.parse({
-      configVersion: "1.0.0",
-      menuName: "test",
-      platform: "bedrock",
-      bedrock: {
-        type: "SIMPLE",
-        title: "Title",
-        buttons: [{ id: "a", text: "A" }]
-      }
+    const parsed = bedrockSimpleSchema.parse({
+      type: "SIMPLE",
+      title: "Title",
+      buttons: [{ id: "a", text: "A" }]
     });
-    expect(parsed.menuName).toBe("test");
+    expect(parsed.title).toBe("Title");
   });
 });
 

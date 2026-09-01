@@ -44,12 +44,14 @@ export const createProjectSlice: StateCreator<
   renameForm: (from, to) =>
     set((s) => {
       if (!to.trim() || findForm(s.project, to) || !findForm(s.project, from)) return s;
+      const { [from]: movedHistory, ...restHistory } = s.history;
       return {
         project: {
           ...s.project,
           forms: s.project.forms.map((f) => (f.id === from ? { ...f, id: to, fileName: `${to}.yml` } : f)),
           activeFormId: s.project.activeFormId === from ? to : s.project.activeFormId
         },
+        history: movedHistory ? { ...restHistory, [to]: movedHistory } : restHistory,
         dirty: true
       };
     }),

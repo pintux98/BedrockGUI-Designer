@@ -70,6 +70,10 @@ describe("golden round-trip against the shipped plugin forms", () => {
         );
       }
 
+      expect(normalizeActions(after.bedrock.global_actions)).toEqual(
+        normalizeActions(before.bedrock.global_actions)
+      );
+
       if (before.java) expect(after.java).toEqual(before.java);
     });
 

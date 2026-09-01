@@ -1,25 +1,9 @@
 import React from "react";
 import { useDesignerStore } from "../core/store";
 import { ActionInstance } from "../core/types";
+import { isActionId, classifyImage, validateCondition, LIMITS } from "../plugin";
 
 type Issue = { level: "error" | "warning"; message: string };
-
-const KNOWN_ACTION_TYPES = new Set([
-  "command",
-  "open",
-  "message",
-  "delay",
-  "server",
-  "broadcast",
-  "sound",
-  "economy",
-  "title",
-  "actionbar",
-  "random",
-  "conditional",
-  "bungee",
-  "inventory"
-]);
 
 export function ValidationPanel() {
   const { activeForm } = useDesignerStore();
@@ -86,8 +70,8 @@ function validateState(state: any): Issue[] {
 
   if (state.bedrock) {
     const b = state.bedrock;
-    if (b.type === "MODAL" && Array.isArray(b.buttons) && b.buttons.length !== 2) {
-      out.push({ level: "error", message: "Bedrock MODAL must have exactly 2 buttons." });
+    if (b.type === "MODAL" && Array.isArray(b.buttons) && b.buttons.length !== LIMITS.modalButtonCount) {
+      out.push({ level: "error", message: `Bedrock MODAL must have exactly ${LIMITS.modalButtonCount} buttons.` });
     }
     if (b.commandIntercept && typeof b.commandIntercept === "string" && b.commandIntercept.trim().length < 2) {
       out.push({ level: "warning", message: "command_intercept looks too short." });
@@ -95,15 +79,15 @@ function validateState(state: any): Issue[] {
 
     if (b.type === "SIMPLE" || b.type === "MODAL") {
       for (const btn of b.buttons ?? []) {
-        if (btn?.image && !isLikelyValidImageSource(btn.image)) {
+        if (btn?.image && classifyImage(btn.image).kind === "unknown") {
           out.push({ level: "warning", message: `Button '${btn.id}': image source looks invalid.` });
         }
-        if (btn?.showCondition && !isValidConditionString(btn.showCondition)) {
+        if (btn?.showCondition && validateCondition(btn.showCondition, "colon").length) {
           out.push({ level: "warning", message: `Button '${btn.id}': show_condition looks invalid.` });
         }
         for (const rule of btn?.conditions ?? []) {
           if (!rule.condition || !rule.property) continue;
-          if (!isValidConditionString(rule.condition)) {
+          if (validateCondition(rule.condition, "colon").length) {
             out.push({ level: "warning", message: `Button '${btn.id}': override condition '${rule.id}' looks invalid.` });
           }
         }
@@ -112,7 +96,7 @@ function validateState(state: any): Issue[] {
     }
 
     for (const comp of b.components ?? []) {
-      out.push(...validateActionBlocks(`Component '${comp.id}' onClick`, comp?.onClick));
+      out.push(...validateActionBlocks(`Component '${comp.id}' onClick`, comp?.action));
     }
 
     out.push(...validateActionBlocks("Global actions", state.bedrock.globalActions));
@@ -132,7 +116,7 @@ function validateActionBlocks(label: string, actions?: ActionInstance[]): Issue[
       out.push({ level: "warning", message: `${label}: could not detect action type for '${shorten(raw)}'.` });
       continue;
     }
-    if (!KNOWN_ACTION_TYPES.has(type)) {
+    if (!isActionId(type)) {
       out.push({ level: "warning", message: `${label}: unknown action type '${type}'.` });
     }
     if (raw.includes(":") && !raw.includes("{") && !raw.includes("}")) {
@@ -142,6 +126,16 @@ function validateActionBlocks(label: string, actions?: ActionInstance[]): Issue[
     const close = (raw.match(/\}/g) ?? []).length;
     if (open !== close) {
       out.push({ level: "warning", message: `${label}: braces may be unbalanced for '${type}'.` });
+    }
+    if (type === "conditional") {
+      const check = extractConditionalCheck(raw);
+      if (!check) {
+        out.push({ level: "warning", message: `${label}: conditional action is missing a check.` });
+      } else {
+        for (const problem of validateCondition(check, "symbol")) {
+          out.push({ level: "warning", message: `${label}: conditional check ${problem}` });
+        }
+      }
     }
   }
   return out;
@@ -161,33 +155,14 @@ function shorten(s: string) {
   return t.length > 60 ? `${t.slice(0, 57)}...` : t;
 }
 
-function isLikelyValidImageSource(image: string) {
-  const v = image.trim();
-  if (!v) return true;
-  if (v.startsWith("http://") || v.startsWith("https://")) return true;
-  if (v.startsWith("data:image/")) return true;
-  if (v.includes("%") || v.includes("{") || v.includes("}")) return true;
-  if (/^[A-Za-z0-9+/=]+$/.test(v) && v.length > 40) return true;
-  if (/^[A-Za-z0-9_]{2,16}$/.test(v)) return true;
-  return false;
-}
-
-function isValidConditionString(condition: string) {
-  const s = condition.trim();
-  if (!s) return true;
-  const parts = s.split(":");
-  if (parts.length < 2) return false;
-  let offset = 0;
-  if (parts[0] === "not") {
-    offset = 1;
-    if (parts.length < 3) return false;
-  }
-  const type = (parts[offset] ?? "").toLowerCase();
-  if (type === "permission") return parts.length >= offset + 2;
-  if (type === "plugin") return parts.length >= offset + 2;
-  if (type === "placeholder") return parts.length >= offset + 4;
-  if (type === "bedrock_player" || type === "java_player") return parts.length >= offset + 2;
-  return false;
+function extractConditionalCheck(raw: string): string | undefined {
+  const open = raw.indexOf("{");
+  const close = raw.lastIndexOf("}");
+  if (open === -1 || close === -1 || close <= open) return undefined;
+  const inner = raw.slice(open + 1, close);
+  const match = inner.match(/check\s*:\s*(.+)/i);
+  if (!match) return undefined;
+  return match[1].trim().replace(/^"+|"+$/g, "");
 }
 
 function collectAllActionBlocks(state: any): string[] {
@@ -202,7 +177,7 @@ function collectAllActionBlocks(state: any): string[] {
     if (state.bedrock.type === "SIMPLE" || state.bedrock.type === "MODAL") {
       for (const b of state.bedrock.buttons ?? []) push(b.onClick);
     }
-    for (const c of state.bedrock.components ?? []) push(c.onClick);
+    for (const c of state.bedrock.components ?? []) push(c.action);
   }
   push(state.bedrock?.globalActions);
   return out;

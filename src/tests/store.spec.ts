@@ -46,6 +46,23 @@ describe("designer store", () => {
     expect(useDesignerStore.getState().activeForm().bedrock.title).toBe("Changed");
   });
 
+  it("keeps undo history across a rename", () => {
+    const active = useDesignerStore.getState().activeForm();
+    useDesignerStore.getState().setBedrock({ ...active.bedrock, title: "Changed" });
+    useDesignerStore.getState().renameForm("main_menu", "hub");
+
+    const beforeUndo = useDesignerStore.getState();
+    expect(beforeUndo.history["hub"]?.undo).toHaveLength(1);
+    expect(beforeUndo.history["main_menu"]).toBeUndefined();
+
+    useDesignerStore.getState().undo();
+    const after = useDesignerStore.getState();
+    expect(after.project.activeFormId).toBe("hub");
+    expect(after.activeForm().id).toBe("hub");
+    expect(after.activeForm().bedrock.title).toBe("New Form");
+    expect(after.project.forms.map((f) => f.id)).toEqual(["hub"]);
+  });
+
   it("marks the project dirty on mutation", () => {
     expect(useDesignerStore.getState().dirty).toBe(false);
     const active = useDesignerStore.getState().activeForm();

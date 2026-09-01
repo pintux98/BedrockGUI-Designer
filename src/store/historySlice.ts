@@ -54,7 +54,10 @@ export const createHistorySlice: StateCreator<
       const live = findForm(s.project, id);
       if (!previous || !live) return s;
       return {
-        project: { ...s.project, forms: s.project.forms.map((f) => (f.id === id ? previous.form : f)) },
+        project: {
+          ...s.project,
+          forms: s.project.forms.map((f) => (f.id === id ? { ...f, bedrock: previous.form.bedrock } : f))
+        },
         history: {
           ...s.history,
           [id]: {
@@ -76,7 +79,10 @@ export const createHistorySlice: StateCreator<
       const live = findForm(s.project, id);
       if (!next || !live) return s;
       return {
-        project: { ...s.project, forms: s.project.forms.map((f) => (f.id === id ? next.form : f)) },
+        project: {
+          ...s.project,
+          forms: s.project.forms.map((f) => (f.id === id ? { ...f, bedrock: next.form.bedrock } : f))
+        },
         history: {
           ...s.history,
           [id]: {

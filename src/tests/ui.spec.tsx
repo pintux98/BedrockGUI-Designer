@@ -95,6 +95,40 @@ describe("ui panels", () => {
     }
   });
 
+  it("refuses to save an invalid project and does not touch localStorage", () => {
+    useDesignerStore.setState((s: any) => ({
+      project: {
+        ...s.project,
+        forms: [
+          {
+            ...s.project.forms[0],
+            bedrock: {
+              type: "CUSTOM",
+              title: "Example Form",
+              content: "Content",
+              components: []
+            }
+          }
+        ]
+      }
+    }));
+    useToastStore.setState({ toasts: [] });
+    localStorage.removeItem("project_example");
+
+    try {
+      wrap(<TopBar />);
+      window.dispatchEvent(new Event("save-project"));
+
+      expect(localStorage.getItem("project_example")).toBeNull();
+      const errorToast = useToastStore.getState().toasts.find((t) => t.variant === "error");
+      expect(errorToast?.message).toContain("example");
+      expect(errorToast?.message).toContain("not saved");
+    } finally {
+      localStorage.removeItem("project_example");
+      useToastStore.setState({ toasts: [] });
+    }
+  });
+
   it("action editor adds an action and updates store", () => {
     wrap(<PropertiesPanel />);
     fireEvent.click(screen.getAllByText("+ Add Action")[0]);

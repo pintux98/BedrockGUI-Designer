@@ -1,5 +1,3 @@
-import { MATERIALS } from "../data/materials";
-
 export type ImageKind =
   | "material" | "potion" | "texturePath" | "head" | "implicitHead"
   | "url" | "assetFile" | "none" | "unknown";
@@ -11,7 +9,6 @@ export const NO_ICON_MATERIALS = [
 export const ASSET_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp"] as const;
 
 const POTION_PREFIXES = ["POTION", "SPLASH_POTION", "LINGERING_POTION", "TIPPED_ARROW"];
-const MATERIAL_SET = new Set(MATERIALS.map((m) => m.id.toUpperCase()));
 const NO_ICON_SET = new Set<string>(NO_ICON_MATERIALS);
 
 export function classifyImage(value: string): { kind: ImageKind; detail?: string } {
@@ -30,9 +27,11 @@ export function classifyImage(value: string): { kind: ImageKind; detail?: string
     return { kind: "potion", detail: normalisePotionEffect(upper.slice(colon + 1)) };
   }
 
-  if (MATERIAL_SET.has(upper) || upper.endsWith("_SPAWN_EGG") || upper.startsWith("MUSIC_DISC_")) {
+  if (upper.endsWith("_SPAWN_EGG") || upper.startsWith("MUSIC_DISC_")) {
     return { kind: "material" };
   }
+
+  if (/^[A-Za-z0-9_]+$/.test(raw)) return { kind: "material" };
 
   const ext = raw.split(".").pop()?.toLowerCase();
   if (ext && (ASSET_EXTENSIONS as readonly string[]).includes(ext)) return { kind: "assetFile" };

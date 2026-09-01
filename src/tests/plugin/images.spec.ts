@@ -4,9 +4,22 @@ import path from "node:path";
 import * as yaml from "js-yaml";
 import { classifyImage } from "../../plugin/images";
 
+describe("images.ts is data-only", () => {
+  it("imports nothing from the app", () => {
+    const source = fs.readFileSync(path.resolve(__dirname, "../../plugin/images.ts"), "utf8");
+    expect(source).not.toMatch(/^\s*import /m);
+  });
+});
+
 describe("classifyImage", () => {
   it("recognises a material", () => {
     expect(classifyImage("DIAMOND_SWORD").kind).toBe("material");
+  });
+
+  it("recognises a real material not on the curated picker list", () => {
+    expect(classifyImage("NETHERITE_CHESTPLATE").kind).toBe("material");
+    expect(classifyImage("ENCHANTED_GOLDEN_APPLE").kind).toBe("material");
+    expect(classifyImage("WRITABLE_BOOK").kind).toBe("material");
   });
 
   it("recognises a potion with an effect", () => {
