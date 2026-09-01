@@ -1146,6 +1146,17 @@ Expected: FAIL, module not found.
 
 - [ ] **Step 3: Write `src/plugin/conditions.ts`**
 
+Order matters in `validateColonAtom`. Resolve the operator FIRST, and only fall back to the
+symbol-syntax heuristic when no valid operator was found — that is what stops
+`placeholder:%x%:contains:a > b` being rejected over a symbol inside its expected value. But the
+heuristic must sit ahead of the "too few parts" message, because the commonest mistake,
+`placeholder:%x% >= 5`, has only two colon segments and would otherwise get a generic message
+instead of the one that tells the user which syntax belongs there.
+
+Assert on the MESSAGE TEXT in these tests, not merely that the returned array is non-empty. A
+length-only assertion cannot tell a helpful diagnostic from an unhelpful one, and this exact
+regression passed a length-only test.
+
 The operator table mirrors `ConditionEvaluator` in the plugin. Word forms are legal only in
 the colon syntax; symbol forms are legal in both.
 
@@ -1257,13 +1268,16 @@ function validateSymbolAtom(atom: string, body: string): string[] {
 
 function validateColonAtom(atom: string, body: string): string[] {
   const parts = body.split(":");
-  if (parts.length < 3) return [`"${atom}" must read placeholder:<value>:<operator>[:<expected>].`];
-  const opToken = parts[2];
-  const operator = OPERATORS.find((o) => o.word === opToken || o.symbol === opToken);
+  const opToken = parts.length >= 3 ? parts[2] : undefined;
+  const operator = opToken
+    ? OPERATORS.find((o) => o.word === opToken || o.symbol === opToken)
+    : undefined;
+
   if (!operator) {
     if (/\s(>=|<=|==|!=|>|<)\s/.test(body)) {
       return [`"${atom}" uses conditional-check syntax. Here it must be placeholder:<value>:<operator>:<expected>.`];
     }
+    if (parts.length < 3) return [`"${atom}" must read placeholder:<value>:<operator>[:<expected>].`];
     return [`"${opToken}" is not a valid operator.`];
   }
   if (operator.needsExpected && parts.length < 4) return [`"${opToken}" needs a value to compare against.`];
