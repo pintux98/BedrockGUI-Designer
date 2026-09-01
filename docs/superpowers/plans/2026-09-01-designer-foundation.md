@@ -2458,10 +2458,23 @@ git commit -m "refactor(store): split into project, selection, history and ui sl
 
 **Files:**
 - Create: `src/core/migrate.ts`
+- Modify: `src/app/TopBar.tsx`
 - Test: `src/tests/migrate.spec.ts`
 
 **Interfaces:**
 - Produces: `migrateLegacyDesign(value: unknown): { project: Project; notes: string[] }`
+- Produces: `isLegacyDesign(value: unknown): boolean`
+
+**Why this task also touches `TopBar`.** `TopBar.loadProject` reads `localStorage`, does a bare
+`JSON.parse`, and hands the result straight to the store with no shape check. Every project a
+user saved before this rewrite is the old flat shape — `{ configVersion, menuName, platform,
+bedrock }` — so loading one now puts a `Project`-shaped hole in the store and the next
+`activeForm()` call does `.find` on `undefined` and takes the app down. A migration function that
+nothing calls does not fix that, so wiring it in is part of this task, not a later one.
+
+`loadProject` becomes: parse, then if `isLegacyDesign(parsed)` run `migrateLegacyDesign` and show
+the notes to the user; otherwise validate with `parseProject` and refuse with an error toast when
+it fails. Never hand an unvalidated object to `loadProjectIntoStore`.
 
 - [ ] **Step 1: Write the failing test**
 
