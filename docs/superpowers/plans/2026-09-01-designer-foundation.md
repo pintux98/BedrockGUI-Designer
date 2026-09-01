@@ -607,7 +607,7 @@ git commit -m "feat(plugin): add limits, platform capabilities and real plugin f
 - Produces:
   - `type ActionId = "command" | "open" | "message" | "delay" | "server" | "broadcast" | "inventory" | "sound" | "economy" | "title" | "actionbar" | "conditional" | "random" | "bungee"`
   - `type ActionBodyShape = "lines" | "conditional" | "random"`
-  - `interface ActionDef { id: ActionId; label: string; capability: ActionCapability; body: ActionBodyShape; hint: string }`
+  - `interface ActionDef { id: ActionId; label: string; capability: ActionCapability; body: ActionBodyShape; icon: string; color: string; description: string; placeholder: string; formatExample: string; hasNestedBlocks: boolean; nestedBlockLabels?: string[] }`
   - `ACTIONS: Record<ActionId, ActionDef>`
   - `ACTION_IDS: readonly ActionId[]`
   - `actionsForPlatform(platform: PlatformTarget): ActionDef[]`
@@ -649,11 +649,23 @@ describe("action registry", () => {
     expect(actionsForPlatform("paper")).toHaveLength(14);
   });
 
-  it("gives every action a label and a hint", () => {
+  it("gives every action its full UI metadata", () => {
     for (const id of ACTION_IDS) {
-      expect(ACTIONS[id].label.length).toBeGreaterThan(0);
-      expect(ACTIONS[id].hint.length).toBeGreaterThan(0);
+      const def = ACTIONS[id];
+      expect(def.label.length).toBeGreaterThan(0);
+      expect(def.description.length).toBeGreaterThan(0);
+      expect(def.icon.length).toBeGreaterThan(0);
+      expect(def.color.length).toBeGreaterThan(0);
+      expect(def.placeholder.length).toBeGreaterThan(0);
+      expect(def.formatExample).toContain(`${id} {`);
     }
+  });
+
+  it("carries every action the old UI table carried, minus url", () => {
+    const legacy = ["message", "command", "server", "broadcast", "open", "sound", "economy",
+      "title", "actionbar", "inventory", "delay", "random", "bungee", "conditional"];
+    for (const id of legacy) expect(ACTION_IDS).toContain(id);
+    expect(ACTION_IDS).not.toContain("raw");
   });
 });
 ```
@@ -664,6 +676,27 @@ Run: `npx vitest run src/tests/plugin/actions.spec.ts`
 Expected: FAIL, module not found.
 
 - [ ] **Step 3: Write `src/plugin/actions.ts`**
+
+**Where the UI metadata comes from.** The repo already has a live action table at
+`src/actions/types.ts` (`ACTION_TYPE_INFO`), which drives `ActionPicker`, `ActionBlock` and
+`VisualActionEditor` today. It carries `icon`, `color`, `description`, `placeholder`,
+`formatExample`, `hasNestedBlocks` and `nestedBlockLabels` — good copy that should not be
+rewritten from scratch. Copy those field values **verbatim** for the 14 real action ids so
+this contract becomes a strict superset and `types.ts` can be deleted in Task 22.
+
+Three deliberate differences from that file:
+
+1. Drop `url` entirely. It is in `ACTION_TYPE_INFO` today, which means the live picker
+   currently offers users an action the plugin deleted — the exact bug this task fixes.
+2. Drop `raw`. It is not a plugin action; it is the designer's escape hatch, and it is
+   modelled by `ParsedAction`'s `raw` member in Task 9, not by a plugin action definition.
+3. Fix the `sound` `placeholder` and `formatExample`. `types.ts` shows Bukkit-constant style
+   (`BLOCK_NOTE_BLOCK_PLING:1.0:1.0`), but BedrockGUI's own shipped forms use namespaced
+   lowercase — `ui.button.click` and `entity.experience_orb.pickup:0.8:1.2`. Use the
+   plugin's idiom.
+
+The skeleton below shows the shape and the `capability` and `body` values, which are new.
+Fill every entry's remaining fields from `ACTION_TYPE_INFO`.
 
 ```ts
 import { ActionCapability, PlatformTarget, hasCapability } from "./platforms";
@@ -682,25 +715,46 @@ export interface ActionDef {
   label: string;
   capability: ActionCapability;
   body: ActionBodyShape;
-  hint: string;
+  icon: string;
+  color: string;
+  description: string;
+  placeholder: string;
+  formatExample: string;
+  hasNestedBlocks: boolean;
+  nestedBlockLabels?: string[];
 }
 
 export const ACTIONS: Record<ActionId, ActionDef> = {
-  command: { id: "command", label: "Player Command", capability: "always", body: "lines", hint: "Runs as the player, without a leading slash." },
-  open: { id: "open", label: "Open Form", capability: "always", body: "lines", hint: "The form id from config.yml, or an addon form id." },
-  message: { id: "message", label: "Message", capability: "always", body: "lines", hint: "Chat to the clicking player. 2048 characters maximum." },
-  delay: { id: "delay", label: "Delay", capability: "always", body: "lines", hint: "Milliseconds, up to 30000. A second value chains one action." },
-  server: { id: "server", label: "Console Command", capability: "commandExecutor", body: "lines", hint: "Runs as console, bypassing player permissions." },
-  broadcast: { id: "broadcast", label: "Broadcast", capability: "commandExecutor", body: "lines", hint: "Chat to everyone." },
-  inventory: { id: "inventory", label: "Inventory", capability: "commandExecutor", body: "lines", hint: "give | remove | check | clear." },
-  sound: { id: "sound", label: "Sound", capability: "sound", body: "lines", hint: "name, name:volume, or name:volume:pitch." },
-  economy: { id: "economy", label: "Economy", capability: "economy", body: "lines", hint: "add | remove | set | check | pay." },
-  title: { id: "title", label: "Title", capability: "title", body: "lines", hint: "title:subtitle:fadeIn:stay:fadeOut, timings in ticks." },
-  actionbar: { id: "actionbar", label: "Action Bar", capability: "title", body: "lines", hint: "Text above the hotbar." },
-  conditional: { id: "conditional", label: "Conditional", capability: "always", body: "conditional", hint: "check with true and false branches. Nests." },
-  random: { id: "random", label: "Random", capability: "always", body: "random", hint: "Picks one entry. Append @weight to bias it." },
-  bungee: { id: "bungee", label: "Proxy Message", capability: "always", body: "lines", hint: "A BungeeCord plugin message, subchannel first." }
+  /* one entry per id below, each merging the capability and body from the table
+     with icon / color / description / placeholder / formatExample / hasNestedBlocks
+     / nestedBlockLabels copied verbatim from ACTION_TYPE_INFO in src/actions/types.ts */
 };
+```
+
+Write each entry in the literal above with these `capability` and `body` values, which
+replace nothing in `types.ts` — they are new information from the plugin source:
+
+| id | capability | body | label |
+|---|---|---|---|
+| `command` | `always` | `lines` | Player Command |
+| `open` | `always` | `lines` | Open Form |
+| `message` | `always` | `lines` | Message |
+| `delay` | `always` | `lines` | Delay |
+| `server` | `commandExecutor` | `lines` | Server Command |
+| `broadcast` | `commandExecutor` | `lines` | Broadcast |
+| `inventory` | `commandExecutor` | `lines` | Inventory |
+| `sound` | `sound` | `lines` | Sound |
+| `economy` | `economy` | `lines` | Economy |
+| `title` | `title` | `lines` | Title |
+| `actionbar` | `title` | `lines` | Action Bar |
+| `conditional` | `always` | `conditional` | Conditional |
+| `random` | `always` | `random` | Random |
+| `bungee` | `always` | `lines` | Bungee |
+
+Keep the `label` each id already has in `ACTION_TYPE_INFO` where it matches the table; the
+table's labels are the plugin's own naming and win on any disagreement.
+
+```ts
 
 export const ACTION_IDS = Object.keys(ACTIONS) as ActionId[];
 
@@ -3113,13 +3167,33 @@ next plan; keep single-file export working here.
 - [ ] **Step 7: Delete the superseded modules**
 
 ```bash
-git rm src/core/yaml.ts src/actions/registry.ts
+git rm src/core/yaml.ts src/actions/registry.ts src/actions/ActionEditor.tsx src/actions/types.ts
 ```
 
-Update every importer of those modules. `ActionEditor`, `ActionPicker`, `ActionBlock` and
-`VisualActionEditor` import the registry — repoint them at `src/plugin/actions.ts`, whose
-`ACTIONS` map carries the label and hint they need. The `url` entry is gone, so any switch
-over action ids that mentions it must drop that branch.
+The repo has **two** parallel action tables, and the plan originally named only the dead one.
+Established during Task 4:
+
+- `src/actions/registry.ts` — imported by `src/actions/ActionEditor.tsx` and nothing else.
+- `src/actions/ActionEditor.tsx` — imported by nothing at all. Dead, superseded by
+  `VisualActionEditor`.
+- `src/actions/types.ts` (`ACTION_TYPE_INFO`, `ACTION_TYPE_ORDER`, `ActionTypeId`) — this is
+  the **live** table. `ActionPicker`, `ActionBlock` and `VisualActionEditor` all import it.
+  It lists 16 ids: the 14 real ones, plus `url` (which the plugin deleted, so the picker is
+  currently offering users a broken action) and `raw`.
+
+So: delete `registry.ts` and `ActionEditor.tsx` as dead code, and delete `types.ts` because
+`src/plugin/actions.ts` supersedes it — Task 8 copied its UI metadata across specifically so
+this deletion loses nothing.
+
+Repoint the three live components at the contract:
+
+- `ActionTypeId` becomes `ActionId` from `src/plugin/actions.ts`, except where the component
+  genuinely needs to represent an unparsed block. Those sites use the `raw` member of
+  `ParsedAction` from `src/plugin/grammar.ts` instead of a fake `"raw"` action id.
+- `ACTION_TYPE_INFO[id]` becomes `ACTIONS[id]`.
+- `ACTION_TYPE_ORDER` becomes `ACTION_IDS`, or `actionsForPlatform(project.platformTarget)`
+  where the picker should hide actions the target platform cannot run.
+- Any branch handling `"url"` is deleted outright.
 
 - [ ] **Step 8: Update the old round-trip specs**
 
