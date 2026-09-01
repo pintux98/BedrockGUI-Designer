@@ -60,7 +60,7 @@ function componentsToMap(components: BedrockComponent[]): Record<string, unknown
   for (const c of components) {
     const entry: Record<string, unknown> = { type: c.type, ...c.props };
     const action = actionsToList(c.action);
-    if (action) entry.action = action;
+    if (action) entry.action = action.length === 1 ? action[0] : action;
     out[c.id] = entry;
   }
   return out;

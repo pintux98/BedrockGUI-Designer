@@ -20,9 +20,7 @@ function postprocessMultilineStrings(text: string) {
       const decoded = unescapeDoubleQuoted(inner);
       const { indicator, body } = chomp(decoded);
       out.push(`${indent}- ${indicator}`);
-      for (const contentLine of body.split("\n")) {
-        out.push(`${indent}  ${contentLine}`);
-      }
+      pushBody(out, indent, body);
       continue;
     }
 
@@ -39,9 +37,7 @@ function postprocessMultilineStrings(text: string) {
       const decoded = unescapeDoubleQuoted(inner);
       const { indicator, body } = chomp(decoded);
       out.push(`${prefix}${indicator}`);
-      for (const contentLine of body.split("\n")) {
-        out.push(`${indent}  ${contentLine}`);
-      }
+      pushBody(out, indent, body);
       continue;
     }
 
@@ -49,6 +45,12 @@ function postprocessMultilineStrings(text: string) {
   }
 
   return out.join("\n");
+}
+
+function pushBody(out: string[], indent: string, body: string) {
+  for (const contentLine of body.split("\n")) {
+    out.push(contentLine === "" ? "" : `${indent}  ${contentLine}`);
+  }
 }
 
 function chomp(decoded: string): { indicator: "|" | "|-"; body: string } {

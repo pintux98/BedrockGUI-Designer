@@ -24,4 +24,17 @@ describe("applyBlockScalars", () => {
     expect(text).toContain("- |-");
     expect(yaml.load(text)).toEqual({ onClick: ['message {\n  - "Hi"\n}'] });
   });
+
+  it("does not indent blank lines inside a block scalar body", () => {
+    const dumped = yaml.dump(
+      { content: "line one\n\nline two" },
+      { lineWidth: -1, noRefs: true, forceQuotes: true, quotingType: '"' }
+    );
+    const text = applyBlockScalars(dumped);
+    const lines = text.split("\n");
+    const lineOneIndex = lines.findIndex((l) => l.trim() === "line one");
+    expect(lineOneIndex).toBeGreaterThanOrEqual(0);
+    expect(lines[lineOneIndex + 1]).toBe("");
+    expect(yaml.load(text)).toEqual({ content: "line one\n\nline two" });
+  });
 });
