@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { designerSchema, bedrockComponentSchema } from "../core/schemas";
+import { designerSchema, bedrockComponentSchema, actionSchema } from "../core/schemas";
 
 describe("designerSchema", () => {
   it("valid SIMPLE bedrock form", () => {
@@ -24,6 +24,13 @@ describe("bedrockComponentSchema", () => {
       type: "input",
       props: { text: "Display name", placeholder: "Type a nickname" }
     });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("actionSchema", () => {
+  it("accepts an action with no params key, as Zod 3 did", () => {
+    const result = actionSchema.safeParse({ id: "raw" });
     expect(result.success).toBe(true);
   });
 });

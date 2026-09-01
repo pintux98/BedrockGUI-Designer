@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const actionSchema = z.object({
   id: z.string(),
-  params: z.any(),
+  params: z.any().optional(),
   raw: z.string().optional()
 });
 
