@@ -40,6 +40,23 @@ describe("classifyImage", () => {
   it("reports anything else as unknown", () => {
     expect(classifyImage("not a real thing").kind).toBe("unknown");
   });
+
+  it("recognises an implicit head reference containing a dot or a dash", () => {
+    expect(classifyImage("069a79f4-44e9-4726-a5be-fca90e38aaf5").kind).toBe("implicitHead");
+    expect(classifyImage("some-custom-icon").kind).toBe("implicitHead");
+    expect(classifyImage("vip.gold").kind).toBe("implicitHead");
+  });
+
+  it("does not let implicitHead swallow an asset file", () => {
+    expect(classifyImage("logo.png").kind).toBe("assetFile");
+    expect(classifyImage("logo.png").kind).not.toBe("implicitHead");
+  });
+
+  it("strips an embedded minecraft: namespace from a potion effect", () => {
+    const result = classifyImage("POTION:minecraft:strong_healing");
+    expect(result.kind).toBe("potion");
+    expect(result.detail).toBe("HEALING");
+  });
 });
 
 describe("classifyImage against the shipped fixtures", () => {
@@ -51,8 +68,8 @@ describe("classifyImage against the shipped fixtures", () => {
     collectImages(doc, images);
   }
 
-  it("found image values in the fixtures", () => {
-    expect(images.length).toBeGreaterThan(0);
+  it("found exactly 40 image values in the fixtures", () => {
+    expect(images.length).toBe(40);
   });
 
   it("classifies every fixture image value as a known kind", () => {

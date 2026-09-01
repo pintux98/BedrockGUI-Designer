@@ -1,7 +1,8 @@
 import { MATERIALS } from "../data/materials";
 
 export type ImageKind =
-  | "material" | "potion" | "texturePath" | "head" | "url" | "assetFile" | "none" | "unknown";
+  | "material" | "potion" | "texturePath" | "head" | "implicitHead"
+  | "url" | "assetFile" | "none" | "unknown";
 
 export const NO_ICON_MATERIALS = [
   "AIR", "CAVE_AIR", "VOID_AIR", "STRUCTURE_VOID", "BARRIER", "LIGHT"
@@ -36,9 +37,15 @@ export function classifyImage(value: string): { kind: ImageKind; detail?: string
   const ext = raw.split(".").pop()?.toLowerCase();
   if (ext && (ASSET_EXTENSIONS as readonly string[]).includes(ext)) return { kind: "assetFile" };
 
+  if (/^[A-Za-z0-9_.-]+$/.test(raw) && (raw.includes(".") || raw.includes("-"))) {
+    return { kind: "implicitHead" };
+  }
+
   return { kind: "unknown" };
 }
 
 function normalisePotionEffect(effect: string): string {
-  return effect.replace(/^LONG_/, "").replace(/^STRONG_/, "");
+  const colon = effect.indexOf(":");
+  const type = colon >= 0 ? effect.slice(colon + 1) : effect;
+  return type.replace(/^LONG_/, "").replace(/^STRONG_/, "");
 }
