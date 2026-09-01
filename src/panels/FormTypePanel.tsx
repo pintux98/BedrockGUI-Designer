@@ -1,61 +1,27 @@
 import React from "react";
 import { useDesignerStore } from "../core/store";
-import { coerceJavaMenuType, JAVA_MENU_TYPE_OPTIONS } from "../core/javaMenu";
-import { JavaMenu, JavaMenuType } from "../core/types";
 
 export function FormTypePanel() {
-  const { platform, bedrock, java, setBedrock, setJava, setPlatform } =
-    useDesignerStore();
+  const { bedrock, setBedrock } = useDesignerStore();
   return (
-    <div className="ui-panel">
-      <div className="ui-panel-title">Form Type</div>
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          <label className="text-sm text-brand-muted">Platform</label>
-          <select
-            className="ui-input w-full"
-            value={platform}
-            onChange={(e) => setPlatform(e.target.value as "bedrock" | "java")}
-          >
-            <option value="bedrock">Bedrock</option>
-            <option value="java">Java</option>
-          </select>
-        </div>
-        {platform === "bedrock" && bedrock && (
-          <div className="flex flex-col gap-1">
-            <label className="text-sm text-brand-muted">Bedrock Type</label>
-            <select
-              className="ui-input w-full"
-              value={bedrock.type}
-              onChange={(e) =>
-                setBedrock(coerceBedrockType(bedrock, e.target.value as any))
-              }
-            >
-              <option value="SIMPLE">Simple Form</option>
-              <option value="MODAL">Modal Form</option>
-              <option value="CUSTOM">Custom Form</option>
-            </select>
-          </div>
-        )}
-        {platform === "java" && java && (
-          <div className="flex flex-col gap-1">
-            <label className="text-sm text-brand-muted">Java Menu</label>
-            <select
-              className="ui-input w-full"
-              value={java.type}
-              onChange={(e) =>
-                setJava(coerceJavaMenuType(java as JavaMenu, e.target.value as JavaMenuType))
-              }
-            >
-              {JAVA_MENU_TYPE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-brand-text uppercase tracking-wider">Form Type</span>
+        <span className="text-[10px] text-brand-accent bg-brand-accent/10 px-2 py-0.5 rounded font-medium">Bedrock</span>
       </div>
+      {bedrock && (
+        <select
+          className="ui-input w-full text-sm"
+          value={bedrock.type}
+          onChange={(e) =>
+            setBedrock(coerceBedrockType(bedrock, e.target.value as any))
+          }
+        >
+          <option value="SIMPLE">Simple Form - Button list</option>
+          <option value="MODAL">Modal Form - Yes/No dialog</option>
+          <option value="CUSTOM">Custom Form - Input components</option>
+        </select>
+      )}
     </div>
   );
 }

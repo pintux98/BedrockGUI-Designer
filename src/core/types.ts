@@ -1,4 +1,4 @@
-export type Platform = "bedrock" | "java";
+export type Platform = "bedrock";
 
 export type BedrockFormType = "SIMPLE" | "MODAL" | "CUSTOM";
 
@@ -8,7 +8,6 @@ export interface DesignerState {
   menuName: string;
   platform: Platform;
   bedrock?: BedrockForm;
-  java?: JavaMenu;
   globalActions?: ActionInstance[];
   configVersion: ConfigVersion;
 }
@@ -30,7 +29,7 @@ export interface BedrockSimple extends BedrockFormBase {
 
 export interface BedrockModal extends BedrockFormBase {
   type: "MODAL";
-  buttons: BedrockButton[]; // two buttons typical
+  buttons: BedrockButton[];
 }
 
 export interface BedrockCustom extends BedrockFormBase {
@@ -51,6 +50,8 @@ export interface BedrockButton {
   alternativeImage?: string;
   alternativeOnClick?: string;
   conditions?: BedrockButtonConditionRule[];
+  priority?: number;
+  priorityCondition?: string;
 }
 
 export type BedrockButtonConditionProperty = "text" | "image" | "onClick";
@@ -62,84 +63,13 @@ export interface BedrockButtonConditionRule {
   value: string;
 }
 
-export type BedrockComponentType =
-  | "label"
-  | "input"
-  | "dropdown"
-  | "toggle"
-  | "slider"
-  | "stepper"
-  | "imageButton";
+export type BedrockComponentType = "input" | "slider" | "dropdown" | "toggle";
 
 export interface BedrockComponent {
   id: string;
   type: BedrockComponentType;
   props: Record<string, unknown>;
-  onClick?: ActionInstance[];
-}
-
-export type JavaMenuType =
-  | "CHEST"
-  | "ANVIL"
-  | "BARREL"
-  | "BEACON"
-  | "BLAST_FURNACE"
-  | "BREWING"
-  | "CARTOGRAPHY"
-  | "CRAFTING"
-  | "CREATIVE"
-  | "DISPENSER"
-  | "DROPPER"
-  | "ENCHANTING"
-  | "ENDER_CHEST"
-  | "FURNACE"
-  | "GRINDSTONE"
-  | "HOPPER"
-  | "LECTERN"
-  | "LOOM"
-  | "MERCHANT"
-  | "PLAYER"
-  | "SHULKER_BOX"
-  | "SMITHING"
-  | "SMOKER"
-  | "STONECUTTER"
-  | "WORKBENCH";
-
-export interface JavaMenuItem {
-  slot: number;
-  material: string;
-  amount?: number;
-  name?: string;
-  lore?: string[];
-  glow?: boolean;
-  onClick?: ActionInstance[];
-}
-
-export type JavaFillType = "ROW" | "COLUMN" | "EMPTY";
-
-export interface JavaMenuFillItem {
-  material: string;
-  amount?: number;
-  name?: string;
-  lore?: string[];
-  glow?: boolean;
-  onClick?: ActionInstance[];
-}
-
-export interface JavaMenuFill {
-  id: string;
-  type: JavaFillType;
-  row?: number;
-  column?: number;
-  item: JavaMenuFillItem;
-}
-
-export interface JavaMenu {
-  type: JavaMenuType;
-  title: string;
-  size?: number; // for CHEST
-  items: JavaMenuItem[];
-  fills?: JavaMenuFill[];
+  action?: ActionInstance[];
 }
 
 export interface ActionInstance {
@@ -147,4 +77,3 @@ export interface ActionInstance {
   params: any;
   raw?: string;
 }
-

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { DesignerState, BedrockForm, JavaMenu, ActionInstance } from "./types";
+import { DesignerState, BedrockForm, ActionInstance } from "./types";
 
 const initialState: DesignerState = {
   configVersion: "1.0.0",
@@ -15,12 +15,9 @@ const initialState: DesignerState = {
 
 type Actions = {
   setMenuName: (name: string) => void;
-  setPlatform: (p: DesignerState["platform"]) => void;
   setBedrock: (form: BedrockForm | undefined, description?: string) => void;
-  setJava: (menu: JavaMenu | undefined, description?: string) => void;
   setGlobalActions: (a: ActionInstance[] | undefined, description?: string) => void;
   setDirty: (dirty: boolean) => void;
-  setSelectedJavaSlot: (slot: number | null) => void;
   setSelectedBedrockButtonId: (id: string | null) => void;
   setSelectedBedrockComponentId: (id: string | null) => void;
   undo: () => void;
@@ -36,13 +33,11 @@ interface HistoryEntry {
   timestamp: number;
 }
 
-// Helper to extract only the persistent state
 const getSnapshot = (state: any): DesignerState => ({
   configVersion: state.configVersion,
   menuName: state.menuName,
   platform: state.platform,
   bedrock: state.bedrock,
-  java: state.java,
   globalActions: state.globalActions
 });
 
@@ -50,7 +45,6 @@ export const useDesignerStore = create<
   DesignerState &
     Actions & {
       dirty: boolean;
-      selectedJavaSlot: number | null;
       selectedBedrockButtonId: string | null;
       selectedBedrockComponentId: string | null;
       undoStack: HistoryEntry[];
@@ -60,7 +54,6 @@ export const useDesignerStore = create<
 >()((set, get) => ({
   ...initialState,
   dirty: false,
-  selectedJavaSlot: null,
   selectedBedrockButtonId: null,
   selectedBedrockComponentId: null,
   undoStack: [],
@@ -77,48 +70,10 @@ export const useDesignerStore = create<
     }));
   },
 
-  setPlatform: (platform) =>
-    set((s) => {
-      const snap = getSnapshot(s);
-      const next: any = { 
-        platform,
-        undoStack: [...s.undoStack, { state: snap, description: `Switched to ${platform}`, timestamp: Date.now() }],
-        redoStack: []
-      };
-      
-      if (platform === "bedrock" && !s.bedrock) {
-        next.bedrock = {
-          type: "SIMPLE",
-          title: "Example Form",
-          content: "Content",
-          buttons: [{ id: "button_1", text: "Button 1" }]
-        };
-      }
-      if (platform === "java" && !s.java) {
-        next.java = {
-          type: "CHEST",
-          title: "Example Menu",
-          size: 27,
-          items: []
-        };
-      }
-      return next;
-    }),
-
   setBedrock: (bedrock, description = "Updated Bedrock form") => {
     const snap = getSnapshot(get());
     set((s) => ({
       bedrock,
-      dirty: true,
-      undoStack: [...s.undoStack, { state: snap, description, timestamp: Date.now() }],
-      redoStack: []
-    }));
-  },
-
-  setJava: (java, description = "Updated Java menu") => {
-    const snap = getSnapshot(get());
-    set((s) => ({
-      java,
       dirty: true,
       undoStack: [...s.undoStack, { state: snap, description, timestamp: Date.now() }],
       redoStack: []
@@ -136,7 +91,6 @@ export const useDesignerStore = create<
   },
 
   setDirty: (dirty) => set({ dirty }),
-  setSelectedJavaSlot: (selectedJavaSlot) => set({ selectedJavaSlot }),
   setSelectedBedrockButtonId: (selectedBedrockButtonId) => set({ selectedBedrockButtonId }),
   setSelectedBedrockComponentId: (selectedBedrockComponentId) => set({ selectedBedrockComponentId }),
 
@@ -149,8 +103,6 @@ export const useDesignerStore = create<
       ...prev.state,
       undoStack: undoStack.slice(0, -1),
       redoStack: [...redoStack, { state: current, description: prev.description, timestamp: Date.now() }],
-      // Clear selection on undo to avoid invalid refs
-      selectedJavaSlot: null,
       selectedBedrockButtonId: null,
       selectedBedrockComponentId: null
     });
@@ -165,8 +117,6 @@ export const useDesignerStore = create<
       ...next.state,
       undoStack: [...undoStack, { state: current, description: next.description, timestamp: Date.now() }],
       redoStack: redoStack.slice(0, -1),
-      // Clear selection on redo
-      selectedJavaSlot: null,
       selectedBedrockButtonId: null,
       selectedBedrockComponentId: null
     });
@@ -178,18 +128,15 @@ export const useDesignerStore = create<
     const { undoStack, redoStack } = get();
     const current = getSnapshot(get());
     
-    // If index is within undoStack
     if (index < undoStack.length) {
        const target = undoStack[index];
        const newUndo = undoStack.slice(0, index);
-       // Items between index and end of undoStack + current + redoStack need to go to redoStack
        const toRedo = [...undoStack.slice(index + 1), { state: current, description: "Reverted state", timestamp: Date.now() }, ...redoStack.slice().reverse()];
        
        set({
          ...target.state,
          undoStack: newUndo,
          redoStack: toRedo.reverse().map(x => ({...x, timestamp: Date.now()})) as HistoryEntry[], 
-         selectedJavaSlot: null,
          selectedBedrockButtonId: null,
          selectedBedrockComponentId: null
        });
@@ -204,7 +151,6 @@ export const useDesignerStore = create<
       dirty: false,
       undoStack: [...s.undoStack, { state: snap, description: "Loaded project", timestamp: Date.now() }],
       redoStack: [],
-      selectedJavaSlot: null,
       selectedBedrockButtonId: null,
       selectedBedrockComponentId: null,
       isWizardOpen: false

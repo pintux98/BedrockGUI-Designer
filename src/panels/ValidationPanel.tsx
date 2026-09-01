@@ -1,7 +1,6 @@
 import React from "react";
 import { useDesignerStore } from "../core/store";
 import { ActionInstance } from "../core/types";
-import { getJavaMenuMaxSlot, getJavaMenuSlotCount, isJavaSlotValid, supportsJavaMenuSize } from "../core/javaMenu";
 
 type Issue = { level: "error" | "warning"; message: string };
 
@@ -120,37 +119,6 @@ function validateState(state: any): Issue[] {
     out.push(...detectCircularOpenReferences(state.menuName ?? "example", collectAllActionBlocks(state)));
   }
 
-  if (state.java) {
-    const j = state.java;
-    const slotCount = getJavaMenuSlotCount(j.type, j.size);
-    const maxSlot = getJavaMenuMaxSlot(j.type, j.size);
-    if (supportsJavaMenuSize(j.type)) {
-      const size = j.size ?? 27;
-      if (size % 9 !== 0 || size < 9 || size > 54) {
-        out.push({ level: "warning", message: "Java CHEST size should be 9..54 and multiple of 9." });
-      }
-    }
-    for (const it of j.items ?? []) {
-      if (!isJavaSlotValid(j, it.slot)) {
-        out.push({ level: "warning", message: `Java item slot ${it.slot} is outside valid range 0..${maxSlot} for ${j.type}.` });
-      }
-      out.push(...validateActionBlocks(`Java item slot ${it.slot} onClick`, it?.onClick));
-    }
-    if (j.type === "CHEST") {
-      for (const f of j.fills ?? []) {
-        if (!f.id) out.push({ level: "warning", message: "Java fill missing id." });
-        const rows = slotCount / 9;
-        if ((f.type === "ROW" || f.type === "EMPTY") && f.row !== undefined && (f.row < 1 || f.row > rows)) {
-          out.push({ level: "warning", message: `Java fill '${f.id}': row should be 1..${rows}.` });
-        }
-        if ((f.type === "COLUMN" || f.type === "EMPTY") && f.column !== undefined && (f.column < 1 || f.column > 9)) {
-          out.push({ level: "warning", message: `Java fill '${f.id}': column should be 1..9.` });
-        }
-        out.push(...validateActionBlocks(`Java fill '${f.id}' item.onClick`, f.item?.onClick));
-      }
-    }
-  }
-
   return out;
 }
 
@@ -237,10 +205,6 @@ function collectAllActionBlocks(state: any): string[] {
     for (const c of state.bedrock.components ?? []) push(c.onClick);
   }
   push(state.globalActions);
-  if (state.java) {
-    for (const it of state.java.items ?? []) push(it.onClick);
-    for (const f of state.java.fills ?? []) push(f.item?.onClick);
-  }
   return out;
 }
 

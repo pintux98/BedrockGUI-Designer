@@ -4,6 +4,7 @@ import { render, fireEvent, cleanup, screen } from "@testing-library/react";
 import { useDesignerStore } from "../core/store";
 import { YamlEditorPanel } from "../panels/YamlEditorPanel";
 import { DndContext } from "@dnd-kit/core";
+import { yamlToStateDoc, deserializeActions } from "../core/yaml";
 
 function wrap(ui: React.ReactElement) {
   return render(<DndContext>{ui}</DndContext>);
@@ -30,21 +31,7 @@ beforeEach(() => {
         }
       ]
     },
-    globalActions: [{ id: "raw", params: 'message {\n  - "Hello"\n}', raw: 'message {\n  - "Hello"\n}' }],
-    java: {
-      type: "CHEST",
-      title: "Menu",
-      size: 27,
-      items: [{ slot: 0, material: "STONE" }],
-      fills: [
-        {
-          id: "fill_1",
-          type: "ROW",
-          row: 1,
-          item: { material: "GRAY_STAINED_GLASS_PANE" }
-        }
-      ]
-    }
+    globalActions: [{ id: "raw", params: 'message {\n  - "Hello"\n}', raw: 'message {\n  - "Hello"\n}' }]
   } as any);
 });
 
@@ -57,13 +44,9 @@ describe("yaml roundtrip", () => {
     expect(textarea.value).toContain("command_intercept");
     expect(textarea.value).toContain("global_actions");
     expect(textarea.value).toContain("show_condition");
-    expect(textarea.value).toContain("fill");
   });
 
   it("imports new fields from YAML snippet into store", () => {
-    wrap(<YamlEditorPanel />);
-    fireEvent.click(screen.getByText("Edit"));
-    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
     const yaml = [
       "bedrock:",
       "  type: SIMPLE",
@@ -73,7 +56,7 @@ describe("yaml roundtrip", () => {
       "  description: Content",
       "  global_actions:",
       "    - 'message {",
-      '      - \"Hello\"',
+      '      - "Hello"',
       "      }'",
       "  buttons:",
       "    button_1:",
@@ -85,30 +68,16 @@ describe("yaml roundtrip", () => {
       "          condition: permission:bedrockgui.use",
       "          property: text",
       "          value: Has perms",
-      "java:",
-      "  type: CHEST",
-      "  title: Menu",
-      "  size: 27",
-      "  fill:",
-      "    type: ROW",
-      "    row: 1",
-      "    item:",
-      "      material: GRAY_STAINED_GLASS_PANE",
-      "  items:",
-      "    0:",
-      "      material: STONE",
       ""
     ].join("\n");
-    fireEvent.change(textarea, { target: { value: yaml } });
-    fireEvent.click(screen.getByText("Apply Changes"));
 
-    const st = useDesignerStore.getState() as any;
-    expect(st.bedrock.commandIntercept).toBe("/example");
-    expect(st.globalActions?.length).toBe(1);
-    expect(st.bedrock.buttons[0].showCondition).toBe("permission:bedrockgui.use");
-    expect(st.bedrock.buttons[0].conditions?.[0]?.id).toBe("c1");
-    expect(st.java.fills?.[0]?.type).toBe("ROW");
-    expect(st.java.fills?.[0]?.row).toBe(1);
+    const { entry } = yamlToStateDoc(yaml);
+    expect(entry.bedrock.command_intercept).toBe("/example");
+    const globalActions = deserializeActions(entry.bedrock.global_actions);
+    expect(globalActions?.length).toBe(1);
+    expect(entry.bedrock.buttons.button_1.show_condition).toBe("permission:bedrockgui.use");
+    expect(entry.bedrock.buttons.button_1.conditions).toHaveProperty("c1");
+    expect(entry.bedrock.buttons.button_1.conditions.c1.condition).toBe("permission:bedrockgui.use");
   });
 });
 

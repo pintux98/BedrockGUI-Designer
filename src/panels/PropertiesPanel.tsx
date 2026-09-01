@@ -3,19 +3,18 @@ import { useDesignerStore } from "../core/store";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { BufferedInput, BufferedTextArea } from "../components/BufferedInput";
-import { getJavaMenuMaxSlot, isJavaSlotValid, supportsJavaMenuSize } from "../core/javaMenu";
+import { VisualActionEditor } from "../actions/VisualActionEditor";
+import { CollapsibleSection } from "../components/CollapsibleSection";
+import { ConditionBuilder } from "../components/ConditionBuilder";
+import { FormChainVisualizer } from "../components/FormChainVisualizer";
 
 export function PropertiesPanel() {
   const {
     platform,
     bedrock,
-    java,
     setBedrock,
-    setJava,
     globalActions,
     setGlobalActions,
-    selectedJavaSlot,
-    setSelectedJavaSlot,
     selectedBedrockButtonId,
     setSelectedBedrockButtonId,
     selectedBedrockComponentId,
@@ -24,7 +23,6 @@ export function PropertiesPanel() {
 
   const buttonRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
   const componentRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
-  const slotEditorRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     if (!selectedBedrockButtonId) return;
@@ -38,11 +36,6 @@ export function PropertiesPanel() {
     el?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [selectedBedrockComponentId]);
 
-  React.useEffect(() => {
-    if (selectedJavaSlot === null) return;
-    slotEditorRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [selectedJavaSlot]);
-
   return (
     <div className="ui-panel flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col">
       <div className="ui-panel-title shrink-0">Properties</div>
@@ -50,61 +43,65 @@ export function PropertiesPanel() {
       {platform === "bedrock" && bedrock && (
         <div className="space-y-2">
           <div className="ui-chip">Bedrock</div>
-          <BufferedInput
-            className="ui-input"
-            value={bedrock.command ?? ""}
-            placeholder="command (optional)"
-            onCommit={(v) => setBedrock({ ...bedrock, command: v }, "Updated command")}
-          />
-          <BufferedInput
-            className="ui-input"
-            value={bedrock.commandIntercept ?? ""}
-            placeholder="command_intercept (optional)"
-            onCommit={(v) => setBedrock({ ...bedrock, commandIntercept: v }, "Updated command intercept")}
-          />
-          <BufferedInput
-            className="ui-input"
-            value={bedrock.permission ?? ""}
-            placeholder="permission (optional)"
-            onCommit={(v) => setBedrock({ ...bedrock, permission: v }, "Updated permission")}
-          />
-          <BufferedInput
-            className="ui-input"
-            value={bedrock.title}
-            maxLength={64}
-            onCommit={(v) => setBedrock({ ...bedrock, title: v }, "Updated title")}
-          />
-          {"content" in bedrock && (
-            <BufferedTextArea
-              className="ui-textarea"
-              value={bedrock.content ?? ""}
-              onCommit={(v) => setBedrock({ ...bedrock, content: v }, "Updated content")}
-            />
-          )}
-          {bedrock.type === "MODAL" && (
-            <div className="text-xs text-yellow-300">
-              Layout locked; content areas are editable.
+          <CollapsibleSection title="Form Settings" icon="⚙️">
+            <div className="space-y-2 pt-2">
+              <BufferedInput
+                className="ui-input"
+                value={bedrock.command ?? ""}
+                placeholder="command (optional)"
+                onCommit={(v) => setBedrock({ ...bedrock, command: v }, "Updated command")}
+              />
+              <BufferedInput
+                className="ui-input"
+                value={bedrock.commandIntercept ?? ""}
+                placeholder="command_intercept (optional)"
+                onCommit={(v) => setBedrock({ ...bedrock, commandIntercept: v }, "Updated command intercept")}
+              />
+              <BufferedInput
+                className="ui-input"
+                value={bedrock.permission ?? ""}
+                placeholder="permission (optional)"
+                onCommit={(v) => setBedrock({ ...bedrock, permission: v }, "Updated permission")}
+              />
+              <BufferedInput
+                className="ui-input"
+                value={bedrock.title}
+                maxLength={64}
+                onCommit={(v) => setBedrock({ ...bedrock, title: v }, "Updated title")}
+              />
+              {"content" in bedrock && (
+                <BufferedTextArea
+                  className="ui-textarea"
+                  value={bedrock.content ?? ""}
+                  onCommit={(v) => setBedrock({ ...bedrock, content: v }, "Updated content")}
+                />
+              )}
+              {bedrock.type === "MODAL" && (
+                <div className="text-xs text-yellow-300">
+                  Layout locked; content areas are editable.
+                </div>
+              )}
             </div>
-          )}
+          </CollapsibleSection>
           {(bedrock.type === "SIMPLE" || bedrock.type === "MODAL") && "buttons" in bedrock && (
-            <div className="mt-2">
-              <div className="flex items-center justify-between mb-1">
-                <div className="text-xs text-brand-muted">Buttons</div>
-                {bedrock.type === "SIMPLE" && (
-                  <button
-                    className="ui-btn-secondary px-2 py-1 text-xs"
-                    onClick={() => {
-                      const buttons = [
-                        ...bedrock.buttons,
-                        { id: `button_${bedrock.buttons.length + 1}`, text: `Button ${bedrock.buttons.length + 1}` }
-                      ];
-                      setBedrock({ ...bedrock, buttons }, "Added button");
-                    }}
-                  >
-                    Add
-                  </button>
-                )}
-              </div>
+            <CollapsibleSection title="Buttons" icon="🔘" headerRight={
+              bedrock.type === "SIMPLE" && (
+                <button
+                  className="ui-btn-secondary px-2 py-1 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const buttons = [
+                      ...bedrock.buttons,
+                      { id: `button_${bedrock.buttons.length + 1}`, text: `Button ${bedrock.buttons.length + 1}` }
+                    ];
+                    setBedrock({ ...bedrock, buttons }, "Added button");
+                  }}
+                >
+                  Add
+                </button>
+              )
+            }>
+              <div className="pt-2">
               {selectedBedrockButtonId && (
                 <div className="flex items-center justify-between mb-1">
                   <div className="text-xs text-brand.accent">Editing button: {selectedBedrockButtonId}</div>
@@ -132,7 +129,6 @@ export function PropertiesPanel() {
                     onSelect={() => {
                       setSelectedBedrockButtonId(b.id);
                       setSelectedBedrockComponentId(null);
-                      setSelectedJavaSlot(null);
                     }}
                     registerRef={(el) => {
                       buttonRefs.current[b.id] = el;
@@ -185,11 +181,67 @@ export function PropertiesPanel() {
                       setBedrock({ ...bedrock, buttons }, "Updated button image");
                     }}
                   />
-                  {/* Conditional properties are currently hidden as per requirements */}
-                  <div className="bg-brand-surface border border-brand-border p-2 mb-2 hidden">
-                    {/* ... Conditional logic kept same but hidden ... */}
-                  </div>
-                  <ActionBlocksEditor
+                  {bedrock.type === "SIMPLE" && (
+                    <CollapsibleSection title="Conditions" icon="🔀" defaultExpanded={false}>
+                      <div className="pt-2 space-y-2">
+                        <div>
+                          <div className="text-[10px] text-brand-muted mb-1">Show Condition</div>
+                          <BufferedInput
+                            className="ui-input text-xs"
+                            placeholder="e.g. permission:my.perm or placeholder:{vault_eco_balance} >= 100"
+                            value={b.showCondition ?? ""}
+                            onCommit={(v) => {
+                              const buttons = [...bedrock.buttons];
+                              buttons[idx] = { ...b, showCondition: v || undefined };
+                              setBedrock({ ...bedrock, buttons }, "Updated show condition");
+                            }}
+                          />
+                        </div>
+                        {(b.showCondition || b.alternativeText || b.alternativeImage) && (
+                          <>
+                            <div>
+                              <div className="text-[10px] text-brand-muted mb-1">Alternative Text</div>
+                              <BufferedInput
+                                className="ui-input text-xs"
+                                placeholder="Text when condition is false"
+                                value={b.alternativeText ?? ""}
+                                onCommit={(v) => {
+                                  const buttons = [...bedrock.buttons];
+                                  buttons[idx] = { ...b, alternativeText: v || undefined };
+                                  setBedrock({ ...bedrock, buttons }, "Updated alternative text");
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-brand-muted mb-1">Alternative Image</div>
+                              <BufferedInput
+                                className="ui-input text-xs"
+                                placeholder="Image when condition is false"
+                                value={b.alternativeImage ?? ""}
+                                onCommit={(v) => {
+                                  const buttons = [...bedrock.buttons];
+                                  buttons[idx] = { ...b, alternativeImage: v || undefined };
+                                  setBedrock({ ...bedrock, buttons }, "Updated alternative image");
+                                }}
+                              />
+                            </div>
+                          </>
+                        )}
+                        <ConditionBuilder
+                          rules={(b.conditions ?? []).map((c) => ({ id: c.id, condition: c.condition, property: c.property, value: c.value }))}
+                          onChange={(rules) => {
+                            const buttons = [...bedrock.buttons];
+                            buttons[idx] = {
+                              ...b,
+                              conditions: rules.map((r) => ({ id: r.id, condition: r.condition, property: r.property, value: r.value }))
+                            };
+                            setBedrock({ ...bedrock, buttons }, "Updated conditions");
+                          }}
+                        />
+                      </div>
+                    </CollapsibleSection>
+                  )}
+                  <VisualActionEditor
                     value={(b.onClick ?? []).map((a) => a.raw ?? "").filter(Boolean)}
                     onChange={(blocks) => {
                       const buttons = [...bedrock.buttons];
@@ -203,14 +255,15 @@ export function PropertiesPanel() {
                   </SortableCard>
                 ))}
               </SortableContext>
-            </div>
+              </div>
+            </CollapsibleSection>
           )}
           {bedrock.type === "CUSTOM" && "components" in bedrock && (
-            <div className="mt-2">
-              <div className="text-xs text-brand-muted mb-1">Components</div>
+            <CollapsibleSection title="Components" icon="📦">
+              <div className="pt-2">
               {selectedBedrockComponentId && (
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-xs text-brand.accent">Editing component: {selectedBedrockComponentId}</div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs text-brand.accent">Editing: {selectedBedrockComponentId}</div>
                   <button
                     className="ui-btn-ghost px-2 py-1 text-xs"
                     onClick={(e) => {
@@ -235,7 +288,6 @@ export function PropertiesPanel() {
                   onSelect={() => {
                     setSelectedBedrockComponentId(c.id);
                     setSelectedBedrockButtonId(null);
-                    setSelectedJavaSlot(null);
                   }}
                   registerRef={(el) => {
                     componentRefs.current[c.id] = el;
@@ -271,107 +323,38 @@ export function PropertiesPanel() {
                       setBedrock({ ...bedrock, components }, `Updated ${c.type} props`);
                     }}
                   />
-                  <ActionBlocksEditor
-                    value={(c.onClick ?? []).map((a) => a.raw ?? "").filter(Boolean)}
+                  <VisualActionEditor
+                    value={(c.action ?? []).map((a) => a.raw ?? "").filter(Boolean)}
                     onChange={(blocks) => {
                       const components = [...bedrock.components];
                       components[ci] = {
                         ...c,
-                        onClick: blocks.filter(Boolean).map((raw) => ({ id: "raw", params: raw, raw }))
+                        action: blocks.filter(Boolean).map((raw) => ({ id: "raw", params: raw, raw }))
                       };
-                      setBedrock({ ...bedrock, components }, "Updated component actions");
+                      setBedrock({ ...bedrock, components }, "Updated component action");
                     }}
                   />
                 </SortableCard>
               ))}
               </SortableContext>
-            </div>
+              </div>
+            </CollapsibleSection>
           )}
-          <div className="mt-3">
-            <div className="text-xs text-brand-muted mb-1">Global actions</div>
-            <ActionBlocksEditor
+          <CollapsibleSection title="Global Actions" icon="⚡" defaultExpanded={false}>
+            <div className="pt-2">
+            <VisualActionEditor
               value={(globalActions ?? []).map((a) => a.raw ?? "").filter(Boolean)}
               onChange={(blocks) => {
                 setGlobalActions(blocks.filter(Boolean).map((raw) => ({ id: "raw", params: raw, raw })));
               }}
             />
-          </div>
-        </div>
-      )}
-      {platform === "java" && java && (
-        <div className="space-y-2">
-          <div className="ui-chip">Java</div>
-          <BufferedInput
-            className="ui-input"
-            value={java.title}
-            onCommit={(v) => setJava({ ...java, title: v }, "Updated title")}
-          />
-          {supportsJavaMenuSize(java.type) && (
-            <div className="flex items-center gap-2">
-              <label className="text-sm">Size</label>
-              <select
-                className="ui-input w-auto px-2 py-1"
-                value={java.size ?? 27}
-                onChange={(e) => {
-                  const size = Number(e.target.value);
-                  const items = java.items.filter((i) => i.slot < size && i.slot >= 0);
-                  setJava({ ...java, size, items }, "Resized menu");
-                }}
-              >
-                {[9, 18, 27, 36, 45, 54].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
             </div>
-          )}
-          <div className="text-xs text-brand-muted">
-            Slots range from 0 to {getJavaMenuMaxSlot(java.type, java.size)} for {java.type}.
-          </div>
-          {java.type === "CHEST" && (
-            <JavaFillsEditor java={java} onChange={setJava} />
-          )}
-          <div className="flex items-center gap-2">
-            <BufferedInput
-              className="ui-input w-24 px-2 py-1"
-              type="number"
-              placeholder="slot"
-              value={selectedJavaSlot ?? ""}
-              onCommit={(v) => {
-                if (v === "") {
-                  setSelectedJavaSlot(null);
-                  return;
-                }
-                const nextSlot = Number(v);
-                if (!Number.isFinite(nextSlot) || !isJavaSlotValid(java, nextSlot)) {
-                  setSelectedJavaSlot(null);
-                  return;
-                }
-                setSelectedJavaSlot(nextSlot);
-              }}
-              min={0}
-              max={getJavaMenuMaxSlot(java.type, java.size)}
-            />
-            <button
-              className="ui-btn-secondary px-2 py-1 text-xs"
-              onClick={() => setSelectedJavaSlot(null)}
-            >
-              Clear
-            </button>
-          </div>
-          {selectedJavaSlot !== null && (
-            <div className="text-xs text-brand.accent">Editing slot: {selectedJavaSlot}</div>
-          )}
-          {selectedJavaSlot !== null && (
-            <div ref={slotEditorRef}>
-              <JavaSlotEditor
-                slot={selectedJavaSlot}
-                java={java}
-                onChange={(next) => setJava(next, "Updated slot")}
-              />
+          </CollapsibleSection>
+          <CollapsibleSection title="Form Chains" icon="🔗" defaultExpanded={false}>
+            <div className="pt-2">
+              <FormChainVisualizer />
             </div>
-          )}
+          </CollapsibleSection>
         </div>
       )}
       </div>
@@ -416,508 +399,6 @@ function SortableCard({
         </div>
       </div>
       {children}
-    </div>
-  );
-}
-
-function JavaFillsEditor({ java, onChange }: { java: any; onChange: (next: any, desc?: string) => void }) {
-  const fills = (java.fills ?? []) as any[];
-  return (
-    <div className="bg-brand-surface2 border border-brand-border p-2">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs text-brand-muted">Fills</div>
-        <button
-          className="ui-btn-secondary px-2 py-1 text-xs"
-          onClick={() => {
-            const next = [...fills, { id: `fill_${fills.length + 1}`, type: "EMPTY", item: { material: "STONE" } }];
-            onChange({ ...java, fills: next }, "Added fill");
-          }}
-        >
-          Add
-        </button>
-      </div>
-      <div className="space-y-2">
-        <SortableContext
-          items={fills.map((f, i) => `fill-${f.id ?? i}`)}
-          strategy={verticalListSortingStrategy}
-        >
-          {fills.map((f, idx) => (
-            <SortableFillCard
-              key={f.id ?? idx}
-              id={`fill-${f.id ?? idx}`}
-              fill={f}
-              onChange={(nextFill) => {
-                const next = [...fills];
-                next[idx] = nextFill;
-                onChange({ ...java, fills: next }, "Updated fill");
-              }}
-              onRemove={() => {
-                const next = fills.filter((_, i) => i !== idx);
-                onChange({ ...java, fills: next.length ? next : undefined }, "Removed fill");
-              }}
-            />
-          ))}
-        </SortableContext>
-        {!fills.length && <div className="text-xs text-brand-muted">No fills</div>}
-      </div>
-    </div>
-  );
-}
-
-function SortableFillCard({
-  id,
-  fill,
-  onChange,
-  onRemove
-}: {
-  id: string;
-  fill: any;
-  onChange: (f: any) => void;
-  onRemove: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id });
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.7 : 1
-  };
-  const f = fill;
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="bg-brand-surface border border-brand-border p-2"
-    >
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs text-brand-muted">Fill</div>
-        <div className="flex items-center gap-2">
-          <div className="px-2 py-1 bg-brand-surface text-xs cursor-move select-none border border-brand-border" {...attributes} {...listeners}>
-            ⋮⋮
-          </div>
-          <button className="ui-btn-ghost px-2 py-1 text-xs" onClick={onRemove}>
-            ✕
-          </button>
-        </div>
-      </div>
-      <div className="grid grid-cols-12 gap-2 mb-2">
-        <BufferedInput
-          className="ui-input text-xs col-span-4"
-          placeholder="id"
-          value={f.id ?? ""}
-          onCommit={(v) => onChange({ ...f, id: v })}
-        />
-        <select
-          className="ui-input text-xs col-span-4 px-2 py-1"
-          value={f.type ?? "EMPTY"}
-          onChange={(e) => onChange({ ...f, type: e.target.value })}
-        >
-          <option value="ROW">ROW</option>
-          <option value="COLUMN">COLUMN</option>
-          <option value="EMPTY">EMPTY</option>
-        </select>
-        <BufferedInput
-          className="ui-input text-xs col-span-2"
-          type="number"
-          placeholder="row"
-          value={f.row ?? ""}
-          onCommit={(v) => onChange({ ...f, row: v === "" ? undefined : Number(v) })}
-        />
-        <BufferedInput
-          className="ui-input text-xs col-span-2"
-          type="number"
-          placeholder="col"
-          value={f.column ?? ""}
-          onCommit={(v) => onChange({ ...f, column: v === "" ? undefined : Number(v) })}
-        />
-      </div>
-      <div className="grid grid-cols-12 gap-2 mb-2">
-        <BufferedInput
-          className="ui-input text-xs col-span-6"
-          placeholder="item.material"
-          value={f.item?.material ?? ""}
-          onCommit={(v) => onChange({ ...f, item: { ...(f.item ?? {}), material: v } })}
-        />
-        <BufferedInput
-          className="ui-input text-xs col-span-3"
-          type="number"
-          placeholder="amount"
-          value={f.item?.amount ?? ""}
-          onCommit={(v) => onChange({
-            ...f,
-            item: { ...(f.item ?? {}), amount: v === "" ? undefined : Number(v) }
-          })}
-        />
-        <label className="col-span-3 flex items-center gap-2 text-xs text-brand-muted">
-          <input
-            type="checkbox"
-            checked={!!f.item?.glow}
-            onChange={(e) => onChange({ ...f, item: { ...(f.item ?? {}), glow: e.target.checked } })}
-          />
-          glow
-        </label>
-      </div>
-      <BufferedInput
-        className="ui-input text-xs mb-2"
-        placeholder="item.name"
-        value={f.item?.name ?? ""}
-        onCommit={(v) => onChange({ ...f, item: { ...(f.item ?? {}), name: v || undefined } })}
-      />
-      <BufferedTextArea
-        className="ui-textarea text-xs h-20 mb-2"
-        placeholder="item.lore (one line per row)"
-        value={(f.item?.lore ?? []).join("\n")}
-        onCommit={(v) => {
-          const lore = v.split("\n").map((s) => s.trim()).filter(Boolean);
-          onChange({ ...f, item: { ...(f.item ?? {}), lore } });
-        }}
-      />
-      <ActionBlocksEditor
-        value={(f.item?.onClick ?? []).map((a: any) => a.raw ?? "").filter(Boolean)}
-        onChange={(blocks) => {
-          onChange({
-            ...f,
-            item: {
-              ...(f.item ?? {}),
-              onClick: blocks.filter(Boolean).map((raw) => ({ id: "raw", params: raw, raw }))
-            }
-          });
-        }}
-      />
-    </div>
-  );
-}
-
-function ActionBlocksEditor({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
-  const [entries, setEntries] = React.useState<ActionEntry[]>(() => value.map(parseActionEntry));
-  React.useEffect(() => {
-    setEntries(value.map(parseActionEntry));
-  }, [value.join("\n---\n")]);
-
-  const update = (next: ActionEntry[]) => {
-    setEntries(next);
-    onChange(next.map(serializeActionEntry).filter(Boolean) as string[]);
-  };
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <div className="text-xs text-brand-muted">onClick</div>
-        <button
-          className="ui-btn-secondary px-2 py-1 text-xs"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            update([...entries, { mode: "list", type: "message", lines: [""] }]);
-          }}
-        >
-          Add action
-        </button>
-      </div>
-      <div className="space-y-2">
-        {entries.map((en, idx) => (
-          <div key={idx} className="bg-brand-surface2 border border-brand-border p-2">
-            <div className="flex items-center justify-between mb-2">
-              <select
-                className="ui-input px-2 py-1 text-xs"
-                value={en.mode === "raw" ? "raw" : en.mode === "bungee" ? "bungee" : en.type}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const next = [...entries];
-                  if (v === "raw") {
-                    next[idx] = { mode: "raw", raw: en.mode === "raw" ? en.raw : serializeActionEntry(en) ?? "" };
-                  } else if (v === "bungee") {
-                    next[idx] = {
-                      mode: "bungee",
-                      subchannel: en.mode === "bungee" ? en.subchannel : "Connect",
-                      args: en.mode === "bungee" ? en.args : en.mode === "list" ? en.lines : [""]
-                    };
-                  } else {
-                    next[idx] = { mode: "list", type: v, lines: en.mode === "list" ? en.lines : en.mode === "bungee" ? en.args : [""] };
-                  }
-                  update(next);
-                }}
-              >
-                {ACTION_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-              <div className="flex gap-2">
-                <button
-                  className="ui-btn-secondary px-2 py-1 text-xs"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (idx === 0) return;
-                    const next = [...entries];
-                    const tmp = next[idx - 1];
-                    next[idx - 1] = next[idx];
-                    next[idx] = tmp;
-                    update(next);
-                  }}
-                >
-                  Up
-                </button>
-                <button
-                  className="ui-btn-secondary px-2 py-1 text-xs"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (idx === entries.length - 1) return;
-                    const next = [...entries];
-                    const tmp = next[idx + 1];
-                    next[idx + 1] = next[idx];
-                    next[idx] = tmp;
-                    update(next);
-                  }}
-                >
-                  Down
-                </button>
-                <button
-                  className="ui-btn-secondary px-2 py-1 text-xs"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const next = entries.filter((_, i) => i !== idx);
-                    update(next);
-                  }}
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-
-            {en.mode === "raw" ? (
-              <BufferedTextArea
-                className="ui-textarea h-28 text-xs"
-                placeholder={'raw action block, e.g.\nmessage {\n  - "Hello"\n}'}
-                value={en.raw}
-                onCommit={(v) => {
-                  const next = [...entries];
-                  next[idx] = { ...en, raw: v };
-                  update(next);
-                }}
-              />
-            ) : en.mode === "bungee" ? (
-              <div className="space-y-2">
-                <BufferedInput
-                  className="ui-input px-2 py-1 text-xs"
-                  placeholder='subchannel (e.g. "Connect")'
-                  value={en.subchannel}
-                  onCommit={(v) => {
-                    const next = [...entries];
-                    next[idx] = { ...en, subchannel: v };
-                    update(next);
-                  }}
-                />
-                <BufferedTextArea
-                  className="ui-textarea h-20 text-xs"
-                  placeholder="args (one per row)"
-                  value={(en.args ?? []).join("\n")}
-                  onCommit={(v) => {
-                    const next = [...entries];
-                    next[idx] = { ...en, args: v.split("\n") };
-                    update(next);
-                  }}
-                />
-              </div>
-            ) : (
-              <BufferedTextArea
-                className="ui-textarea h-20 text-xs"
-                placeholder="one line per row"
-                value={en.lines.join("\n")}
-                onCommit={(v) => {
-                  const next = [...entries];
-                  next[idx] = { ...en, lines: v.split("\n") };
-                  update(next);
-                }}
-              />
-            )}
-          </div>
-        ))}
-        {!entries.length && <div className="text-xs text-brand-muted">No actions</div>}
-      </div>
-    </div>
-  );
-}
-
-type ActionEntry =
-  | { mode: "list"; type: string; lines: string[] }
-  | { mode: "bungee"; subchannel: string; args: string[] }
-  | { mode: "raw"; raw: string };
-
-const ACTION_TYPES: { value: string; label: string }[] = [
-  { value: "message", label: "message" },
-  { value: "command", label: "command" },
-  { value: "server", label: "server" },
-  { value: "broadcast", label: "broadcast" },
-  { value: "open", label: "open" },
-  { value: "sound", label: "sound" },
-  { value: "economy", label: "economy" },
-  { value: "title", label: "title" },
-  { value: "actionbar", label: "actionbar" },
-  { value: "inventory", label: "inventory" },
-  { value: "delay", label: "delay" },
-  { value: "random", label: "random" },
-  { value: "url", label: "url" },
-  { value: "bungee", label: "bungee" },
-  { value: "raw", label: "raw" }
-];
-
-const LIST_ACTION_SET = new Set(
-  ACTION_TYPES.map((t) => t.value).filter((v) => v !== "raw" && v !== "bungee")
-);
-
-function parseActionEntry(raw: string): ActionEntry {
-  const s = String(raw ?? "").trim();
-  const open = s.indexOf("{");
-  const close = s.lastIndexOf("}");
-  if (open !== -1 && close !== -1 && close > open) {
-    const type = s.slice(0, open).trim();
-    const inner = s.slice(open + 1, close);
-    const lines = inner
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.startsWith("-"))
-      .map((l) => l.replace(/^-+\s*/, "").trim())
-      .map((v) => v.replace(/^"+|"+$/g, ""))
-      .map((v) => v.replace(/\\"/g, '"'));
-    if (type && type.toLowerCase() === "bungee") {
-      const m = inner.match(/subchannel\s*:\s*"((?:\\.|[^"\\])*)"/i);
-      const subchannel = (m?.[1] ?? "").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
-      const args = lines.length ? lines : [""];
-      return { mode: "bungee", subchannel, args };
-    }
-    if (type && LIST_ACTION_SET.has(type)) return { mode: "list", type, lines: lines.length ? lines : [""] };
-  }
-  return { mode: "raw", raw: s };
-}
-
-function serializeActionEntry(entry: ActionEntry): string | undefined {
-  if (entry.mode === "raw") return entry.raw?.trim() ? entry.raw.trim() : undefined;
-  if (entry.mode === "bungee") {
-    const subchannel = String(entry.subchannel ?? "").trim();
-    const args = (entry.args ?? [])
-      .map((l) => String(l ?? "").replace(/\r/g, ""))
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
-    const safeArgs = args.length ? args : [""];
-    const argsBody = safeArgs
-      .map((l) => `  - "${l.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`)
-      .join("\n");
-    return `bungee {\n  subchannel: "${subchannel.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"\n${argsBody}\n}`;
-  }
-  const type = entry.type.trim();
-  const lines = entry.lines.map((l) => l.replace(/\r/g, "")).map((l) => l.trim()).filter(Boolean);
-  const body = lines.map((l) => `  - "${l.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join("\n");
-  if (!type) return undefined;
-  if (!lines.length) return `${type} {\n}`;
-  return `${type} {\n${body}\n}`;
-}
-
-function JavaSlotEditor({
-  slot,
-  java,
-  onChange
-}: {
-  slot: number;
-  java: any;
-  onChange: (next: any) => void;
-}) {
-  const existing = java.items.find((i: any) => i.slot === slot);
-  const item = existing ?? { slot, material: "STONE", amount: 1, lore: [] };
-  return (
-    <div className="bg-brand-surface p-2 border border-brand-border">
-      <div className="text-xs text-brand-muted mb-2">Slot {slot}</div>
-      <div className="flex gap-2 mb-2">
-        <BufferedInput
-          className="flex-1 ui-input px-2 py-1"
-          value={item.material}
-          onCommit={(v) => {
-            const items = java.items.filter((i: any) => i.slot !== slot);
-            items.push({ ...item, material: v });
-            onChange({ ...java, items });
-          }}
-        />
-        <BufferedInput
-          className="w-20 ui-input px-2 py-1"
-          type="number"
-          value={item.amount ?? 1}
-          onCommit={(v) => {
-            const items = java.items.filter((i: any) => i.slot !== slot);
-            items.push({ ...item, amount: Number(v) });
-            onChange({ ...java, items });
-          }}
-        />
-      </div>
-      <BufferedInput
-        className="w-full ui-input px-2 py-1 mb-2"
-        placeholder="name"
-        value={item.name ?? ""}
-        onCommit={(v) => {
-          const items = java.items.filter((i: any) => i.slot !== slot);
-          items.push({ ...item, name: v });
-          onChange({ ...java, items });
-        }}
-      />
-      <label className="flex items-center gap-2 text-xs text-brand-muted mb-2">
-        <input
-          type="checkbox"
-          checked={!!item.glow}
-          onChange={(e) => {
-            const items = java.items.filter((i: any) => i.slot !== slot);
-            items.push({ ...item, glow: e.target.checked });
-            onChange({ ...java, items });
-          }}
-        />
-        glow
-      </label>
-      <BufferedTextArea
-        className="ui-textarea h-24 text-xs mb-2"
-        placeholder="lore (one line per row)"
-        value={(item.lore ?? []).join("\n")}
-        onCommit={(v) => {
-          const lore = v.split("\n").map((s) => s.trim()).filter(Boolean);
-          const items = java.items.filter((i: any) => i.slot !== slot);
-          items.push({ ...item, lore });
-          onChange({ ...java, items });
-        }}
-      />
-      <button
-        className="ui-btn-secondary px-2 py-1 text-xs mb-2"
-        onClick={() => {
-          const lore = [...(item.lore ?? []), `Line ${(item.lore ?? []).length + 1}`];
-          const items = java.items.filter((i: any) => i.slot !== slot);
-          items.push({ ...item, lore });
-          onChange({ ...java, items });
-        }}
-      >
-        Add lore line
-      </button>
-      <ActionBlocksEditor
-        value={(item.onClick ?? []).map((a: any) => a.raw ?? "").filter(Boolean)}
-        onChange={(blocks) => {
-          const items = java.items.filter((i: any) => i.slot !== slot);
-          items.push({
-            ...item,
-            onClick: blocks.filter(Boolean).map((raw) => ({ id: "raw", params: raw, raw }))
-          });
-          onChange({ ...java, items });
-        }}
-      />
-      <div className="flex justify-between mt-2">
-        <button
-          className="ui-btn-secondary px-2 py-1 text-xs"
-          onClick={() => {
-            const items = java.items.filter((i: any) => i.slot !== slot);
-            onChange({ ...java, items });
-          }}
-        >
-          Remove Item
-        </button>
-      </div>
     </div>
   );
 }

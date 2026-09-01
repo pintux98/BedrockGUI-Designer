@@ -1,43 +1,30 @@
 import React, { useState } from "react";
 import { useDesignerStore } from "../core/store";
 import { Dialog } from "./Dialog";
-import { JAVA_MENU_TYPE_OPTIONS, supportsJavaMenuSize } from "../core/javaMenu";
-import { JavaMenuType } from "../core/types";
 
 export function Wizard() {
-  const { setIsWizardOpen, setPlatform, setBedrock, setJava, setMenuName } = useDesignerStore();
+  const { setIsWizardOpen, setBedrock, setMenuName } = useDesignerStore();
   const [step, setStep] = useState(1);
   const titleId = React.useId();
   
   // Form State
-  const [platform, setLocalPlatform] = useState<"bedrock" | "java">("bedrock");
   const [bedrockType, setBedrockType] = useState<"SIMPLE" | "MODAL" | "CUSTOM">("SIMPLE");
-  const [javaType, setJavaType] = useState<JavaMenuType>("CHEST");
   const [name, setName] = useState("new_form");
   const [title, setTitle] = useState("New Form");
 
   const handleFinish = () => {
-    setPlatform(platform);
     setMenuName(name);
     
-    if (platform === "bedrock") {
-      setBedrock({
-        type: bedrockType as any,
-        title: title,
-        content: "Content goes here...",
-        buttons: bedrockType === "MODAL" 
-          ? [{ id: "yes", text: "Yes" }, { id: "no", text: "No" }]
-          : [{ id: "btn_1", text: "Button 1" }],
-        components: []
-      } as any);
-    } else {
-      setJava({
-        type: javaType as any,
-        title: title,
-        size: supportsJavaMenuSize(javaType) ? 27 : undefined,
-        items: []
-      });
-    }
+    setBedrock({
+      type: bedrockType as any,
+      title: title,
+      content: "Content goes here...",
+      buttons: bedrockType === "MODAL" 
+        ? [{ id: "yes", text: "Yes" }, { id: "no", text: "No" }]
+        : [{ id: "btn_1", text: "Button 1" }],
+      components: []
+    } as any);
+    
     setIsWizardOpen(false);
   };
 
@@ -79,59 +66,19 @@ export function Wizard() {
             ))}
           </div>
 
-          {/* Step 1: Platform & Type */}
+          {/* Step 1: Type */}
           {step === 1 && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
               <div className="space-y-2">
-                <label className="block text-brand-muted text-sm uppercase tracking-wide">Select Platform</label>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => setLocalPlatform("bedrock")}
-                    className={`p-4 border-2 text-center transition-all ${
-                      platform === "bedrock" 
-                        ? "bg-brand-accent/20 border-brand-accent text-white" 
-                        : "bg-[#2b2b2b] border-[#5b5b5b] text-gray-400 hover:bg-[#3f3f3f]"
-                    }`}
-                  >
-                    <div className="font-bold text-lg mb-1">Bedrock</div>
-                    <div className="text-xs opacity-70">Forms & Dialogs</div>
-                  </button>
-                  <button
-                    onClick={() => setLocalPlatform("java")}
-                    className={`p-4 border-2 text-center transition-all ${
-                      platform === "java" 
-                        ? "bg-brand-accent/20 border-brand-accent text-white" 
-                        : "bg-[#2b2b2b] border-[#5b5b5b] text-gray-400 hover:bg-[#3f3f3f]"
-                    }`}
-                  >
-                    <div className="font-bold text-lg mb-1">Java</div>
-                    <div className="text-xs opacity-70">Inventories & Menus</div>
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-brand-muted text-sm uppercase tracking-wide">Select Type</label>
+                <label className="block text-brand-muted text-sm uppercase tracking-wide">Select Form Type</label>
                 <select
                   className="w-full bg-[#1e1e1e] border-2 border-[#5b5b5b] p-3 text-white outline-none focus:border-brand-accent"
-                  value={platform === "bedrock" ? bedrockType : javaType}
-                  onChange={(e) => platform === "bedrock" ? setBedrockType(e.target.value as any) : setJavaType(e.target.value as any)}
+                  value={bedrockType}
+                  onChange={(e) => setBedrockType(e.target.value as any)}
                 >
-                  {platform === "bedrock" ? (
-                    <>
-                      <option value="SIMPLE">Simple Form (Buttons)</option>
-                      <option value="MODAL">Modal Form (Yes/No)</option>
-                      <option value="CUSTOM">Custom Form (Inputs)</option>
-                    </>
-                  ) : (
-                    <>
-                      {JAVA_MENU_TYPE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </>
-                  )}
+                  <option value="SIMPLE">Simple Form (Buttons)</option>
+                  <option value="MODAL">Modal Form (Yes/No)</option>
+                  <option value="CUSTOM">Custom Form (Inputs)</option>
                 </select>
               </div>
             </div>
@@ -172,7 +119,7 @@ export function Wizard() {
                 <div className="text-6xl mb-4">✨</div>
                 <h3 className="text-xl font-bold text-white mb-2">Ready to Create!</h3>
                 <p className="text-gray-400 max-w-xs mx-auto">
-                  You are about to create a <span className="text-brand-accent font-bold">{platform === "bedrock" ? bedrockType : javaType}</span> form named <span className="text-white font-mono bg-[#1e1e1e] px-1">{name}</span>.
+                  You are about to create a <span className="text-brand-accent font-bold">{bedrockType}</span> form named <span className="text-white font-mono bg-[#1e1e1e] px-1">{name}</span>.
                 </p>
               </div>
             </div>

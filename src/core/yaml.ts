@@ -1,7 +1,6 @@
 import yaml from "js-yaml";
 import { DesignerState } from "./types";
 import { ActionInstance } from "./types";
-import { JavaMenuFill } from "./types";
 
 export function stateToYaml(state: DesignerState): string {
   const entry = stateToFormEntry(state);
@@ -35,7 +34,7 @@ export function stateToFormEntry(state: DesignerState): Record<string, unknown> 
     if (state.bedrock.type !== "CUSTOM") {
       const buttons: Record<string, any> = {};
       for (const b of state.bedrock.buttons ?? []) {
-        buttons[b.id] = stripUndefined({
+        const buttonData: Record<string, any> = {
           text: b.text,
           image: b.image,
           onClick: serializeActionBlocks(b.onClick),
@@ -43,19 +42,22 @@ export function stateToFormEntry(state: DesignerState): Record<string, unknown> 
           alternative_text: b.alternativeText,
           alternative_image: b.alternativeImage,
           alternative_onClick: b.alternativeOnClick,
-          conditions: b.conditions?.length
-            ? Object.fromEntries(
-                b.conditions.map((c) => [
-                  c.id,
-                  stripUndefined({
-                    condition: c.condition,
-                    property: c.property,
-                    value: c.value
-                  })
-                ])
-              )
-            : undefined
-        });
+        };
+        if (b.priority !== undefined) buttonData.priority = b.priority;
+        if (b.priorityCondition) buttonData.priority_condition = b.priorityCondition;
+        if (b.conditions?.length) {
+          buttonData.conditions = Object.fromEntries(
+            b.conditions.map((c) => [
+              c.id,
+              stripUndefined({
+                condition: c.condition,
+                property: c.property,
+                value: c.value
+              })
+            ])
+          );
+        }
+        buttons[b.id] = stripUndefined(buttonData);
       }
       bedrock["buttons"] = buttons;
     } else {
@@ -65,7 +67,7 @@ export function stateToFormEntry(state: DesignerState): Record<string, unknown> 
           stripUndefined({
             type: c.type,
             ...c.props,
-            onClick: serializeActionBlocks(c.onClick)
+            action: serializeActionBlocks(c.action)
           })
         ])
       );
@@ -76,29 +78,6 @@ export function stateToFormEntry(state: DesignerState): Record<string, unknown> 
     entry["bedrock"] = stripUndefined(bedrock);
   }
 
-  if (state.java) {
-    const fills = serializeJavaFills(state.java.fills);
-    entry["java"] = stripUndefined({
-      type: state.java.type,
-      title: state.java.title,
-      size: state.java.size,
-      items: Object.fromEntries(
-        state.java.items.map((i) => [
-          i.slot,
-          {
-            material: i.material,
-            amount: i.amount,
-            name: i.name,
-            lore: i.lore,
-            glow: i.glow,
-            onClick: serializeActionBlocks(i.onClick)
-          }
-        ])
-      ),
-      ...(fills ?? {})
-    });
-  }
-
   return stripUndefined(entry);
 }
 
@@ -107,7 +86,7 @@ export function yamlToStateDoc(text: string): { menuName: string; entry: any; co
   const forms = doc?.forms ?? {};
   const key = Object.keys(forms)[0];
   if (key) return { menuName: key, entry: forms[key], configVersion: doc?.configVersion };
-  if (doc?.bedrock || doc?.java) {
+  if (doc?.bedrock) {
     return { menuName: "example", entry: doc, configVersion: doc?.configVersion };
   }
   throw new Error("No forms.<menu_name> found");
@@ -136,51 +115,6 @@ function serializeActionBlocks(actions?: ActionInstance[]) {
       if (typeof a.params === "string" && a.params.trim()) return a.params.trim();
     })
     .filter(Boolean);
-}
-
-
-function serializeJavaFills(fills?: JavaMenuFill[]) {
-  if (!fills?.length) return undefined;
-  const normalized = fills.filter((f) => f && f.item && f.type);
-  if (!normalized.length) return undefined;
-  if (normalized.length === 1) {
-    const f = normalized[0];
-    return {
-      fill: stripUndefined({
-        type: f.type,
-        row: f.row,
-        column: f.column,
-        item: stripUndefined({
-          material: f.item.material,
-          amount: f.item.amount,
-          name: f.item.name,
-          lore: f.item.lore,
-          glow: f.item.glow,
-          onClick: serializeActionBlocks(f.item.onClick)
-        })
-      })
-    };
-  }
-  return {
-    fills: Object.fromEntries(
-      normalized.map((f) => [
-        f.id,
-        stripUndefined({
-          type: f.type,
-          row: f.row,
-          column: f.column,
-          item: stripUndefined({
-            material: f.item.material,
-            amount: f.item.amount,
-            name: f.item.name,
-            lore: f.item.lore,
-            glow: f.item.glow,
-            onClick: serializeActionBlocks(f.item.onClick)
-          })
-        })
-      ])
-    )
-  };
 }
 
 function stripUndefined<T extends Record<string, any>>(obj: T): T {

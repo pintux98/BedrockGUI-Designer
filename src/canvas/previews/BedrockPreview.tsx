@@ -5,14 +5,17 @@ import { useDroppable } from "@dnd-kit/core";
 import { useDesignerStore } from "../../core/store";
 import { MinecraftText } from "../../components/MinecraftText";
 import { hasMinecraftCodes } from "../../core/minecraftText";
+import { InlineTextEditor } from "../InlineEditor";
 
 export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed?: boolean }) {
-  const { selectedBedrockButtonId, setSelectedBedrockButtonId, selectedBedrockComponentId, setSelectedBedrockComponentId, setSelectedJavaSlot } =
+  const { selectedBedrockButtonId, setSelectedBedrockButtonId, selectedBedrockComponentId, setSelectedBedrockComponentId, setBedrock } =
     useDesignerStore();
   const buttonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
   const componentRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
   const listRef = React.useRef<HTMLDivElement | null>(null);
   const customRef = React.useRef<HTMLDivElement | null>(null);
+  const [editingTitle, setEditingTitle] = React.useState(false);
+  const [editingButtonText, setEditingButtonText] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!selectedBedrockButtonId) return;
@@ -55,15 +58,33 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
           if (e.target !== e.currentTarget) return;
           setSelectedBedrockButtonId(null);
           setSelectedBedrockComponentId(null);
-          setSelectedJavaSlot(null);
         }}
         className={`max-w-xl mx-auto shadow-2xl ${bgStyle} text-white font-minecraft ${isOver ? "ring-2 ring-brand-accent" : ""}`}
         style={{ width: "min(520px, 100%)", border: "2px solid #48494a" }}
       >
         <div className={`h-10 flex items-center justify-between px-3 ${headerStyle} border-b-2 ${borderStyle}`}>
-          <div className="font-semibold text-lg truncate font-smooth-none">
-            <MinecraftText text={form.title} />
-          </div>
+          {editingTitle ? (
+            <div className="flex-1 mr-3">
+              <InlineTextEditor
+                value={form.title}
+                maxLength={64}
+                onSubmit={(v) => {
+                  setBedrock({ ...form, title: v }, "Updated title inline");
+                  setEditingTitle(false);
+                }}
+                onCancel={() => setEditingTitle(false)}
+                className="text-lg"
+              />
+            </div>
+          ) : (
+            <div
+              className="font-semibold text-lg truncate font-smooth-none cursor-text"
+              onDoubleClick={() => setEditingTitle(true)}
+              title="Double-click to edit"
+            >
+              <MinecraftText text={form.title} />
+            </div>
+          )}
           <button className="text-white hover:text-red-400 font-bold" type="button" aria-label="Close preview">
             ✕
           </button>
@@ -111,7 +132,10 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
                       onClick={() => {
                         setSelectedBedrockButtonId(b.id);
                         setSelectedBedrockComponentId(null);
-                        setSelectedJavaSlot(null);
+                      }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        setEditingButtonText(b.id);
                       }}
                       className={`w-full flex items-center gap-3 bg-[#3a3b3c] border-2 px-3 py-2 text-white text-base font-smooth-none active:bg-[#2a2b2c] transition-colors relative group ${
                         selectedBedrockButtonId === b.id ? "border-brand-accent bg-[#4a4b4c]" : "border-[#1e1e1f]"
@@ -122,7 +146,21 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
                         {display.image ? <BedrockButtonImage image={display.image} /> : <div className="w-6 h-6" />}
                       </div>
                       <div className="flex-1 text-left whitespace-pre-wrap">
-                        <MinecraftText text={display.text} />
+                        {editingButtonText === b.id ? (
+                          <InlineTextEditor
+                            value={display.text}
+                            onSubmit={(v) => {
+                              const buttons = form.buttons.map((btn) =>
+                                btn.id === b.id ? { ...btn, text: v } : btn
+                              );
+                              setBedrock({ ...form, buttons }, "Updated button text inline");
+                              setEditingButtonText(null);
+                            }}
+                            onCancel={() => setEditingButtonText(null)}
+                          />
+                        ) : (
+                          <MinecraftText text={display.text} />
+                        )}
                       </div>
                     </button>
                   ))}
@@ -159,16 +197,33 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
                     onClick={() => {
                       setSelectedBedrockButtonId(b.id);
                       setSelectedBedrockComponentId(null);
-                      setSelectedJavaSlot(null);
+                    }}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setEditingButtonText(b.id);
                     }}
                     className={`w-full bg-[#3a3b3c] border-2 px-3 py-2 text-white text-base font-smooth-none active:bg-[#2a2b2c] relative ${
                       selectedBedrockButtonId === b.id ? "border-brand-accent bg-[#4a4b4c]" : "border-[#1e1e1f]"
                     }`}
                   >
                     {detailed && <div className="absolute top-0 right-0 bg-black/50 text-[8px] px-1 text-gray-300 font-mono">{b.id}</div>}
-                    <span className="whitespace-pre-wrap">
-                      <MinecraftText text={display.text} />
-                    </span>
+                    {editingButtonText === b.id ? (
+                      <InlineTextEditor
+                        value={display.text}
+                        onSubmit={(v) => {
+                          const buttons = form.buttons.map((btn) =>
+                            btn.id === b.id ? { ...btn, text: v } : btn
+                          );
+                          setBedrock({ ...form, buttons }, "Updated button text inline");
+                          setEditingButtonText(null);
+                        }}
+                        onCancel={() => setEditingButtonText(null)}
+                      />
+                    ) : (
+                      <span className="whitespace-pre-wrap">
+                        <MinecraftText text={display.text} />
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -185,15 +240,33 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
         if (e.target !== e.currentTarget) return;
         setSelectedBedrockButtonId(null);
         setSelectedBedrockComponentId(null);
-        setSelectedJavaSlot(null);
       }}
       className={`max-w-xl mx-auto shadow-2xl ${bgStyle} text-white font-minecraft ${isOver ? "ring-2 ring-brand-accent" : ""}`}
       style={{ width: "min(520px, 100%)", border: "2px solid #48494a" }}
     >
       <div className={`h-10 flex items-center justify-between px-3 ${headerStyle} border-b-2 ${borderStyle}`}>
-        <div className="font-semibold text-lg truncate font-smooth-none">
-          <MinecraftText text={form.title} />
-        </div>
+        {editingTitle ? (
+          <div className="flex-1 mr-3">
+            <InlineTextEditor
+              value={form.title}
+              maxLength={64}
+              onSubmit={(v) => {
+                setBedrock({ ...form, title: v }, "Updated title inline");
+                setEditingTitle(false);
+              }}
+              onCancel={() => setEditingTitle(false)}
+              className="text-lg"
+            />
+          </div>
+        ) : (
+          <div
+            className="font-semibold text-lg truncate font-smooth-none cursor-text"
+            onDoubleClick={() => setEditingTitle(true)}
+            title="Double-click to edit"
+          >
+            <MinecraftText text={form.title} />
+          </div>
+        )}
         <button className="text-white hover:text-red-400 font-bold" type="button" aria-label="Close preview">
           ✕
         </button>
@@ -214,7 +287,6 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
                 onClick={() => {
                   setSelectedBedrockComponentId(c.id);
                   setSelectedBedrockButtonId(null);
-                  setSelectedJavaSlot(null);
                 }}
                 className={`bg-[#3a3b3c] border-2 p-3 cursor-pointer relative ${
                   selectedBedrockComponentId === c.id ? "border-brand-accent" : "border-[#1e1e1f]"

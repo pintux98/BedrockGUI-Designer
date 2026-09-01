@@ -5,7 +5,6 @@ export function useImporter() {
   const {
     setMenuName,
     setBedrock,
-    setJava,
     setGlobalActions
   } = useDesignerStore();
 
@@ -51,26 +50,6 @@ export function useImporter() {
           }))
         });
       }
-    }
-    const javaEntry = entry?.java ?? (entry?.type && entry?.items ? entry : undefined);
-    if (javaEntry?.type) {
-      const items = javaEntry.items
-        ? Object.entries(javaEntry.items).map(([slot, v]: [string, any]) => ({
-            slot: Number(slot),
-            material: v.material,
-            amount: v.amount,
-            name: v.name,
-            glow: v.glow,
-            lore: v.lore,
-            onClick: deserializeActions(v.onClick)
-          }))
-        : [];
-      setJava({
-        type: javaEntry.type,
-        title: javaEntry.title,
-        size: javaEntry.size,
-        items
-      });
     }
     if (entry?.global_actions?.length) {
       setGlobalActions(

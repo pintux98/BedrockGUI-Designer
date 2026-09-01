@@ -11,14 +11,13 @@ import {
   useSensors
 } from "@dnd-kit/core";
 import { useDesignerStore } from "../core/store";
-import { BedrockForm, JavaMenu } from "../core/types";
+import { BedrockForm } from "../core/types";
 import { IconTile } from "../components/IconTile";
 import { arrayMove } from "@dnd-kit/sortable";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { isJavaSlotValid } from "../core/javaMenu";
 
 export function DndHost({ children }: { children: React.ReactNode }) {
-  const { platform, bedrock, java, setBedrock, setJava } = useDesignerStore();
+  const { bedrock, setBedrock } = useDesignerStore();
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [activeLabel, setActiveLabel] = React.useState<string | null>(null);
   const [activeMaterial, setActiveMaterial] = React.useState<string | null>(null);
@@ -55,7 +54,7 @@ export function DndHost({ children }: { children: React.ReactNode }) {
     if (!over) return;
     if (!active) return;
 
-    if (platform === "bedrock" && bedrock) {
+    if (bedrock) {
       if (active.startsWith("bedrock-button-") && over.startsWith("bedrock-button-") && bedrock.type === "SIMPLE") {
         const activeKey = active.replace("bedrock-button-", "");
         const overKey = over.replace("bedrock-button-", "");
@@ -80,7 +79,7 @@ export function DndHost({ children }: { children: React.ReactNode }) {
       }
     }
 
-    if (platform === "bedrock" && bedrock) {
+    if (bedrock) {
       const t = data?.type as string | undefined;
       if (!t) return;
       if (over === "bedrock-buttons" && (bedrock.type === "SIMPLE" || bedrock.type === "MODAL") && t === "button") {
@@ -101,19 +100,6 @@ export function DndHost({ children }: { children: React.ReactNode }) {
         ];
         setBedrock({ ...(bedrock as any), components } as BedrockForm);
       }
-      return;
-    }
-
-    if (platform === "java" && java) {
-      const material = data?.material as string | undefined;
-      if (!material) return;
-      if (!over.startsWith("java-slot-")) return;
-      const slot = Number(over.replace("java-slot-", ""));
-      if (Number.isNaN(slot)) return;
-      if (!isJavaSlotValid(java as JavaMenu, slot)) return;
-      const withoutSlot = java.items.filter((i) => i.slot !== slot);
-      const items = [...withoutSlot, { slot, material }];
-      setJava({ ...(java as JavaMenu), items });
     }
   };
 

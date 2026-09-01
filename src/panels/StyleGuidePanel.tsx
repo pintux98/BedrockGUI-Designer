@@ -1,5 +1,4 @@
 import React from "react";
-import { JavaPreview } from "../canvas/previews/JavaPreview";
 import { BedrockPreview } from "../canvas/previews/BedrockPreview";
 
 export function StyleGuidePanel() {
@@ -61,15 +60,6 @@ export function StyleGuidePanel() {
             <BedrockPreview form={bedrockCustomMock as any} />
           </div>
         </Section>
-
-        <Section title="Java mockups">
-          <div className="space-y-3">
-            <div className="text-xs text-brand-muted">CHEST</div>
-            <JavaPreview menu={javaChestMock as any} />
-            <div className="text-xs text-brand-muted">ANVIL</div>
-            <JavaPreview menu={javaAnvilMock as any} />
-          </div>
-        </Section>
       </div>
     </div>
   );
@@ -124,27 +114,6 @@ const bedrockCustomMock = {
     { id: "slider_1", type: "slider", props: { text: "Select your age! 18", min: 0, max: 100, step: 1, default: 18 } },
     { id: "dropdown_1", type: "dropdown", props: { text: "Select a preference", options: ["Option 1", "Option 2"], default: 0 } },
     { id: "toggle_1", type: "toggle", props: { text: "Enable feature", default: false } }
-  ]
-};
-
-const javaChestMock = {
-  type: "CHEST",
-  title: "Example Menu",
-  size: 27,
-  items: [
-    { slot: 10, material: "DIAMOND_SWORD", name: "Select", lore: ["Line 1", "Line 2"] },
-    { slot: 12, material: "EMERALD", name: "Shop" },
-    { slot: 14, material: "PAPER", name: "Info" }
-  ]
-};
-
-const javaAnvilMock = {
-  type: "ANVIL",
-  title: "Repair & Name",
-  items: [
-    { slot: 0, material: "IRON_SWORD", name: "Input" },
-    { slot: 1, material: "IRON_INGOT", name: "Material" },
-    { slot: 2, material: "IRON_SWORD", name: "Result" }
   ]
 };
 

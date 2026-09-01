@@ -2,7 +2,6 @@ import React from "react";
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { BedrockPreview } from "../canvas/previews/BedrockPreview";
-import { JavaPreview } from "../canvas/previews/JavaPreview";
 import { DndContext } from "@dnd-kit/core";
 
 function wrap(ui: React.ReactElement) {
@@ -53,26 +52,6 @@ describe("Preview Components", () => {
       wrap(<BedrockPreview form={form} />);
       expect(screen.getByText("Green Title")).toHaveStyle({ color: "#55FF55" });
       expect(screen.getByText("Pink")).toHaveStyle({ color: "#FF00FF" });
-    });
-  });
-
-  describe("JavaPreview", () => {
-    it("renders CHEST menu correctly", () => {
-      const menu: any = {
-        type: "CHEST",
-        title: "CHEST Menu",
-        size: 27,
-        items: [{ slot: 0, material: "STONE" }]
-      };
-      const view = wrap(<JavaPreview menu={menu} />);
-      expect(view.getByText("CHEST Menu")).toBeDefined();
-      expect(view.getByTitle("STONE")).toBeDefined();
-      view.unmount();
-    });
-
-    it("renders null if menu is undefined", () => {
-      const { container } = render(<JavaPreview menu={undefined as any} />);
-      expect(container.innerHTML).toBe("");
     });
   });
 });
