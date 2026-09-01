@@ -3247,8 +3247,17 @@ export function serializeConfigDocument(project: Project): string {
 
 - [ ] **Step 5: Write `src/parse/legacy.ts`**
 
-The old inline shape nests a whole form under `forms.<id>`, which is exactly what
-`parseFormDocument` already understands, so re-dump each entry and hand it over.
+An inline form is **flat**, not wrapped in `bedrock:`. `FormMenuUtil.loadFormMenus` reads
+`forms.<id>.file`, and when that is absent it sets `bedrockBase = "forms." + key` — so `type`,
+`title`, `buttons` and the rest sit directly on `forms.<id>`, with `java` as their sibling. The
+`bedrock:` wrapper exists only inside an external form file, where `bedrockBase` becomes
+`"bedrock"`. Assuming the wrapper makes this function silently return zero forms for a real
+legacy config.
+
+`parseFormDocument` already copes with both, because it does `doc.bedrock ?? doc` and reads
+`doc.java` separately — so the entry can be handed over as-is either way. Only the FILTER needs to
+know the difference: skip entries that carry a `file:` pointer (those are not inline), accept
+entries with a `bedrock:` object, and otherwise accept anything that looks like a form.
 
 ```ts
 import yaml from "js-yaml";
@@ -3259,8 +3268,16 @@ export function parseLegacyInlineConfig(text: string): FormDoc[] {
   const doc = (yaml.load(text) ?? {}) as Record<string, any>;
   const forms = doc.forms ?? {};
   return Object.entries(forms)
-    .filter(([, entry]) => entry && typeof entry === "object" && (entry as any).bedrock)
+    .filter(([, entry]) => isInlineForm(entry))
     .map(([id, entry]) => parseFormDocument(yaml.dump(entry), id));
+}
+
+function isInlineForm(entry: unknown): boolean {
+  if (!entry || typeof entry !== "object") return false;
+  const e = entry as Record<string, unknown>;
+  if (typeof e.file === "string" && e.file.trim()) return false;
+  if (e.bedrock && typeof e.bedrock === "object") return true;
+  return Boolean(e.type || e.title || e.buttons || e.components);
 }
 ```
 
