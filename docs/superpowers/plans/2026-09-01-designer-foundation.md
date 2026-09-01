@@ -136,12 +136,17 @@ git commit -m "build: upgrade to React 19"
 
 - [ ] **Step 1: Install**
 
-Vite and its React plugin must move together — `@vitejs/plugin-react@6` requires `vite@^8`,
-so installing them in one command is what lets npm resolve the peer range.
+Vite and its React plugin must move together — `@vitejs/plugin-react@6` requires `vite@^8`.
 
 ```bash
-npm install -D vite@8.2.2 @vitejs/plugin-react@6.1.1 vitest@4.1.11 jsdom@30.0.1
+npm install -D vite@8.2.2 vitest@4.1.11 jsdom@30.0.1
+npm install -D @vitejs/plugin-react@6.1.1
 ```
+
+Two commands, not one. Combining them trips an npm arborist ordering quirk that reports
+ERESOLVE while upgrading a peer-linked pair simultaneously. Installing Vite first and the
+plugin second reaches the same versions with honest resolution. Never reach for `--force` or
+`--legacy-peer-deps` here — a real peer conflict is information, not an obstacle.
 
 - [ ] **Step 2: Run the tests to surface runner breakage**
 
