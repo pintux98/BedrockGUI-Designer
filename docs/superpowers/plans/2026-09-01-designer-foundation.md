@@ -87,8 +87,11 @@ Expected: PASS, 22 tests across 6 files. Note the number; it must not drop in an
 
 ```bash
 npm install react@19.2.8 react-dom@19.2.8
-npm install -D @types/react@19.2.18 @types/react-dom@19.2.8 @testing-library/react@16.3.3
+npm install -D @types/react@19.2.18 @types/react-dom@19.2.5 @testing-library/react@16.3.3
 ```
+
+`@types/react-dom` is versioned by DefinitelyTyped, not in lockstep with `react-dom`; 19.2.5
+is the current 19.x and 19.2.8 does not exist.
 
 Do **not** install `@vitejs/plugin-react@6` here. It peers on `vite@^8`, which Task 2 installs;
 adding it now fails with `ERESOLVE ... peer vite@"^8.0.0" from @vitejs/plugin-react@6.1.1`.
