@@ -7,6 +7,7 @@ import {
   KeyboardSensor,
   MouseSensor,
   TouchSensor,
+  closestCenter,
   useSensor,
   useSensors
 } from "@dnd-kit/core";
@@ -106,6 +107,7 @@ export function DndHost({ children }: { children: React.ReactNode }) {
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={closestCenter}
       onDragStart={(e) => {
         setActiveId(e.active.id.toString());
         const d = e.active.data.current as any;
