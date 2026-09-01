@@ -1,10 +1,21 @@
 import React from "react";
 import { BufferedInput, BufferedTextArea } from "../components/BufferedInput";
-import { ACTION_TYPE_INFO, ActionTypeId } from "./types";
+import { ACTIONS, ActionId } from "../plugin";
 import { PlaceholderPicker } from "../components/PlaceholderPicker";
 
+export type ActionKind = ActionId | "raw";
+
+export const RAW_ACTION_INFO = {
+  label: "Raw",
+  icon: "📝",
+  color: "border-gray-500",
+  description: "Write raw action block YAML. Use for advanced configurations.",
+  placeholder: "type {\n  - line1\n  - line2\n}",
+  formatExample: 'message {\n  - "&aHello!"\n}'
+};
+
 interface ActionBlockProps {
-  type: ActionTypeId;
+  type: ActionKind;
   lines: string[];
   subchannel?: string;
   args?: string[];
@@ -22,7 +33,7 @@ interface ActionBlockProps {
 }
 
 export interface ActionBlockData {
-  type: ActionTypeId;
+  type: ActionKind;
   lines?: string[];
   subchannel?: string;
   args?: string[];
@@ -52,7 +63,7 @@ export function ActionBlock({
   const [expanded, setExpanded] = React.useState(true);
   const [showPlaceholderPicker, setShowPlaceholderPicker] = React.useState(false);
   const [pickerTarget, setPickerTarget] = React.useState<"lines" | "args" | "trueLines" | "falseLines" | "condition" | null>(null);
-  const info = ACTION_TYPE_INFO[type];
+  const info = type === "raw" ? RAW_ACTION_INFO : ACTIONS[type];
   const isBungee = type === "bungee";
   const isConditional = type === "conditional";
   const isRandom = type === "random";

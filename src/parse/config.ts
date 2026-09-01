@@ -1,4 +1,4 @@
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { AssetsConfig } from "../core/project";
 
 export interface ParsedConfig {

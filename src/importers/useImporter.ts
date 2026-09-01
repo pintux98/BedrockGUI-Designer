@@ -1,78 +1,58 @@
+import * as yaml from "js-yaml";
 import { useDesignerStore } from "../core/store";
-import { deserializeActions, yamlToStateDoc } from "../core/yaml";
-import { findForm } from "../core/project";
+import { FormDoc, findForm } from "../core/project";
+import { parseConfigDocument } from "../parse/config";
+import { parseFormDocument } from "../parse/form";
+import { parseLegacyInlineConfig } from "../parse/legacy";
 import { toast } from "../core/toast";
 
 export function useImporter() {
-  const {
-    activeForm,
-    renameForm,
-    setBedrock,
-    setGlobalActions
-  } = useDesignerStore();
-
   const importYaml = async (file: File) => {
     const text = await file.text();
-    const parsed = yamlToStateDoc(text);
-    const currentId = activeForm().id;
-    if (parsed.menuName && parsed.menuName !== currentId) {
-      const clash = findForm(useDesignerStore.getState().project, parsed.menuName);
-      if (clash) {
-        toast.error(`Cannot import: a form named "${parsed.menuName}" already exists. Rename or remove it first.`);
+    const doc = (yaml.load(text) ?? {}) as Record<string, any>;
+
+    let forms: FormDoc[];
+    if (doc.forms && typeof doc.forms === "object") {
+      forms = parseLegacyInlineConfig(text);
+      if (!forms.length) {
+        const config = parseConfigDocument(text);
+        const state = useDesignerStore.getState();
+        state.setAssets(config.assets);
+        toast.info(
+          "Imported assets settings from config.yml. Its registered forms must be imported individually, one file at a time.",
+          6000
+        );
         return;
       }
-      renameForm(currentId, parsed.menuName);
+    } else {
+      forms = [parseFormDocument(text, deriveFormId(file.name))];
     }
-    const entry = parsed.entry ?? {};
-    const bedrockEntry = entry?.bedrock ?? (entry?.type ? entry : undefined);
-    if (bedrockEntry?.type && bedrockEntry?.title) {
-      if (bedrockEntry.type === "SIMPLE" || bedrockEntry.type === "MODAL") {
-        const parsedButtons = Object.entries(bedrockEntry.buttons ?? {}).map(([id, b]: any) => ({
-          id,
-          text: b.text,
-          image: b.image,
-          onClick: deserializeActions(b.onClick)
-        }));
-        const buttons =
-          bedrockEntry.type === "MODAL"
-            ? normalizeModalButtons(parsedButtons)
-            : parsedButtons.length
-              ? parsedButtons
-              : [{ id: "button_1", text: "Button 1" }];
-        setBedrock({
-          type: bedrockEntry.type,
-          command: bedrockEntry.command,
-          permission: bedrockEntry.permission,
-          title: bedrockEntry.title,
-          content: bedrockEntry.content ?? bedrockEntry.description,
-          buttons
-        });
-      } else if (bedrockEntry.type === "CUSTOM") {
-        setBedrock({
-          type: "CUSTOM",
-          command: bedrockEntry.command,
-          permission: bedrockEntry.permission,
-          title: bedrockEntry.title,
-          components: Object.entries(bedrockEntry.components ?? {}).map(([id, c]: any) => ({
-            id,
-            type: c.type,
-            props: Object.fromEntries(Object.entries(c).filter(([k]) => !["type", "onClick"].includes(k))),
-            onClick: deserializeActions(c.onClick)
-          }))
-        });
+
+    const state = useDesignerStore.getState();
+    const project = state.project;
+    const nextForms = [...project.forms];
+    let activeFormId = project.activeFormId;
+
+    for (const form of forms) {
+      const idx = nextForms.findIndex((f) => f.id === form.id);
+      if (idx === -1) {
+        nextForms.push(form);
+        activeFormId = form.id;
+      } else if (form.id === project.activeFormId) {
+        nextForms[idx] = form;
+        activeFormId = form.id;
+      } else {
+        toast.error(`Cannot import: a form named "${form.id}" already exists. Rename or remove it first.`);
+        return;
       }
     }
-    if (entry?.global_actions?.length) {
-      setGlobalActions(
-        deserializeActions(entry.global_actions) ?? []
-      );
-    }
+
+    state.loadProject({ ...project, forms: nextForms, activeFormId });
   };
+
   return { importYaml };
 }
 
-function normalizeModalButtons(buttons: any[]) {
-  const trimmed = buttons.slice(0, 2);
-  while (trimmed.length < 2) trimmed.push({ id: trimmed.length === 0 ? "yes" : "no", text: trimmed.length === 0 ? "Yes" : "No" });
-  return trimmed;
+function deriveFormId(fileName: string): string {
+  return fileName.replace(/\.(ya?ml)$/i, "").trim() || "imported_form";
 }

@@ -18,7 +18,6 @@ const KNOWN_ACTION_TYPES = new Set([
   "random",
   "conditional",
   "bungee",
-  "url",
   "inventory"
 ]);
 

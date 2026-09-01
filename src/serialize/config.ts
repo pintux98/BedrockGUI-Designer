@@ -1,4 +1,4 @@
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { Project } from "../core/project";
 
 export function serializeConfigDocument(project: Project): string {

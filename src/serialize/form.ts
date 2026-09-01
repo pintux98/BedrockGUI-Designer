@@ -1,4 +1,4 @@
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { FormDoc } from "../core/project";
 import { ActionInstance, BedrockButton, BedrockComponent } from "../core/types";
 import { applyBlockScalars } from "./blockScalar";
@@ -30,7 +30,7 @@ export function serializeFormDocument(doc: FormDoc): string {
   if (doc.javaRaw !== undefined) document.java = doc.javaRaw;
 
   return applyBlockScalars(
-    yaml.dump(document, { lineWidth: -1, noRefs: true, forceQuotes: true, quotingType: '"' })
+    yaml.dump(document, { lineWidth: -1, noRefs: true, forceQuotes: true, quoteStyle: "double" })
   );
 }
 

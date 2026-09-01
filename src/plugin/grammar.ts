@@ -1,4 +1,4 @@
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { ActionId, isActionId } from "./actions";
 
 export type ParsedAction =

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { operatorsFor, validateCondition } from "../../plugin/conditions";
 import { parseActionBlock, ParsedAction } from "../../plugin/grammar";
 

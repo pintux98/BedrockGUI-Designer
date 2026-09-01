@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { parseConfigDocument } from "../parse/config";
 import { serializeConfigDocument } from "../serialize/config";
 import { parseLegacyInlineConfig } from "../parse/legacy";

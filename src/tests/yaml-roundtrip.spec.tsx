@@ -4,7 +4,7 @@ import { render, fireEvent, cleanup, screen } from "@testing-library/react";
 import { useDesignerStore } from "../core/store";
 import { YamlEditorPanel } from "../panels/YamlEditorPanel";
 import { DndContext } from "@dnd-kit/core";
-import { yamlToStateDoc, deserializeActions } from "../core/yaml";
+import { parseFormDocument } from "../parse/form";
 
 function wrap(ui: React.ReactElement) {
   return render(<DndContext>{ui}</DndContext>);
@@ -55,16 +55,19 @@ describe("yaml roundtrip", () => {
     expect(textarea.value).toContain("command_intercept");
     expect(textarea.value).toContain("global_actions");
     expect(textarea.value).toContain("show_condition");
+    expect(textarea.value).toContain("content:");
+    expect(textarea.value).not.toContain("description:");
+    expect(textarea.value).not.toContain("configVersion");
   });
 
   it("imports new fields from YAML snippet into store", () => {
-    const yaml = [
+    const yamlText = [
       "bedrock:",
       "  type: SIMPLE",
       "  title: Example Form",
       "  command: /example",
       "  command_intercept: /example",
-      "  description: Content",
+      "  content: Content",
       "  global_actions:",
       "    - 'message {",
       '      - "Hello"',
@@ -82,13 +85,15 @@ describe("yaml roundtrip", () => {
       ""
     ].join("\n");
 
-    const { entry } = yamlToStateDoc(yaml);
-    expect(entry.bedrock.command_intercept).toBe("/example");
-    const globalActions = deserializeActions(entry.bedrock.global_actions);
-    expect(globalActions?.length).toBe(1);
-    expect(entry.bedrock.buttons.button_1.show_condition).toBe("permission:bedrockgui.use");
-    expect(entry.bedrock.buttons.button_1.conditions).toHaveProperty("c1");
-    expect(entry.bedrock.buttons.button_1.conditions.c1.condition).toBe("permission:bedrockgui.use");
+    const doc = parseFormDocument(yamlText, "example");
+    const bedrock = doc.bedrock as any;
+    expect(bedrock.commandIntercept).toBe("/example");
+    expect(bedrock.globalActions?.length).toBe(1);
+    const button = bedrock.buttons.find((b: any) => b.id === "button_1");
+    expect(button.showCondition).toBe("permission:bedrockgui.use");
+    expect(button.conditions).toHaveLength(1);
+    expect(button.conditions[0].id).toBe("c1");
+    expect(button.conditions[0].condition).toBe("permission:bedrockgui.use");
   });
 });
 

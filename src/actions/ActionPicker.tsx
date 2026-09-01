@@ -1,9 +1,15 @@
 import React from "react";
-import { ACTION_TYPE_INFO, ACTION_TYPE_ORDER, ActionTypeId } from "./types";
+import { ACTIONS, actionsForPlatform } from "../plugin";
+import { useDesignerStore } from "../core/store";
+import { ActionKind, RAW_ACTION_INFO } from "./ActionBlock";
 
 interface ActionPickerProps {
-  onSelect: (type: ActionTypeId) => void;
+  onSelect: (type: ActionKind) => void;
   onClose: () => void;
+}
+
+function infoFor(id: ActionKind) {
+  return id === "raw" ? RAW_ACTION_INFO : ACTIONS[id];
 }
 
 export function ActionPicker({ onSelect, onClose }: ActionPickerProps) {
@@ -28,12 +34,15 @@ export function ActionPicker({ onSelect, onClose }: ActionPickerProps) {
     return () => document.removeEventListener("keydown", handleEsc);
   }, [onClose]);
 
-  const filtered = ACTION_TYPE_ORDER.filter((id) => {
-    const info = ACTION_TYPE_INFO[id];
+  const platform = useDesignerStore((s) => s.project.platformTarget);
+  const order: ActionKind[] = [...actionsForPlatform(platform).map((a) => a.id), "raw"];
+
+  const filtered = order.filter((id) => {
+    const info = infoFor(id);
     const q = search.toLowerCase();
     return (
       info.label.toLowerCase().includes(q) ||
-      info.id.toLowerCase().includes(q) ||
+      id.toLowerCase().includes(q) ||
       info.description.toLowerCase().includes(q)
     );
   });
@@ -57,7 +66,7 @@ export function ActionPicker({ onSelect, onClose }: ActionPickerProps) {
         </div>
         <div className="max-h-72 overflow-y-auto custom-scrollbar p-1">
           {filtered.map((id) => {
-            const info = ACTION_TYPE_INFO[id];
+            const info = infoFor(id);
             return (
               <button
                 key={id}

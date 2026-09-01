@@ -1,7 +1,7 @@
 import React from "react";
-import { ActionBlock, ActionBlockData } from "./ActionBlock";
+import { ActionBlock, ActionBlockData, ActionKind } from "./ActionBlock";
 import { ActionPicker } from "./ActionPicker";
-import { ActionTypeId, ACTION_TYPE_INFO } from "./types";
+import { isActionId } from "../plugin";
 
 interface VisualActionEditorProps {
   value: string[];
@@ -9,7 +9,7 @@ interface VisualActionEditorProps {
 }
 
 interface ParsedAction {
-  type: ActionTypeId;
+  type: ActionKind;
   lines: string[];
   subchannel?: string;
   args?: string[];
@@ -27,7 +27,7 @@ function parseAction(raw: string): ParsedAction {
   const close = s.lastIndexOf("}");
 
   if (open !== -1 && close !== -1 && close > open) {
-    const type = s.slice(0, open).trim().toLowerCase() as ActionTypeId;
+    const type = s.slice(0, open).trim().toLowerCase();
     const inner = s.slice(open + 1, close);
 
     if (type === "bungee") {
@@ -60,9 +60,11 @@ function parseAction(raw: string): ParsedAction {
       };
     }
 
-    const lines = extractListLines(inner);
-    const validType = ACTION_TYPE_INFO[type as ActionTypeId] ? (type as ActionTypeId) : "message";
-    return { type: validType, lines: lines.length ? lines : [""] };
+    if (isActionId(type)) {
+      const lines = extractListLines(inner);
+      return { type, lines: lines.length ? lines : [""] };
+    }
+    return { type: "raw", lines: [], raw: s };
   }
 
   return { type: "raw", lines: [], raw: s };
@@ -200,7 +202,7 @@ export function VisualActionEditor({ value, onChange }: VisualActionEditorProps)
     onChange(serialized);
   };
 
-  const addAction = (type: ActionTypeId) => {
+  const addAction = (type: ActionKind) => {
     const newAction: ParsedAction = {
       type,
       lines: type === "raw" ? [] : [""],

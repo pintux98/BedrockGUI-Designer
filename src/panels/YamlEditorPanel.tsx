@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useDesignerStore } from "../core/store";
-import { stateToSnippetYaml } from "../core/yaml";
+import { serializeFormDocument } from "../serialize/form";
 
 interface YamlEditorPanelProps {
   onCollapseChange?: (collapsed: boolean) => void;
@@ -29,7 +29,7 @@ export function YamlEditorPanel({ onCollapseChange, defaultExpanded }: YamlEdito
     localStorage.setItem("yaml_panel_collapsed", String(collapsed));
   }, [collapsed]);
 
-  const liveYaml = stateToSnippetYaml(activeForm().bedrock);
+  const liveYaml = serializeFormDocument(activeForm());
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(liveYaml).then(() => {
