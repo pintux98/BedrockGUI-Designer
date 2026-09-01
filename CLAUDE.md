@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A single-page visual designer (React 18 + TypeScript + Vite + Tailwind) for authoring **Minecraft Bedrock GUI forms** for the BedrockGUI server plugin. The user designs a form visually and the app exports a YAML config that the plugin consumes. The app is client-only and deploys to Cloudflare.
+A single-page visual designer (React 19 + TypeScript + Vite + Tailwind) for authoring **Minecraft Bedrock GUI forms** for the BedrockGUI server plugin. The user designs a form visually and the app exports a YAML config that the plugin consumes. The app is client-only and deploys to Cloudflare.
 
-Note: the project was originally dual-platform (Java + Bedrock). Java support has been removed — `Platform` is now the single value `"bedrock"`. Do not reintroduce a Java code path.
+Note: the project was originally dual-platform (Java + Bedrock). Java support has been removed, and the `Platform` type with it — Bedrock is the only target. Do not reintroduce a Java code path.
 
 ## Commands
 
