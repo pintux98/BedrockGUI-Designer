@@ -31,11 +31,27 @@ describe("validateCondition", () => {
   });
 
   it("rejects symbol syntax in a colon context", () => {
-    expect(validateCondition("placeholder:%x% >= 5", "colon").length).toBeGreaterThan(0);
+    const problems = validateCondition("placeholder:%x% >= 5", "colon");
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems[0]).toContain("uses conditional-check syntax");
   });
 
   it("rejects an unknown operator", () => {
-    expect(validateCondition("placeholder:%x%:bigger_than:5", "colon").length).toBeGreaterThan(0);
+    const problems = validateCondition("placeholder:%x%:bigger_than:5", "colon");
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems[0]).toContain("is not a valid operator");
+  });
+
+  it("rejects too few colon segments with no symbols to guess from", () => {
+    const problems = validateCondition("placeholder:%x%", "colon");
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems[0]).toContain("must read placeholder:");
+  });
+
+  it("rejects a colon operator missing its expected value", () => {
+    const problems = validateCondition("placeholder:%x%:contains", "colon");
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems[0]).toContain("needs a value to compare against");
   });
 
   it("accepts combined atoms with and or", () => {
@@ -43,11 +59,17 @@ describe("validateCondition", () => {
   });
 
   it("rejects unbalanced parentheses", () => {
-    expect(validateCondition("(permission:a.b", "colon").length).toBeGreaterThan(0);
+    const problems = validateCondition("(permission:a.b", "colon");
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems[0]).toContain("Unbalanced parentheses");
   });
 
   it("accepts the operators that need no expected value", () => {
     expect(validateCondition("placeholder:%x%:not_empty", "colon")).toEqual([]);
+  });
+
+  it("accepts a colon comparison using the symbol form of an operator", () => {
+    expect(validateCondition("placeholder:%x%:>=:5", "colon")).toEqual([]);
   });
 
   it("accepts bedrock_player:true in colon context", () => {
@@ -61,7 +83,7 @@ describe("validateCondition", () => {
   it("rejects a bare bedrock_player with a message naming the fix", () => {
     const problems = validateCondition("bedrock_player", "colon");
     expect(problems.length).toBeGreaterThan(0);
-    expect(problems.some((p) => p.includes("bedrock_player:true"))).toBe(true);
+    expect(problems[0]).toContain("bedrock_player:true");
   });
 
   it("accepts not:bedrock_player:true", () => {
@@ -75,21 +97,27 @@ describe("validateCondition", () => {
   it("rejects plugin: inside a conditional check", () => {
     const problems = validateCondition("plugin:Vault", "symbol");
     expect(problems.length).toBeGreaterThan(0);
-    expect(problems.some((p) => p.includes("show_condition"))).toBe(true);
+    expect(problems[0]).toContain("not supported inside a conditional check");
+    expect(problems[0]).toContain("show_condition");
   });
 
   it("rejects bedrock_player inside a conditional check", () => {
-    expect(validateCondition("bedrock_player:true", "symbol").length).toBeGreaterThan(0);
+    const problems = validateCondition("bedrock_player:true", "symbol");
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems[0]).toContain("not supported inside a conditional check");
   });
 
   it("rejects java_player inside a conditional check", () => {
-    expect(validateCondition("java_player:true", "symbol").length).toBeGreaterThan(0);
+    const problems = validateCondition("java_player:true", "symbol");
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems[0]).toContain("not supported inside a conditional check");
   });
 
   it("rejects not:permission:a.b inside a conditional check", () => {
     const problems = validateCondition("not:permission:a.b", "symbol");
     expect(problems.length).toBeGreaterThan(0);
-    expect(problems.some((p) => p.includes("show_condition"))).toBe(true);
+    expect(problems[0]).toContain("not supported inside a conditional check");
+    expect(problems[0]).toContain("show_condition");
   });
 
   it("accepts a colon comparison whose expected value contains a comparison symbol", () => {

@@ -99,13 +99,16 @@ function validateSymbolAtom(atom: string, body: string): string[] {
 
 function validateColonAtom(atom: string, body: string): string[] {
   const parts = body.split(":");
-  if (parts.length < 3) return [`"${atom}" must read placeholder:<value>:<operator>[:<expected>].`];
-  const opToken = parts[2];
-  const operator = OPERATORS.find((o) => o.word === opToken || o.symbol === opToken);
+  const opToken = parts.length >= 3 ? parts[2] : undefined;
+  const operator = opToken
+    ? OPERATORS.find((o) => o.word === opToken || o.symbol === opToken)
+    : undefined;
+
   if (!operator) {
     if (/\s(>=|<=|==|!=|>|<)\s/.test(body)) {
       return [`"${atom}" uses conditional-check syntax. Here it must be placeholder:<value>:<operator>:<expected>.`];
     }
+    if (parts.length < 3) return [`"${atom}" must read placeholder:<value>:<operator>[:<expected>].`];
     return [`"${opToken}" is not a valid operator.`];
   }
   if (operator.needsExpected && parts.length < 4) return [`"${opToken}" needs a value to compare against.`];
