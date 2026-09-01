@@ -8,6 +8,18 @@ import { serializeFormDocument } from "../serialize/form";
 const dir = path.resolve(__dirname, "fixtures/plugin-forms");
 const files = fs.readdirSync(dir).filter((f) => f.endsWith(".yml"));
 
+function normalizeActions(value: unknown): string[] {
+  if (value === undefined || value === null) return [];
+  const list = Array.isArray(value) ? value : [value];
+  return list.map((v) => String(v).trim());
+}
+
+function normalizeEntry(entry: any, actionKey: "onClick" | "action") {
+  if (!entry) return entry;
+  const { [actionKey]: actionValue, ...rest } = entry;
+  return { ...rest, [actionKey]: normalizeActions(actionValue) };
+}
+
 describe("golden round-trip against the shipped plugin forms", () => {
   it("has all seven fixtures", () => {
     expect(files).toHaveLength(7);
@@ -40,8 +52,23 @@ describe("golden round-trip against the shipped plugin forms", () => {
         expect(flat(after.bedrock.content)).toBe(flat(beforeContent));
       }
 
-      expect(Object.keys(after.bedrock.buttons ?? {})).toEqual(Object.keys(before.bedrock.buttons ?? {}));
-      expect(Object.keys(after.bedrock.components ?? {})).toEqual(Object.keys(before.bedrock.components ?? {}));
+      const beforeButtons = before.bedrock.buttons ?? {};
+      const afterButtons = after.bedrock.buttons ?? {};
+      expect(Object.keys(afterButtons)).toEqual(Object.keys(beforeButtons));
+      for (const buttonId of Object.keys(beforeButtons)) {
+        expect(normalizeEntry(afterButtons[buttonId], "onClick")).toEqual(
+          normalizeEntry(beforeButtons[buttonId], "onClick")
+        );
+      }
+
+      const beforeComponents = before.bedrock.components ?? {};
+      const afterComponents = after.bedrock.components ?? {};
+      expect(Object.keys(afterComponents)).toEqual(Object.keys(beforeComponents));
+      for (const componentId of Object.keys(beforeComponents)) {
+        expect(normalizeEntry(afterComponents[componentId], "action")).toEqual(
+          normalizeEntry(beforeComponents[componentId], "action")
+        );
+      }
 
       if (before.java) expect(after.java).toEqual(before.java);
     });
