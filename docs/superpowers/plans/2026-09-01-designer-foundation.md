@@ -1587,7 +1587,7 @@ git commit -m "feat(plugin): classify the seven button image source kinds"
   - `ADDONS: readonly AddonDef[]`
   - `ADDON_FORM_IDS: ReadonlySet<string>`
   - `findAddonForFormId(id: string): AddonDef | undefined`
-  - `FORM_KEYS`, `BUTTON_KEYS`, `COMPONENT_KEYS`, `IGNORED_KEYS` from `keys.ts`
+  - `FORM_KEYS`, `BUTTON_KEYS`, `CONDITION_KEYS`, `COMPONENT_KEYS`, `IGNORED_KEYS` from `keys.ts`
   - `PLUGIN_TARGET = "2.0.11"` from `index.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -1704,6 +1704,11 @@ export function findAddonForFormId(id: string): AddonDef | undefined {
 
 - [ ] **Step 4: Write `src/plugin/keys.ts`**
 
+`CONDITION_KEYS` covers the leaf keys inside each entry of a button's `conditions` map.
+`FormMenuUtil` parses `…buttons.<button>.conditions.<key>.condition`, `.property` and `.value`
+(lines 224-226), so `BUTTON_KEYS.conditions` names only the group and these name what is inside
+it. Tasks 18 and 19 read and write those leaves.
+
 ```ts
 export const FORM_KEYS = {
   type: "type",
@@ -1716,6 +1721,12 @@ export const FORM_KEYS = {
   buttons: "buttons",
   components: "components",
   globalActions: "global_actions"
+} as const;
+
+export const CONDITION_KEYS = {
+  condition: "condition",
+  property: "property",
+  value: "value"
 } as const;
 
 export const BUTTON_KEYS = {
