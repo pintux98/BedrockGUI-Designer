@@ -1149,6 +1149,27 @@ Expected: FAIL, module not found.
 The operator table mirrors `ConditionEvaluator` in the plugin. Word forms are legal only in
 the colon syntax; symbol forms are legal in both.
 
+**Two contexts, two evaluators, two different atom sets.** This is the single most important
+fact in this module, and it is not in the documentation. The two condition contexts are handled
+by entirely separate code in the plugin:
+
+| Context | Evaluated by | Atoms it supports |
+|---|---|---|
+| `show_condition`, `conditions[].condition` | `ConditionEvaluator.evaluateSingle` | `permission`, `placeholder`, `plugin`, `bedrock_player`, `java_player`, `not` |
+| a `conditional` action's `check:` | `ConditionalActionHandler.evaluateSingleCondition` | `placeholder` and `permission` — **nothing else** |
+
+`ConditionalActionHandler.evaluateSingleCondition` is three branches: `startsWith("placeholder:")`,
+`startsWith("permission:")`, and an else that logs `Unknown condition type in: …` and returns
+false. There is no `not:` handling anywhere in that file. So `plugin:Vault`,
+`bedrock_player:true`, `java_player:true` and any `not:…` inside a `conditional` check are not
+merely discouraged — they always evaluate false, silently sending every such branch down the
+`false:` path.
+
+`validateCondition` must therefore gate atom kinds on context, not only operator syntax. In
+`"symbol"` context, accept only `placeholder` and `permission`, and reject the others with a
+message that says the atom is unsupported inside a conditional check and suggests putting it on
+the button's `show_condition` instead.
+
 **`bedrock_player` and `java_player`.** Both exist in `ConditionEvaluator` and neither takes a
 meaningful argument — the evaluator ignores the value. But one must still be present:
 `evaluateSingle` rejects any condition with fewer than two colon-separated parts before it
@@ -1235,14 +1256,16 @@ function validateSymbolAtom(atom: string, body: string): string[] {
 }
 
 function validateColonAtom(atom: string, body: string): string[] {
-  if (/\s(>=|<=|==|!=|>|<)\s/.test(body)) {
-    return [`"${atom}" uses conditional-check syntax. Here it must be placeholder:<value>:<operator>:<expected>.`];
-  }
   const parts = body.split(":");
   if (parts.length < 3) return [`"${atom}" must read placeholder:<value>:<operator>[:<expected>].`];
   const opToken = parts[2];
   const operator = OPERATORS.find((o) => o.word === opToken || o.symbol === opToken);
-  if (!operator) return [`"${opToken}" is not a valid operator.`];
+  if (!operator) {
+    if (/\s(>=|<=|==|!=|>|<)\s/.test(body)) {
+      return [`"${atom}" uses conditional-check syntax. Here it must be placeholder:<value>:<operator>:<expected>.`];
+    }
+    return [`"${opToken}" is not a valid operator.`];
+  }
   if (operator.needsExpected && parts.length < 4) return [`"${opToken}" needs a value to compare against.`];
   return [];
 }
