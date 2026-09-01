@@ -73,7 +73,15 @@ export function TopBar() {
         const parsed = JSON.parse(data);
         if (isLegacyDesign(parsed)) {
           const { project, notes } = migrateLegacyDesign(parsed);
-          loadProjectIntoStore(project);
+          const migrated = parseProject(project);
+          if (!migrated.ok) {
+            console.error("Failed to migrate legacy project", migrated.problems);
+            toast.error(
+              `Project '${name}' is in an old format and could not be migrated: ${migrated.problems.slice(0, 3).join("; ")}`
+            );
+            return;
+          }
+          loadProjectIntoStore(migrated.project);
           setShowProjects(false);
           toast.info(`Project '${name}' was saved in an old format and has been migrated.`, 6000);
           for (const noteText of notes) toast.info(noteText, 8000);

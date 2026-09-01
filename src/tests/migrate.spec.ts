@@ -58,6 +58,27 @@ describe("migrateLegacyDesign", () => {
     const result = parseProject(project);
     expect(result.ok).toBe(true);
   });
+
+  it("a hand-corrupted legacy save (MODAL with 3 buttons) still fails parseProject after migration", () => {
+    const CORRUPT_LEGACY = {
+      configVersion: "1.0.0",
+      menuName: "broken",
+      platform: "bedrock",
+      bedrock: {
+        type: "MODAL",
+        title: "Broken",
+        buttons: [
+          { id: "a", text: "A" },
+          { id: "b", text: "B" },
+          { id: "c", text: "C" }
+        ]
+      }
+    };
+    const { project } = migrateLegacyDesign(CORRUPT_LEGACY);
+    const result = parseProject(project);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.problems.join(" ")).toContain("buttons");
+  });
 });
 
 describe("isLegacyDesign", () => {

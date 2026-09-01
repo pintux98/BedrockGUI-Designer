@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, screen, cleanup } from "@testing-library/react";
 import { DndContext } from "@dnd-kit/core";
 import { useDesignerStore } from "../core/store";
+import { useToastStore } from "../core/toast";
 import { PropertiesPanel } from "../panels/PropertiesPanel";
 import { StyleGuidePanel } from "../panels/StyleGuidePanel";
 import { TopBar } from "../app/TopBar";
@@ -54,6 +55,44 @@ describe("ui panels", () => {
     expect(screen.getByText("BEDROCK")).toBeInTheDocument();
     expect(screen.getByText("GUI")).toBeInTheDocument();
     expect(screen.getByText("Export")).toBeInTheDocument();
+  });
+
+  it("refuses to load a legacy save that still fails validation after migration", () => {
+    const CORRUPT_LEGACY = {
+      configVersion: "1.0.0",
+      menuName: "broken",
+      platform: "bedrock",
+      bedrock: {
+        type: "MODAL",
+        title: "Broken",
+        buttons: [
+          { id: "a", text: "A" },
+          { id: "b", text: "B" },
+          { id: "c", text: "C" }
+        ]
+      }
+    };
+    localStorage.setItem("project_broken", JSON.stringify(CORRUPT_LEGACY));
+    useToastStore.setState({ toasts: [] });
+
+    try {
+      wrap(<TopBar />);
+      fireEvent.click(screen.getByText("example"));
+      fireEvent.click(screen.getByText("broken"));
+
+      const st = useDesignerStore.getState();
+      expect(st.project.activeFormId).toBe("example");
+      expect(st.project.forms.map((f) => f.id)).toEqual(["example"]);
+
+      const errorToast = useToastStore.getState().toasts.find((t) => t.variant === "error");
+      expect(errorToast?.message).toContain("broken");
+      expect(errorToast?.message).toContain("old format");
+      expect(errorToast?.message).toContain("could not be migrated");
+      expect(errorToast?.message).toContain("buttons");
+    } finally {
+      localStorage.removeItem("project_broken");
+      useToastStore.setState({ toasts: [] });
+    }
   });
 
   it("action editor adds an action and updates store", () => {
