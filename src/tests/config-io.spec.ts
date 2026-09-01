@@ -86,7 +86,7 @@ describe("serializeConfigDocument", () => {
 });
 
 describe("parseLegacyInlineConfig", () => {
-  it("converts inline forms into form documents", () => {
+  it("converts a bedrock:-wrapped inline form into a form document", () => {
     const legacy = `forms:
   welcome:
     bedrock:
@@ -101,5 +101,89 @@ describe("parseLegacyInlineConfig", () => {
     expect(forms[0].id).toBe("welcome");
     expect(forms[0].fileName).toBe("welcome.yml");
     expect(forms[0].bedrock.title).toBe("Welcome");
+  });
+
+  it("converts a flat inline SIMPLE form (no bedrock: wrapper)", () => {
+    const legacy = `forms:
+  main_hub:
+    type: "SIMPLE"
+    title: "Main Hub"
+    buttons:
+      shop:
+        text: "Shop"
+      settings:
+        text: "Settings"
+`;
+    const forms = parseLegacyInlineConfig(legacy);
+    expect(forms).toHaveLength(1);
+    expect(forms[0].id).toBe("main_hub");
+    expect(forms[0].fileName).toBe("main_hub.yml");
+    expect(forms[0].bedrock.title).toBe("Main Hub");
+    expect(forms[0].bedrock.type).toBe("SIMPLE");
+    const buttons = (forms[0].bedrock as any).buttons;
+    expect(buttons.map((b: any) => b.id)).toEqual(["shop", "settings"]);
+  });
+
+  it("converts a flat inline CUSTOM form with components", () => {
+    const legacy = `forms:
+  survey:
+    type: "CUSTOM"
+    title: "Survey"
+    components:
+      name:
+        type: "input"
+        text: "Your name"
+`;
+    const forms = parseLegacyInlineConfig(legacy);
+    expect(forms).toHaveLength(1);
+    expect(forms[0].id).toBe("survey");
+    expect(forms[0].bedrock.type).toBe("CUSTOM");
+    const components = (forms[0].bedrock as any).components;
+    expect(components.map((c: any) => c.id)).toEqual(["name"]);
+    expect(components[0].type).toBe("input");
+  });
+
+  it("captures a sibling java: section on javaRaw without leaking it into the bedrock model", () => {
+    const legacy = `forms:
+  dual:
+    type: "SIMPLE"
+    title: "Dual Platform"
+    buttons:
+      go:
+        text: "Go"
+    java:
+      title: "Java Title"
+      slots: 27
+`;
+    const forms = parseLegacyInlineConfig(legacy);
+    expect(forms).toHaveLength(1);
+    expect(forms[0].javaRaw).toEqual({ title: "Java Title", slots: 27 });
+    expect((forms[0].bedrock as any).java).toBeUndefined();
+    expect(Object.keys(forms[0].bedrock)).not.toContain("java");
+  });
+
+  it("does not treat a modern file: registry entry as inline", () => {
+    const legacy = `forms:
+  shop:
+    file: "shop.yml"
+`;
+    const forms = parseLegacyInlineConfig(legacy);
+    expect(forms).toHaveLength(0);
+  });
+
+  it("returns only the inline entry from a mixed config", () => {
+    const legacy = `forms:
+  welcome:
+    type: "SIMPLE"
+    title: "Welcome"
+    buttons:
+      go:
+        text: "Go"
+  shop:
+    file: "shop.yml"
+`;
+    const forms = parseLegacyInlineConfig(legacy);
+    expect(forms).toHaveLength(1);
+    expect(forms[0].id).toBe("welcome");
   });
 });
