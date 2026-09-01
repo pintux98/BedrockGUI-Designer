@@ -12,10 +12,11 @@ const items = [
 ];
 
 export function Palette() {
-  const { platform, bedrock } = useDesignerStore();
-  const disabled = platform === "bedrock" && bedrock?.type === "MODAL";
+  const { activeForm } = useDesignerStore();
+  const bedrock = activeForm().bedrock;
+  const disabled = bedrock?.type === "MODAL";
   const visibleItems =
-    platform === "bedrock" && bedrock?.type === "SIMPLE"
+    bedrock?.type === "SIMPLE"
       ? items.filter((i) => i.id === "btn")
       : items;
   return (

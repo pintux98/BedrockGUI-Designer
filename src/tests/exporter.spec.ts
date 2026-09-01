@@ -6,8 +6,8 @@ import yaml from "js-yaml";
 describe("exporter", () => {
   it("exports inline forms YAML without forms key", () => {
     const state = useDesignerStore.getState();
-    const out = stateToYaml(state);
-    
+    const out = stateToYaml(state.activeForm().bedrock);
+
     expect(out).not.toContain("forms:");
     expect(out).toMatch(/configVersion:\s+["']1\.0\.0["']/);
     // Should contain bedrock or java key depending on default state
@@ -24,7 +24,7 @@ describe("exporter", () => {
     });
     // Ensure state update is reflected
     const updatedState = useDesignerStore.getState();
-    const out = stateToYaml(updatedState);
+    const out = stateToYaml(updatedState.activeForm().bedrock);
     expect(out).not.toContain("image: >-");
     expect(out).toMatch(/image:\s+["']http:\/\/example\.com\/image\.png["']/);
   });
@@ -42,7 +42,7 @@ describe("exporter", () => {
         }
       ]
     } as any);
-    const out = stateToYaml(useDesignerStore.getState() as any);
+    const out = stateToYaml(useDesignerStore.getState().activeForm().bedrock);
     expect(out).toMatch(/onClick:\n\s+- \|-/);
     expect(out).toContain("message {");
     expect(out).toContain('  - "Hello"');
@@ -56,7 +56,7 @@ describe("exporter", () => {
       content: "&6%luckperms_meta_kingdom%'s Gold &f%vault_eco_balance%\n&bSecond line\n\n&6Third line",
       buttons: [{ id: "deposit_10", text: "&6Pay\n&f%vault_eco_balance%" }]
     } as any);
-    const out = stateToYaml(useDesignerStore.getState() as any);
+    const out = stateToYaml(useDesignerStore.getState().activeForm().bedrock);
 
     expect(out).toContain("description: |-");
     expect(out).toContain("&6%luckperms_meta_kingdom%'s Gold");

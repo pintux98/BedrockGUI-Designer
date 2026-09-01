@@ -10,16 +10,16 @@ import { FormChainVisualizer } from "../components/FormChainVisualizer";
 
 export function PropertiesPanel() {
   const {
-    platform,
-    bedrock,
+    activeForm,
     setBedrock,
-    globalActions,
     setGlobalActions,
     selectedBedrockButtonId,
     setSelectedBedrockButtonId,
     selectedBedrockComponentId,
     setSelectedBedrockComponentId
   } = useDesignerStore();
+  const bedrock = activeForm().bedrock;
+  const globalActions = bedrock.globalActions;
 
   const buttonRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
   const componentRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
@@ -40,7 +40,7 @@ export function PropertiesPanel() {
     <div className="ui-panel flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col">
       <div className="ui-panel-title shrink-0">Properties</div>
       <div className="p-2">
-      {platform === "bedrock" && bedrock && (
+      {bedrock && (
         <div className="space-y-2">
           <div className="ui-chip">Bedrock</div>
           <CollapsibleSection title="Form Settings" icon="⚙️">

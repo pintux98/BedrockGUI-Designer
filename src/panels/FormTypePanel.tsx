@@ -2,7 +2,8 @@ import React from "react";
 import { useDesignerStore } from "../core/store";
 
 export function FormTypePanel() {
-  const { bedrock, setBedrock } = useDesignerStore();
+  const { activeForm, setBedrock } = useDesignerStore();
+  const bedrock = activeForm().bedrock;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">

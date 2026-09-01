@@ -1,39 +1,39 @@
 import yaml from "js-yaml";
-import { DesignerState } from "./types";
+import { BedrockForm } from "./types";
 import { ActionInstance } from "./types";
 
-export function stateToYaml(state: DesignerState): string {
-  const entry = stateToFormEntry(state);
+export function stateToYaml(form: BedrockForm): string {
+  const entry = stateToFormEntry(form);
   return postprocessMultilineStrings(
     yaml.dump(
-      { ...entry, configVersion: state.configVersion },
+      { ...entry, configVersion: "1.0.0" },
       { lineWidth: -1, noRefs: true, forceQuotes: true, quotingType: "\"" }
     )
   );
 }
 
-export function stateToSnippetYaml(state: DesignerState): string {
+export function stateToSnippetYaml(form: BedrockForm): string {
   return postprocessMultilineStrings(
-    yaml.dump(stateToFormEntry(state), { lineWidth: -1, noRefs: true, forceQuotes: true, quotingType: "\"" })
+    yaml.dump(stateToFormEntry(form), { lineWidth: -1, noRefs: true, forceQuotes: true, quotingType: "\"" })
   );
 }
 
-export function stateToFormEntry(state: DesignerState): Record<string, unknown> {
+export function stateToFormEntry(form: BedrockForm): Record<string, unknown> {
   const entry: Record<string, unknown> = {};
 
-  if (state.bedrock) {
+  if (form) {
     const bedrock: Record<string, any> = {};
-    if (state.bedrock.command) bedrock["command"] = state.bedrock.command;
-    if (state.bedrock.commandIntercept) bedrock["command_intercept"] = state.bedrock.commandIntercept;
-    if (state.bedrock.permission) bedrock["permission"] = state.bedrock.permission;
-    bedrock["type"] = state.bedrock.type;
-    bedrock["title"] = state.bedrock.title;
-    if ("content" in state.bedrock && state.bedrock.content) {
-      bedrock["description"] = state.bedrock.content;
+    if (form.command) bedrock["command"] = form.command;
+    if (form.commandIntercept) bedrock["command_intercept"] = form.commandIntercept;
+    if (form.permission) bedrock["permission"] = form.permission;
+    bedrock["type"] = form.type;
+    bedrock["title"] = form.title;
+    if ("content" in form && form.content) {
+      bedrock["description"] = form.content;
     }
-    if (state.bedrock.type !== "CUSTOM") {
+    if (form.type !== "CUSTOM") {
       const buttons: Record<string, any> = {};
-      for (const b of state.bedrock.buttons ?? []) {
+      for (const b of form.buttons ?? []) {
         const buttonData: Record<string, any> = {
           text: b.text,
           image: b.image,
@@ -60,7 +60,7 @@ export function stateToFormEntry(state: DesignerState): Record<string, unknown> 
       bedrock["buttons"] = buttons;
     } else {
       bedrock["components"] = Object.fromEntries(
-        (state.bedrock.components ?? []).map((c) => [
+        (form.components ?? []).map((c) => [
           c.id,
           stripUndefined({
             type: c.type,
@@ -70,8 +70,8 @@ export function stateToFormEntry(state: DesignerState): Record<string, unknown> 
         ])
       );
     }
-    if (state.globalActions?.length) {
-      bedrock["global_actions"] = serializeActionBlocks(state.globalActions);
+    if (form.globalActions?.length) {
+      bedrock["global_actions"] = serializeActionBlocks(form.globalActions);
     }
     entry["bedrock"] = stripUndefined(bedrock);
   }

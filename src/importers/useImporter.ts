@@ -3,7 +3,8 @@ import { deserializeActions, yamlToStateDoc } from "../core/yaml";
 
 export function useImporter() {
   const {
-    setMenuName,
+    activeForm,
+    renameForm,
     setBedrock,
     setGlobalActions
   } = useDesignerStore();
@@ -11,7 +12,10 @@ export function useImporter() {
   const importYaml = async (file: File) => {
     const text = await file.text();
     const parsed = yamlToStateDoc(text);
-    setMenuName(parsed.menuName);
+    const currentId = activeForm().id;
+    if (parsed.menuName && parsed.menuName !== currentId) {
+      renameForm(currentId, parsed.menuName);
+    }
     const entry = parsed.entry ?? {};
     const bedrockEntry = entry?.bedrock ?? (entry?.type ? entry : undefined);
     if (bedrockEntry?.type && bedrockEntry?.title) {

@@ -23,8 +23,9 @@ const KNOWN_ACTION_TYPES = new Set([
 ]);
 
 export function ValidationPanel() {
-  const state = useDesignerStore();
-  const issues = React.useMemo(() => validateState(state as any), [state]);
+  const { activeForm } = useDesignerStore();
+  const active = activeForm();
+  const issues = React.useMemo(() => validateState(active as any), [active]);
   const errors = issues.filter((i) => i.level === "error");
   const warnings = issues.filter((i) => i.level === "warning");
   const [expanded, setExpanded] = React.useState(false);
@@ -115,8 +116,8 @@ function validateState(state: any): Issue[] {
       out.push(...validateActionBlocks(`Component '${comp.id}' onClick`, comp?.onClick));
     }
 
-    out.push(...validateActionBlocks("Global actions", state.globalActions));
-    out.push(...detectCircularOpenReferences(state.menuName ?? "example", collectAllActionBlocks(state)));
+    out.push(...validateActionBlocks("Global actions", state.bedrock.globalActions));
+    out.push(...detectCircularOpenReferences(state.id ?? "example", collectAllActionBlocks(state)));
   }
 
   return out;
@@ -204,7 +205,7 @@ function collectAllActionBlocks(state: any): string[] {
     }
     for (const c of state.bedrock.components ?? []) push(c.onClick);
   }
-  push(state.globalActions);
+  push(state.bedrock?.globalActions);
   return out;
 }
 

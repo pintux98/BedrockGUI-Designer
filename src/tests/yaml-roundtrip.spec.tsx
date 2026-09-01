@@ -12,26 +12,37 @@ function wrap(ui: React.ReactElement) {
 
 beforeEach(() => {
   useDesignerStore.setState({
-    configVersion: "1.0.0",
-    menuName: "example",
-    platform: "bedrock",
-    bedrock: {
-      type: "SIMPLE",
-      title: "Example Form",
-      content: "Content",
-      command: "/example",
-      commandIntercept: "/example",
-      buttons: [
+    project: {
+      pluginTarget: "2.0.11",
+      configVersion: 1,
+      assets: { enabled: false, port: 0, host: "" },
+      platformTarget: "paper",
+      activeFormId: "example",
+      forms: [
         {
-          id: "button_1",
-          text: "Click me",
-          showCondition: "permission:bedrockgui.use",
-          alternativeText: "No perms",
-          conditions: [{ id: "c1", condition: "permission:bedrockgui.use", property: "text", value: "Has perms" }]
+          id: "example",
+          fileName: "example.yml",
+          bedrock: {
+            type: "SIMPLE",
+            title: "Example Form",
+            content: "Content",
+            command: "/example",
+            commandIntercept: "/example",
+            buttons: [
+              {
+                id: "button_1",
+                text: "Click me",
+                showCondition: "permission:bedrockgui.use",
+                alternativeText: "No perms",
+                conditions: [{ id: "c1", condition: "permission:bedrockgui.use", property: "text", value: "Has perms" }]
+              }
+            ],
+            globalActions: [{ id: "raw", params: 'message {\n  - "Hello"\n}', raw: 'message {\n  - "Hello"\n}' }]
+          }
         }
       ]
     },
-    globalActions: [{ id: "raw", params: 'message {\n  - "Hello"\n}', raw: 'message {\n  - "Hello"\n}' }]
+    history: {}
   } as any);
 });
 

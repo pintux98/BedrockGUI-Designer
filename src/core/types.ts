@@ -1,16 +1,6 @@
-export type Platform = "bedrock";
-
 export type BedrockFormType = "SIMPLE" | "MODAL" | "CUSTOM";
 
 export type ConfigVersion = "1.0.0";
-
-export interface DesignerState {
-  menuName: string;
-  platform: Platform;
-  bedrock?: BedrockForm;
-  globalActions?: ActionInstance[];
-  configVersion: ConfigVersion;
-}
 
 export interface BedrockFormBase {
   type: BedrockFormType;

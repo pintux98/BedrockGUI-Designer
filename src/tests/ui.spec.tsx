@@ -13,16 +13,26 @@ function wrap(ui: React.ReactElement) {
 
 beforeEach(() => {
   useDesignerStore.setState({
-    configVersion: "1.0.0",
-    menuName: "example",
-    platform: "bedrock",
-    bedrock: {
-      type: "SIMPLE",
-      title: "Example Form",
-      content: "Content",
-      buttons: [{ id: "button_1", text: "Click me" }]
+    project: {
+      pluginTarget: "2.0.11",
+      configVersion: 1,
+      assets: { enabled: false, port: 0, host: "" },
+      platformTarget: "paper",
+      activeFormId: "example",
+      forms: [
+        {
+          id: "example",
+          fileName: "example.yml",
+          bedrock: {
+            type: "SIMPLE",
+            title: "Example Form",
+            content: "Content",
+            buttons: [{ id: "button_1", text: "Click me" }]
+          }
+        }
+      ]
     },
-    globalActions: undefined,
+    history: {},
     dirty: false,
     selectedBedrockButtonId: null,
     selectedBedrockComponentId: null
@@ -54,8 +64,8 @@ describe("ui panels", () => {
     fireEvent.change(textarea, { target: { value: "Hello" } });
     fireEvent.blur(textarea);
     const st = useDesignerStore.getState();
-    expect(st.bedrock?.type).toBe("SIMPLE");
-    const actions = (st.bedrock as any).buttons[0].onClick;
+    expect(st.activeForm().bedrock?.type).toBe("SIMPLE");
+    const actions = (st.activeForm().bedrock as any).buttons[0].onClick;
     expect(Array.isArray(actions)).toBe(true);
     expect(actions[0].raw).toContain("message");
     expect(actions[0].raw).toContain("Hello");
@@ -67,7 +77,7 @@ describe("ui panels", () => {
     fireEvent.change(textarea, { target: { value: "Line1\nLine2" } });
     fireEvent.blur(textarea);
     const st = useDesignerStore.getState() as any;
-    expect(st.bedrock.buttons[0].text).toBe("Line1\nLine2");
+    expect(st.activeForm().bedrock.buttons[0].text).toBe("Line1\nLine2");
   });
 
   it("action editor supports bungee action blocks", () => {
@@ -81,7 +91,7 @@ describe("ui panels", () => {
     fireEvent.change(args, { target: { value: "lobby" } });
     fireEvent.blur(args);
     const st = useDesignerStore.getState() as any;
-    const actions = st.bedrock.buttons[0].onClick;
+    const actions = st.activeForm().bedrock.buttons[0].onClick;
     expect(actions[0].raw).toContain("bungee");
     expect(actions[0].raw).toContain('subchannel: "Connect"');
     expect(actions[0].raw).toContain('"lobby"');

@@ -3,7 +3,7 @@ import { useDesignerStore } from "../core/store";
 import { Dialog } from "./Dialog";
 
 export function Wizard() {
-  const { setIsWizardOpen, setBedrock, setMenuName } = useDesignerStore();
+  const { setIsWizardOpen, setBedrock, activeForm, renameForm } = useDesignerStore();
   const [step, setStep] = useState(1);
   const titleId = React.useId();
   
@@ -13,8 +13,11 @@ export function Wizard() {
   const [title, setTitle] = useState("New Form");
 
   const handleFinish = () => {
-    setMenuName(name);
-    
+    const currentId = activeForm().id;
+    if (name && name !== currentId) {
+      renameForm(currentId, name);
+    }
+
     setBedrock({
       type: bedrockType as any,
       title: title,

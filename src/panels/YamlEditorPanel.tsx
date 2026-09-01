@@ -8,7 +8,7 @@ interface YamlEditorPanelProps {
 }
 
 export function YamlEditorPanel({ onCollapseChange, defaultExpanded }: YamlEditorPanelProps) {
-  const state = useDesignerStore();
+  const { activeForm } = useDesignerStore();
   const contentId = React.useId();
   const [collapsed, setCollapsed] = useState(() => {
     return localStorage.getItem("yaml_panel_collapsed") === "true";
@@ -29,7 +29,7 @@ export function YamlEditorPanel({ onCollapseChange, defaultExpanded }: YamlEdito
     localStorage.setItem("yaml_panel_collapsed", String(collapsed));
   }, [collapsed]);
 
-  const liveYaml = stateToSnippetYaml(state);
+  const liveYaml = stateToSnippetYaml(activeForm().bedrock);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(liveYaml).then(() => {

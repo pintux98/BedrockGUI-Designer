@@ -10,7 +10,8 @@ interface FormChainNode {
 }
 
 export function FormChainVisualizer() {
-  const { bedrock } = useDesignerStore();
+  const { activeForm } = useDesignerStore();
+  const bedrock = activeForm().bedrock;
 
   if (!bedrock || (bedrock.type !== "SIMPLE" && bedrock.type !== "MODAL")) {
     return (

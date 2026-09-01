@@ -18,7 +18,8 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 
 export function DndHost({ children }: { children: React.ReactNode }) {
-  const { bedrock, setBedrock } = useDesignerStore();
+  const { activeForm, setBedrock } = useDesignerStore();
+  const bedrock = activeForm().bedrock;
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [activeLabel, setActiveLabel] = React.useState<string | null>(null);
   const [activeMaterial, setActiveMaterial] = React.useState<string | null>(null);

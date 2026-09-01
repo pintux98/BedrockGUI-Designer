@@ -8,8 +8,12 @@ import { confirmDialog } from "../core/confirm";
 export function TopBar() {
   const { exportYaml } = useExporter();
   const { importYaml } = useImporter();
-  const { undo, redo, undoStack, redoStack, menuName, setMenuName, loadState } = useDesignerStore();
-  
+  const { undo, redo, history, activeForm, renameForm, loadProject: loadProjectIntoStore } = useDesignerStore();
+  const active = activeForm();
+  const menuName = active.id;
+  const formHistory = history[active.id] ?? { undo: [], redo: [] };
+  const setMenuName = (name: string) => renameForm(active.id, name);
+
   const [showProjects, setShowProjects] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [projects, setProjects] = useState<string[]>([]);
@@ -54,8 +58,7 @@ export function TopBar() {
       toast.error("Project name is required.");
       return;
     }
-    const state = useDesignerStore.getState();
-    const data = JSON.stringify(state);
+    const data = JSON.stringify(useDesignerStore.getState().project);
     localStorage.setItem(`project_${name}`, data);
     updateProjectList();
     toast.success(`Project '${name}' saved.`);
@@ -65,8 +68,8 @@ export function TopBar() {
     const data = localStorage.getItem(`project_${name}`);
     if (data) {
       try {
-        const state = JSON.parse(data);
-        loadState(state);
+        const project = JSON.parse(data);
+        loadProjectIntoStore(project);
         setShowProjects(false);
         toast.success(`Project '${name}' loaded.`);
       } catch (e) {
@@ -108,7 +111,7 @@ export function TopBar() {
           <button 
             className="ui-btn ui-btn-secondary px-2 sm:px-3 py-1 text-xs"
             onClick={undo}
-            disabled={!undoStack.length}
+            disabled={!formHistory.undo.length}
             title="Undo (Ctrl+Z)"
           >
             ↶ <span className="hidden sm:inline">Undo</span>
@@ -116,7 +119,7 @@ export function TopBar() {
           <button 
             className="ui-btn ui-btn-secondary px-2 sm:px-3 py-1 text-xs"
             onClick={redo}
-            disabled={!redoStack.length}
+            disabled={!formHistory.redo.length}
             title="Redo (Ctrl+Y)"
           >
             ↷ <span className="hidden sm:inline">Redo</span>

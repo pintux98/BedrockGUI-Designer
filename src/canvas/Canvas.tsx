@@ -4,7 +4,8 @@ import { useDesignerStore } from "../core/store";
 import { BedrockPreview } from "./previews/BedrockPreview";
 
 export function Canvas() {
-  const { bedrock } = useDesignerStore();
+  const { activeForm } = useDesignerStore();
+  const bedrock = activeForm().bedrock;
   const bedrockId =
     bedrock?.type === "CUSTOM" ? "bedrock-components" : "bedrock-buttons";
   const { isOver, setNodeRef } = useDroppable({ id: bedrockId });
