@@ -1081,7 +1081,7 @@ git commit -m "feat(plugin): parse and serialize the action block grammar"
   - `type ConditionOperator = { word: string | null; symbol: string | null; label: string; numeric: boolean; needsExpected: boolean }`
   - `OPERATORS: readonly ConditionOperator[]`
   - `operatorsFor(context: ConditionContext): ConditionOperator[]`
-  - `ATOM_KINDS: readonly ["permission", "placeholder", "plugin", "not"]`
+  - `ATOM_KINDS: readonly ["permission", "placeholder", "plugin", "bedrock_player", "java_player", "not"]`
   - `validateCondition(text: string, context: ConditionContext): string[]` — returns human-readable problems, empty when valid
 
 - [ ] **Step 1: Write the failing test**
@@ -1149,6 +1149,13 @@ Expected: FAIL, module not found.
 The operator table mirrors `ConditionEvaluator` in the plugin. Word forms are legal only in
 the colon syntax; symbol forms are legal in both.
 
+**`bedrock_player` and `java_player`.** Both exist in `ConditionEvaluator` and neither takes a
+meaningful argument — the evaluator ignores the value. But one must still be present:
+`evaluateSingle` rejects any condition with fewer than two colon-separated parts before it
+reaches the atom switch, so a bare `bedrock_player` logs a warning and evaluates false, and the
+button silently never appears. The correct form is `bedrock_player:true`. `validateCondition`
+must accept that form and flag the bare one, because the failure mode is otherwise invisible.
+
 ```ts
 export type ConditionContext = "colon" | "symbol";
 
@@ -1175,7 +1182,9 @@ export const OPERATORS: readonly ConditionOperator[] = [
   { word: "not_empty", symbol: null, label: "is not empty", numeric: false, needsExpected: false }
 ];
 
-export const ATOM_KINDS = ["permission", "placeholder", "plugin", "not"] as const;
+export const ATOM_KINDS = ["permission", "placeholder", "plugin", "bedrock_player", "java_player", "not"] as const;
+
+const VALUELESS_ATOMS = ["bedrock_player", "java_player"] as const;
 
 export function operatorsFor(context: ConditionContext): ConditionOperator[] {
   if (context === "symbol") return OPERATORS.filter((o) => o.symbol !== null).map((o) => ({ ...o, word: null }));
