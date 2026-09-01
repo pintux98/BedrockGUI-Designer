@@ -1313,7 +1313,7 @@ git commit -m "feat(plugin): model condition atoms and operators per syntax cont
 
 **Interfaces:**
 - Produces:
-  - `BUILTIN_PLACEHOLDERS: ReadonlyArray<{ token: string; description: string }>` — `{player}`, `{uuid}`, `{time}`, `{hour}`, `{minute}`, `{timestamp}`
+  - `BUILTIN_PLACEHOLDERS: ReadonlyArray<{ token: string; description: string; paperOnly: boolean }>` — twelve of them, see the table below
   - `findUnknownBracePlaceholders(text: string): string[]`
   - `componentReference(key: string): string` — returns `$<key>`
 
@@ -1355,17 +1355,43 @@ Expected: FAIL, module not found.
 
 - [ ] **Step 3: Write `src/plugin/placeholders.ts`**
 
+**There are twelve built-ins, not six.** The documentation lists six; the code substitutes
+twelve. `PlaceholderUtil.populateBuiltinPlaceholders` adds `player` and `uuid`, then calls
+`populatePlatformSpecificPlaceholders`, which adds `x`, `y`, `z`, `world`, `health` and `food`,
+and `populateTimePlaceholders` adds `time`, `hour`, `minute` and `timestamp`. All twelve are
+substituted in brace form by `processDynamicPlaceholders`, so all twelve must be treated as
+known — flagging `{health}` as unknown would be a false positive of exactly the kind that makes
+users stop trusting a validator.
+
+The six positional and player-state ones are Paper-only, reached by reflection, and fall back to
+hardcoded values when that path is unavailable — `x` 0.0, `y` 64.0, `z` 0.0, `world` "world",
+`health` 20.0, `food` 20 (`PlaceholderUtil.java` lines 349-354). That is a silently-wrong value
+rather than an error, which is worth telling the user about, so they carry `paperOnly: true` and
+say so in their description. Mark them, do not exclude them.
+
+Ignore `docs/BedrockGUI-Guide.md` in the plugin repo, which lists a third set
+(`player_level`, `player_gamemode`, `player_world`) that exists nowhere in the code. It is stale.
+
+Note `BUILTIN_TOKENS` needs an explicit `Set<string>` annotation. Without it, TypeScript infers a
+narrow literal-union element type under this repo's `strict` setting and rejects `.has(someString)`.
+
 ```ts
 export const BUILTIN_PLACEHOLDERS = [
-  { token: "{player}", description: "The player's name" },
-  { token: "{uuid}", description: "The player's UUID" },
-  { token: "{time}", description: "Server time in ticks" },
-  { token: "{hour}", description: "Current hour, 0 to 23" },
-  { token: "{minute}", description: "Current minute" },
-  { token: "{timestamp}", description: "Unix time in milliseconds" }
+  { token: "{player}", description: "The player's name", paperOnly: false },
+  { token: "{uuid}", description: "The player's UUID", paperOnly: false },
+  { token: "{time}", description: "Server time in ticks", paperOnly: false },
+  { token: "{hour}", description: "Current hour, 0 to 23", paperOnly: false },
+  { token: "{minute}", description: "Current minute", paperOnly: false },
+  { token: "{timestamp}", description: "Unix time in milliseconds", paperOnly: false },
+  { token: "{x}", description: "Player X, 2dp. Paper only — elsewhere a fixed 0.0", paperOnly: true },
+  { token: "{y}", description: "Player Y, 2dp. Paper only — elsewhere a fixed 64.0", paperOnly: true },
+  { token: "{z}", description: "Player Z, 2dp. Paper only — elsewhere a fixed 0.0", paperOnly: true },
+  { token: "{world}", description: "World name. Paper only — elsewhere the literal \"world\"", paperOnly: true },
+  { token: "{health}", description: "Player health, 1dp. Paper only — elsewhere a fixed 20.0", paperOnly: true },
+  { token: "{food}", description: "Player food level. Paper only — elsewhere a fixed 20", paperOnly: true }
 ] as const;
 
-const BUILTIN_TOKENS = new Set(BUILTIN_PLACEHOLDERS.map((p) => p.token));
+const BUILTIN_TOKENS: Set<string> = new Set(BUILTIN_PLACEHOLDERS.map((p) => p.token));
 
 export function findUnknownBracePlaceholders(text: string): string[] {
   const found = text.match(/\{[a-z_][a-z0-9_]*\}/gi) ?? [];
