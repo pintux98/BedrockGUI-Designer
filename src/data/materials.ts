@@ -72,6 +72,24 @@ export const MATERIALS: { id: string; name: string; category: string }[] = [
   { id: "OAK_STAIRS", name: "Oak Stairs", category: "Blocks" },
   { id: "STONE_BRICKS", name: "Stone Bricks", category: "Blocks" },
   { id: "STONE_BRICK_STAIRS", name: "Stone Brick Stairs", category: "Blocks" },
-  { id: "STONE_BRICK_SLAB", name: "Stone Brick Slab", category: "Blocks" }
+  { id: "STONE_BRICK_SLAB", name: "Stone Brick Slab", category: "Blocks" },
+  { id: "BARRIER", name: "Barrier", category: "Blocks" },
+  { id: "COMMAND_BLOCK", name: "Command Block", category: "Blocks" },
+  { id: "REPEATING_COMMAND_BLOCK", name: "Repeating Command Block", category: "Blocks" },
+  { id: "BELL", name: "Bell", category: "Blocks" },
+  { id: "NOTE_BLOCK", name: "Note Block", category: "Blocks" },
+  { id: "OAK_SIGN", name: "Oak Sign", category: "Blocks" },
+  { id: "COMPARATOR", name: "Comparator", category: "Blocks" },
+  { id: "END_PORTAL_FRAME", name: "End Portal Frame", category: "Blocks" },
+  { id: "SUNFLOWER", name: "Sunflower", category: "Blocks" },
+  { id: "DIAMOND_SWORD", name: "Diamond Sword", category: "Items" },
+  { id: "NETHERITE_SWORD", name: "Netherite Sword", category: "Items" },
+  { id: "CLOCK", name: "Clock", category: "Items" },
+  { id: "COMPASS", name: "Compass", category: "Items" },
+  { id: "GOLD_NUGGET", name: "Gold Nugget", category: "Items" },
+  { id: "SPECTRAL_ARROW", name: "Spectral Arrow", category: "Items" },
+  { id: "ENDER_PEARL", name: "Ender Pearl", category: "Items" },
+  { id: "ENDER_EYE", name: "Eye of Ender", category: "Items" },
+  { id: "ITEM_FRAME", name: "Item Frame", category: "Items" }
 ];
 
