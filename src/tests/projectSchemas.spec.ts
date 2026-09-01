@@ -20,5 +20,6 @@ describe("parseProject", () => {
     project.forms.push({ ...project.forms[0] });
     const result = parseProject(project);
     expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.problems.join(" ")).toContain("main_menu");
   });
 });
