@@ -30,10 +30,22 @@ describe("action registry", () => {
     expect(actionsForPlatform("paper")).toHaveLength(14);
   });
 
-  it("gives every action a label and a hint", () => {
+  it("gives every action its full UI metadata", () => {
     for (const id of ACTION_IDS) {
-      expect(ACTIONS[id].label.length).toBeGreaterThan(0);
-      expect(ACTIONS[id].hint.length).toBeGreaterThan(0);
+      const def = ACTIONS[id];
+      expect(def.label.length).toBeGreaterThan(0);
+      expect(def.description.length).toBeGreaterThan(0);
+      expect(def.icon.length).toBeGreaterThan(0);
+      expect(def.color.length).toBeGreaterThan(0);
+      expect(def.placeholder.length).toBeGreaterThan(0);
+      expect(def.formatExample).toContain(`${id} {`);
     }
+  });
+
+  it("carries every action the old UI table carried, minus url", () => {
+    const legacy = ["message", "command", "server", "broadcast", "open", "sound", "economy",
+      "title", "actionbar", "inventory", "delay", "random", "bungee", "conditional"];
+    for (const id of legacy) expect(ACTION_IDS).toContain(id);
+    expect(ACTION_IDS).not.toContain("raw");
   });
 });
