@@ -11,6 +11,12 @@ export const FORM_KEYS = {
   globalActions: "global_actions"
 } as const;
 
+export const CONDITION_KEYS = {
+  condition: "condition",
+  property: "property",
+  value: "value"
+} as const;
+
 export const BUTTON_KEYS = {
   text: "text",
   image: "image",

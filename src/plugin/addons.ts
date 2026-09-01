@@ -55,10 +55,11 @@ export const ADDONS: readonly AddonDef[] = [
     minPluginVersion: "2.0.8",
     formIds: [
       "pd_queue", "pd_queue_sizes",
-      "pd_duel_targets", "pd_lost_items",
+      "pd_duel", "pd_duel_targets", "pd_lost_items",
       "pd_party", "pd_party_info", "pd_party_invite", "pd_party_ffa",
       "pd_party_teamfight", "pd_party_multiteam", "pd_party_challenge",
-      "pd_settings", "pd_matches", "pd_kits"
+      "pd_settings", "pd_stats", "pd_leaderboard", "pd_matches", "pd_kits",
+      "pd_kit_preview"
     ],
     parameterised: [
       "pd_queue_modes", "pd_queue_join", "pd_duel", "pd_party_member",
