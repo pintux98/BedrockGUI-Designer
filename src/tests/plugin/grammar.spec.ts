@@ -73,6 +73,20 @@ describe("serializeActionBlock", () => {
   it("emits raw text unchanged", () => {
     expect(serializeActionBlock({ kind: "raw", text: "anything at all" })).toBe("anything at all");
   });
+
+  it("round-trips the real bungee block from advanced_flow.yml", () => {
+    const file = path.resolve(__dirname, "../fixtures/plugin-forms/advanced_flow.yml");
+    const doc = yaml.load(fs.readFileSync(file, "utf8")) as any;
+    const block = doc.bedrock.buttons.bungee.onClick[0] as string;
+
+    const parsed = parseActionBlock(block);
+    if (parsed.kind !== "bungee") throw new Error("expected a bungee action");
+    expect(parsed.subchannel).toBe("Message");
+    expect(parsed.args).toEqual(["{player}", "§9Delivered to you by the proxy."]);
+
+    const serialized = serializeActionBlock(parsed);
+    expect(parseActionBlock(serialized)).toEqual(parsed);
+  });
 });
 
 it("returns a non-raw parse for every block in the shipped fixtures", () => {

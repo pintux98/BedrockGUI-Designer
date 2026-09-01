@@ -5,6 +5,7 @@ export type ParsedAction =
   | { kind: "lines"; id: ActionId; lines: string[] }
   | { kind: "conditional"; check: string; whenTrue: ParsedAction[]; whenFalse: ParsedAction[] }
   | { kind: "random"; entries: Array<{ text: string; weight?: number }> }
+  | { kind: "bungee"; subchannel: string; args: string[] }
   | { kind: "raw"; text: string };
 
 const HEADER = /^\s*([A-Za-z_]+)\s*\{([\s\S]*)\}\s*$/;
@@ -21,16 +22,11 @@ export function parseActionBlock(text: string): ParsedAction {
   try {
     if (id === "conditional") return parseConditional(body, raw);
     if (id === "random") return parseRandom(body, raw);
+    if (id === "bungee") return parseBungee(body, raw);
     const loaded = yaml.load(body);
-    if (Array.isArray(loaded) && loaded.every((v) => typeof v === "string")) {
-      return { kind: "lines", id, lines: loaded as string[] };
-    }
-    const manual = parseLooseLines(body);
-    if (manual) return { kind: "lines", id, lines: manual };
-    return raw;
+    if (!Array.isArray(loaded) || !loaded.every((v) => typeof v === "string")) return raw;
+    return { kind: "lines", id, lines: loaded as string[] };
   } catch {
-    const manual = parseLooseLines(body);
-    if (manual) return { kind: "lines", id, lines: manual };
     return raw;
   }
 }
@@ -69,31 +65,29 @@ function parseRandom(body: string, raw: ParsedAction): ParsedAction {
   };
 }
 
+const SUBCHANNEL_LINE = /^subchannel:\s*(.*)$/;
 const LIST_ITEM = /^-\s+(.*)$/;
-const KEY_VALUE = /^([A-Za-z_][\w]*):\s*(.*)$/;
 
-function parseLooseLines(body: string): string[] | null {
-  const lines = body.split("\n").filter((l) => l.trim().length > 0);
-  if (!lines.length) return null;
-  const out: string[] = [];
-  for (const raw of lines) {
-    const line = raw.trim();
+function parseBungee(body: string, raw: ParsedAction): ParsedAction {
+  const lines = body.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+  if (!lines.length) return raw;
+
+  const [first, ...rest] = lines;
+  const subchannelMatch = first.match(SUBCHANNEL_LINE);
+  if (!subchannelMatch) return raw;
+  const subchannel = yaml.load(subchannelMatch[1]);
+  if (typeof subchannel !== "string") return raw;
+
+  const args: string[] = [];
+  for (const line of rest) {
     const item = line.match(LIST_ITEM);
-    if (item) {
-      const value = yaml.load(item[1]);
-      if (typeof value !== "string") return null;
-      out.push(value);
-      continue;
-    }
-    const kv = line.match(KEY_VALUE);
-    if (kv) {
-      const value = yaml.load(kv[2]);
-      out.push(typeof value === "string" ? `${kv[1]}: ${value}` : line);
-      continue;
-    }
-    return null;
+    if (!item) return raw;
+    const value = yaml.load(item[1]);
+    if (typeof value !== "string") return raw;
+    args.push(value);
   }
-  return out;
+
+  return { kind: "bungee", subchannel, args };
 }
 
 export function serializeActionBlock(action: ParsedAction): string {
@@ -101,6 +95,10 @@ export function serializeActionBlock(action: ParsedAction): string {
   if (action.kind === "lines") return wrap(action.id, action.lines.map(quoted));
   if (action.kind === "random") {
     return wrap("random", action.entries.map((e) => quoted(e.weight === undefined ? e.text : `${e.text}@${e.weight}`)));
+  }
+  if (action.kind === "bungee") {
+    const lines = [`  subchannel: ${quoted(action.subchannel)}`, ...action.args.map((a) => `  - ${quoted(a)}`)];
+    return `bungee {\n${lines.join("\n")}\n}`;
   }
   const lines: string[] = [`  check: ${JSON.stringify(action.check)}`];
   appendBranch(lines, "true", action.whenTrue);
