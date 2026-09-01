@@ -790,7 +790,7 @@ git commit -m "feat(plugin): define the 14 BedrockGUI actions"
 **Interfaces:**
 - Consumes: `ActionId`, `isActionId`, `ACTIONS` from `src/plugin/actions.ts`.
 - Produces:
-  - `type ParsedAction = { kind: "lines"; id: ActionId; lines: string[] } | { kind: "conditional"; check: string; whenTrue: ParsedAction[]; whenFalse: ParsedAction[] } | { kind: "random"; entries: Array<{ text: string; weight?: number }> } | { kind: "raw"; text: string }`
+  - `type ParsedAction = { kind: "lines"; id: ActionId; lines: string[] } | { kind: "conditional"; check: string; whenTrue: ParsedAction[]; whenFalse: ParsedAction[] } | { kind: "random"; entries: Array<{ text: string; weight?: number }> } | { kind: "bungee"; subchannel: string; args: string[] } | { kind: "raw"; text: string }`
   - `parseActionBlock(text: string): ParsedAction`
   - `serializeActionBlock(action: ParsedAction): string`
 
@@ -812,6 +812,23 @@ to `js-yaml`. Two traps to respect:
    stringifying its keys before reading.
 2. Anything that does not match the shape must return `{ kind: "raw", text }` unchanged, so
    an unrecognised block still round-trips byte-for-byte.
+3. **`bungee` is not YAML at all.** Its body is a hybrid the plugin parses line by line — a
+   `subchannel:` mapping line followed by sibling sequence items, which `js-yaml` rejects
+   outright because a mapping key and sequence entries cannot share an indent level. The real
+   block in `advanced_flow.yml` is:
+
+   ```
+   bungee {
+     subchannel: "Message"
+     - "{player}"
+     - "§9Delivered to you by the proxy."
+   }
+   ```
+
+   Handle it with its own `kind: "bungee"` member carrying `subchannel` and `args`, and
+   serialize it back in exactly that shape. Do **not** fold the `subchannel:` line into a
+   `lines` array — re-serializing would emit it as a list item and silently change what the
+   action does.
 
 - [ ] **Step 1: Write the failing test**
 
