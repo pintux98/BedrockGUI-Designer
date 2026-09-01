@@ -1,6 +1,6 @@
 import * as yaml from "js-yaml";
 import { useDesignerStore } from "../core/store";
-import { FormDoc, findForm } from "../core/project";
+import { FormDoc } from "../core/project";
 import { parseConfigDocument } from "../parse/config";
 import { parseFormDocument } from "../parse/form";
 import { parseLegacyInlineConfig } from "../parse/legacy";
