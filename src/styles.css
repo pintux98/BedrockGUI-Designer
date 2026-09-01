@@ -1,6 +1,23 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-brand-bg: rgb(var(--ui-bg));
+  --color-brand-surface: rgb(var(--ui-surface));
+  --color-brand-surface-raised: rgb(var(--ui-surface-raised));
+  --color-brand-surface2: rgb(var(--ui-surface-2));
+  --color-brand-border: rgb(var(--ui-border));
+  --color-brand-borderStrong: rgb(var(--ui-border-strong));
+  --color-brand-text: rgb(var(--ui-text));
+  --color-brand-muted: rgb(var(--ui-muted));
+  --color-brand-accent: rgb(var(--ui-accent));
+  --color-brand-accentHover: rgb(var(--ui-accent-hover));
+  --color-brand-accentPressed: rgb(var(--ui-accent-pressed));
+  --color-brand-accentText: rgb(var(--ui-accent-text));
+  --color-brand-focus: rgb(var(--ui-focus));
+  --color-brand-success: rgb(var(--ui-success));
+  --color-brand-warning: rgb(var(--ui-warning));
+  --color-brand-danger: rgb(var(--ui-danger));
+}
 
 html, body {
   height: 100%;
@@ -44,27 +61,40 @@ img.image-rendering-pixelated {
   --ui-danger: 196 86 86;
 }
 
-@layer utilities {
-  .font-minecraft {
-    font-family: 'Silkscreen', cursive, monospace;
+@utility font-minecraft {
+  font-family: 'Silkscreen', cursive, monospace;
+}
+@utility font-body {
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+@utility font-mono-ui {
+  font-family: 'IBM Plex Mono', monospace;
+}
+@utility font-smooth-none {
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: grayscale;
+}
+@utility custom-scrollbar {
+  -webkit-overflow-scrolling: touch;
+}
+@utility ui-btn {
+  @apply inline-flex min-h-8 items-center justify-center gap-2 rounded px-3 py-2 text-sm font-medium select-none border;
+  border-color: rgb(var(--ui-border));
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease, opacity 160ms ease;
+
+  &:focus-visible {
+    outline: 2px solid rgb(var(--ui-focus));
+    outline-offset: 2px;
   }
-  .font-body {
-    font-family: 'IBM Plex Sans', sans-serif;
+
+  &:disabled {
+    @apply opacity-50 cursor-not-allowed;
   }
-  .font-mono-ui {
-    font-family: 'IBM Plex Mono', monospace;
-  }
-  .font-smooth-none {
-    -webkit-font-smoothing: none;
-    -moz-osx-font-smoothing: grayscale;
-  }
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  .custom-scrollbar {
-    -webkit-overflow-scrolling: touch;
-  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
 @layer base {
@@ -99,7 +129,7 @@ img.image-rendering-pixelated {
     @apply p-4 bg-brand-surface text-brand-text rounded-lg border border-brand-border;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
   }
-  
+
   .ui-panel-title {
     @apply text-base font-medium mb-3 text-brand-text;
   }
@@ -108,7 +138,7 @@ img.image-rendering-pixelated {
     @apply w-full bg-brand-surface2 rounded px-3 py-2 text-sm text-brand-text placeholder:text-brand-muted outline-none border border-brand-border;
     transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
   }
-  
+
   .ui-input:focus-visible {
     @apply border-brand-focus;
     box-shadow: 0 0 0 2px rgba(var(--ui-focus), 0.25);
@@ -124,26 +154,11 @@ img.image-rendering-pixelated {
     box-shadow: 0 0 0 2px rgba(var(--ui-focus), 0.25);
   }
 
-  .ui-btn {
-    @apply inline-flex min-h-8 items-center justify-center gap-2 rounded px-3 py-2 text-sm font-medium select-none border;
-    border-color: rgb(var(--ui-border));
-    transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease, opacity 160ms ease;
-  }
-
-  .ui-btn:focus-visible {
-    outline: 2px solid rgb(var(--ui-focus));
-    outline-offset: 2px;
-  }
-
-  .ui-btn:disabled {
-    @apply opacity-50 cursor-not-allowed;
-  }
-
   .ui-btn-primary {
     @apply ui-btn bg-brand-accent text-brand-accentText;
     border-color: rgb(var(--ui-accent-pressed));
   }
-  
+
   .ui-btn-primary:hover {
     background-color: rgb(var(--ui-accent-hover));
   }
@@ -157,7 +172,7 @@ img.image-rendering-pixelated {
     @apply ui-btn bg-brand-surface-raised text-brand-text;
     border-color: rgb(var(--ui-border));
   }
-  
+
   .ui-btn-secondary:hover {
     background-color: rgba(var(--ui-surface-raised), 0.8);
   }
@@ -166,7 +181,7 @@ img.image-rendering-pixelated {
     @apply ui-btn bg-transparent text-brand-text;
     border-color: transparent;
   }
-  
+
   .ui-btn-ghost:hover {
     @apply bg-white/10 border-brand-border;
   }
