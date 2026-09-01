@@ -1,0 +1,27 @@
+import { describe, it, expect } from "vitest";
+import yaml from "js-yaml";
+import { applyBlockScalars } from "../serialize/blockScalar";
+
+describe("applyBlockScalars", () => {
+  it("turns a mapping value containing a newline into a |- block", () => {
+    const dumped = yaml.dump(
+      { content: "line one\nline two" },
+      { lineWidth: -1, noRefs: true, forceQuotes: true, quotingType: '"' }
+    );
+    const text = applyBlockScalars(dumped);
+    expect(text).toContain("content: |-");
+    expect(text).toContain("line one");
+    expect(text).toContain("line two");
+    expect(yaml.load(text)).toEqual({ content: "line one\nline two" });
+  });
+
+  it("turns a list item containing a newline into a |- block", () => {
+    const dumped = yaml.dump(
+      { onClick: ["message {\n  - \"Hi\"\n}"] },
+      { lineWidth: -1, noRefs: true, forceQuotes: true, quotingType: '"' }
+    );
+    const text = applyBlockScalars(dumped);
+    expect(text).toContain("- |-");
+    expect(yaml.load(text)).toEqual({ onClick: ['message {\n  - "Hi"\n}'] });
+  });
+});
