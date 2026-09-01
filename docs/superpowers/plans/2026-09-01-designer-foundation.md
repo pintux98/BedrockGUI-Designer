@@ -1426,7 +1426,7 @@ git commit -m "feat(plugin): model built-in placeholders and component reference
 **Interfaces:**
 - Consumes: the material list already in `src/data/materials.ts`.
 - Produces:
-  - `type ImageKind = "material" | "potion" | "texturePath" | "head" | "url" | "assetFile" | "none" | "unknown"`
+  - `type ImageKind = "material" | "potion" | "texturePath" | "head" | "implicitHead" | "url" | "assetFile" | "none" | "unknown"`
   - `classifyImage(value: string): { kind: ImageKind; detail?: string }`
   - `NO_ICON_MATERIALS: readonly string[]`
   - `ASSET_EXTENSIONS: readonly string[]`
@@ -1483,11 +1483,37 @@ Expected: FAIL, module not found.
 
 - [ ] **Step 3: Write `src/plugin/images.ts`**
 
+**Match `IconResolver.resolveImage`'s real order**, which is: `textures/` prefix, then
+`http(s)://`, then `resolveIcon` (which handles `head:`, a `CONTAINER:EFFECT` potion, and a bare
+`[A-Za-z0-9_]+` material name), then the no-icon materials, then a local image file, then a
+catch-all, then passthrough.
+
+Two consequences that are easy to miss:
+
+- The no-icon check must sit BEFORE the material lookup. The plugin has this ordering and says
+  why in a comment: without it, `BARRIER` falls through to the bare-word head lookup and renders
+  a player head named "BARRIER". `BARRIER` is in our materials list too, so this precedence is
+  load-bearing on our side as well.
+- The catch-all is `^[A-Za-z0-9_.\-]+$` and it renders an implicit player head from
+  mc-heads.net. Bare words without a dot or dash never reach it — `resolveIcon` is total for
+  those and guesses a texture path — so in practice it captures values containing a **dot or a
+  dash** that are not local image files. A raw UUID is the obvious real case, and the docs say
+  head references accept names, UUIDs and skin hashes. Classify those as `implicitHead` rather
+  than `unknown`: they do render, and telling a user their working reference is unknown is the
+  false positive that makes people stop reading warnings.
+
+`*_SPAWN_EGG` and `MUSIC_DISC_*` are matched by suffix and prefix in `IconResolver`, not from an
+enumerated list, so match them the same way rather than adding every one to `materials.ts`.
+
+When building the potion `detail`, strip an embedded `minecraft:` namespace as
+`IconResolver.canonicalPotionEffect` does, so `POTION:minecraft:strong_healing` yields `HEALING`.
+
 ```ts
 import { MATERIALS } from "../data/materials";
 
 export type ImageKind =
-  | "material" | "potion" | "texturePath" | "head" | "url" | "assetFile" | "none" | "unknown";
+  | "material" | "potion" | "texturePath" | "head" | "implicitHead"
+  | "url" | "assetFile" | "none" | "unknown";
 
 export const NO_ICON_MATERIALS = [
   "AIR", "CAVE_AIR", "VOID_AIR", "STRUCTURE_VOID", "BARRIER", "LIGHT"
