@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { designerSchema } from "../core/schemas";
+import { designerSchema, bedrockComponentSchema } from "../core/schemas";
 
 describe("designerSchema", () => {
   it("valid SIMPLE bedrock form", () => {
@@ -14,6 +14,17 @@ describe("designerSchema", () => {
       }
     });
     expect(parsed.menuName).toBe("test");
+  });
+});
+
+describe("bedrockComponentSchema", () => {
+  it("accepts free-form props", () => {
+    const result = bedrockComponentSchema.safeParse({
+      id: "nickname",
+      type: "input",
+      props: { text: "Display name", placeholder: "Type a nickname" }
+    });
+    expect(result.success).toBe(true);
   });
 });
 

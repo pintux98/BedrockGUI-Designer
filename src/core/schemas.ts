@@ -34,7 +34,7 @@ export const bedrockButtonSchema = z.object({
 export const bedrockComponentSchema = z.object({
   id: z.string(),
   type: z.enum(["input", "slider", "dropdown", "toggle"]),
-  props: z.record(z.any()),
+  props: z.record(z.string(), z.any()),
   action: z.array(actionSchema).optional()
 });
 
