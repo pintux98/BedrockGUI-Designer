@@ -15,11 +15,12 @@ export interface DesignerState {
 export interface BedrockFormBase {
   type: BedrockFormType;
   title: string;
-  content?: string;
+  content?: string | string[];
   description?: string;
   command?: string;
   commandIntercept?: string;
   permission?: string;
+  globalActions?: ActionInstance[];
 }
 
 export interface BedrockSimple extends BedrockFormBase {
@@ -42,7 +43,6 @@ export type BedrockForm = BedrockSimple | BedrockModal | BedrockCustom;
 export interface BedrockButton {
   id: string;
   text: string;
-  translations?: Record<string, string>;
   image?: string;
   onClick?: ActionInstance[];
   showCondition?: string;
@@ -50,8 +50,6 @@ export interface BedrockButton {
   alternativeImage?: string;
   alternativeOnClick?: string;
   conditions?: BedrockButtonConditionRule[];
-  priority?: number;
-  priorityCondition?: string;
 }
 
 export type BedrockButtonConditionProperty = "text" | "image" | "onClick";

@@ -7,6 +7,10 @@ import { MinecraftText } from "../../components/MinecraftText";
 import { hasMinecraftCodes } from "../../core/minecraftText";
 import { InlineTextEditor } from "../InlineEditor";
 
+function contentToString(content?: string | string[]): string {
+  return Array.isArray(content) ? content.join("\n") : content ?? "";
+}
+
 export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed?: boolean }) {
   const { selectedBedrockButtonId, setSelectedBedrockButtonId, selectedBedrockComponentId, setSelectedBedrockComponentId, setBedrock } =
     useDesignerStore();
@@ -106,7 +110,7 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
           )}
           {form.type !== "MODAL" && "content" in form && form.content && (
             <div className="text-gray-300 p-2 text-base mb-2 whitespace-pre-wrap font-smooth-none">
-              <MinecraftText text={form.content} />
+              <MinecraftText text={contentToString(form.content)} />
             </div>
           )}
 
@@ -172,10 +176,10 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
             <div className="grid grid-cols-1 gap-1">
               <div className="text-gray-300 p-2 text-base h-32 overflow-y-auto whitespace-pre-wrap font-smooth-none">
                 {"content" in form && form.content ? (
-                  hasMinecraftCodes(form.content) ? (
-                    <MinecraftText text={form.content} />
+                  hasMinecraftCodes(contentToString(form.content)) ? (
+                    <MinecraftText text={contentToString(form.content)} />
                   ) : (
-                    <ReactMarkdown>{form.content}</ReactMarkdown>
+                    <ReactMarkdown>{contentToString(form.content)}</ReactMarkdown>
                   )
                 ) : (
                   <div className="opacity-50">Content...</div>

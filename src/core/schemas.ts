@@ -26,9 +26,7 @@ export const bedrockButtonSchema = z.object({
         value: z.string()
       })
     )
-    .optional(),
-  priority: z.number().optional(),
-  priorityCondition: z.string().optional()
+    .optional()
 });
 
 export const bedrockComponentSchema = z.object({
@@ -41,7 +39,7 @@ export const bedrockComponentSchema = z.object({
 export const bedrockBaseSchema = z.object({
   type: z.enum(["SIMPLE", "MODAL", "CUSTOM"]),
   title: z.string().min(1),
-  content: z.string().optional(),
+  content: z.union([z.string(), z.array(z.string())]).optional(),
   description: z.string().optional(),
   command: z.string().optional(),
   commandIntercept: z.string().optional(),

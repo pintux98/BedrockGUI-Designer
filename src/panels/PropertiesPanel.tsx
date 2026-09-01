@@ -72,7 +72,7 @@ export function PropertiesPanel() {
               {"content" in bedrock && (
                 <BufferedTextArea
                   className="ui-textarea"
-                  value={bedrock.content ?? ""}
+                  value={Array.isArray(bedrock.content) ? bedrock.content.join("\n") : bedrock.content ?? ""}
                   onCommit={(v) => setBedrock({ ...bedrock, content: v }, "Updated content")}
                 />
               )}

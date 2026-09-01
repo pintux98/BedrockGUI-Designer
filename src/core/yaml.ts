@@ -43,8 +43,6 @@ export function stateToFormEntry(state: DesignerState): Record<string, unknown> 
           alternative_image: b.alternativeImage,
           alternative_onClick: b.alternativeOnClick,
         };
-        if (b.priority !== undefined) buttonData.priority = b.priority;
-        if (b.priorityCondition) buttonData.priority_condition = b.priorityCondition;
         if (b.conditions?.length) {
           buttonData.conditions = Object.fromEntries(
             b.conditions.map((c) => [
