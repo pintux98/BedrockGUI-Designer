@@ -1,6 +1,7 @@
 import { StateCreator } from "zustand";
 import { FormDoc, findForm } from "../core/project";
 import { ProjectSlice } from "./projectSlice";
+import { SelectionSlice } from "./selectionSlice";
 import { UiSlice } from "./uiSlice";
 
 export interface HistoryEntry {
@@ -24,7 +25,7 @@ export interface HistorySlice {
 const EMPTY: FormHistory = { undo: [], redo: [] };
 
 export const createHistorySlice: StateCreator<
-  ProjectSlice & HistorySlice & UiSlice, [], [], HistorySlice
+  ProjectSlice & HistorySlice & UiSlice & SelectionSlice, [], [], HistorySlice
 > = (set, get) => ({
   history: {},
 
@@ -61,7 +62,9 @@ export const createHistorySlice: StateCreator<
             redo: [...current.redo, { form: structuredClone(live), description: previous.description, timestamp: Date.now() }]
           }
         },
-        dirty: true
+        dirty: true,
+        selectedBedrockButtonId: null,
+        selectedBedrockComponentId: null
       };
     }),
 
@@ -81,7 +84,9 @@ export const createHistorySlice: StateCreator<
             redo: current.redo.slice(0, -1)
           }
         },
-        dirty: true
+        dirty: true,
+        selectedBedrockButtonId: null,
+        selectedBedrockComponentId: null
       };
     })
 });

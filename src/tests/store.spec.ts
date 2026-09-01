@@ -52,4 +52,21 @@ describe("designer store", () => {
     useDesignerStore.getState().setBedrock({ ...active.bedrock, title: "Changed" });
     expect(useDesignerStore.getState().dirty).toBe(true);
   });
+
+  it("clears selection on undo and redo", () => {
+    const active = useDesignerStore.getState().activeForm();
+    useDesignerStore.getState().setBedrock({ ...active.bedrock, title: "Changed" });
+    useDesignerStore.getState().setSelectedBedrockButtonId("button_1");
+    useDesignerStore.getState().setSelectedBedrockComponentId("comp_1");
+
+    useDesignerStore.getState().undo();
+    expect(useDesignerStore.getState().selectedBedrockButtonId).toBeNull();
+    expect(useDesignerStore.getState().selectedBedrockComponentId).toBeNull();
+
+    useDesignerStore.getState().setSelectedBedrockButtonId("button_1");
+    useDesignerStore.getState().setSelectedBedrockComponentId("comp_1");
+    useDesignerStore.getState().redo();
+    expect(useDesignerStore.getState().selectedBedrockButtonId).toBeNull();
+    expect(useDesignerStore.getState().selectedBedrockComponentId).toBeNull();
+  });
 });

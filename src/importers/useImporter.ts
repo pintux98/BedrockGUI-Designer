@@ -1,5 +1,7 @@
 import { useDesignerStore } from "../core/store";
 import { deserializeActions, yamlToStateDoc } from "../core/yaml";
+import { findForm } from "../core/project";
+import { toast } from "../core/toast";
 
 export function useImporter() {
   const {
@@ -14,6 +16,11 @@ export function useImporter() {
     const parsed = yamlToStateDoc(text);
     const currentId = activeForm().id;
     if (parsed.menuName && parsed.menuName !== currentId) {
+      const clash = findForm(useDesignerStore.getState().project, parsed.menuName);
+      if (clash) {
+        toast.error(`Cannot import: a form named "${parsed.menuName}" already exists. Rename or remove it first.`);
+        return;
+      }
       renameForm(currentId, parsed.menuName);
     }
     const entry = parsed.entry ?? {};
