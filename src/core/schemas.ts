@@ -43,7 +43,8 @@ export const bedrockBaseSchema = z.object({
   description: z.string().optional(),
   command: z.string().optional(),
   commandIntercept: z.string().optional(),
-  permission: z.string().optional()
+  permission: z.string().optional(),
+  globalActions: z.array(actionSchema).optional()
 });
 
 export const bedrockSimpleSchema = bedrockBaseSchema.extend({
