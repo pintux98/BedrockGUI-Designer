@@ -23,7 +23,9 @@ export const OPERATORS: readonly ConditionOperator[] = [
   { word: "not_empty", symbol: null, label: "is not empty", numeric: false, needsExpected: false }
 ];
 
-export const ATOM_KINDS = ["permission", "placeholder", "plugin", "not"] as const;
+export const ATOM_KINDS = ["permission", "placeholder", "plugin", "bedrock_player", "java_player", "not"] as const;
+
+const VALUELESS_ATOMS = ["bedrock_player", "java_player"] as const;
 
 export function operatorsFor(context: ConditionContext): ConditionOperator[] {
   if (context === "symbol") return OPERATORS.filter((o) => o.symbol !== null).map((o) => ({ ...o, word: null }));
@@ -58,11 +60,18 @@ function splitAtoms(text: string): string[] {
 
 function validateAtom(atom: string, context: ConditionContext): string[] {
   const body = atom.startsWith("not:") ? atom.slice(4) : atom;
+  const valueless = VALUELESS_ATOMS.find((kind) => body === kind || body.startsWith(`${kind}:`));
+  if (valueless) {
+    const value = body.slice(valueless.length + 1);
+    return value.trim()
+      ? []
+      : [`"${valueless}" needs a value, even though it is ignored — write ${valueless}:true.`];
+  }
   if (body.startsWith("permission:") || body.startsWith("plugin:")) {
     return body.split(":").slice(1).join(":").trim() ? [] : [`"${atom}" is missing its value.`];
   }
   if (!body.startsWith("placeholder:")) {
-    return [`"${atom}" is not a known condition. Use permission:, placeholder:, plugin: or not:.`];
+    return [`"${atom}" is not a known condition. Use permission:, placeholder:, plugin:, bedrock_player:, java_player: or not:.`];
   }
   return context === "symbol" ? validateSymbolAtom(atom, body) : validateColonAtom(atom, body);
 }

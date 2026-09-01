@@ -49,6 +49,28 @@ describe("validateCondition", () => {
   it("accepts the operators that need no expected value", () => {
     expect(validateCondition("placeholder:%x%:not_empty", "colon")).toEqual([]);
   });
+
+  it("accepts bedrock_player:true in colon context", () => {
+    expect(validateCondition("bedrock_player:true", "colon")).toEqual([]);
+  });
+
+  it("accepts java_player:true in symbol context", () => {
+    expect(validateCondition("java_player:true", "symbol")).toEqual([]);
+  });
+
+  it("rejects a bare bedrock_player with a message naming the fix", () => {
+    const problems = validateCondition("bedrock_player", "colon");
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems.some((p) => p.includes("bedrock_player:true"))).toBe(true);
+  });
+
+  it("accepts not:bedrock_player:true", () => {
+    expect(validateCondition("not:bedrock_player:true", "colon")).toEqual([]);
+  });
+
+  it("accepts bedrock_player combined with another atom", () => {
+    expect(validateCondition("bedrock_player:true && permission:foo.bar", "colon")).toEqual([]);
+  });
 });
 
 describe("validateCondition against the shipped fixtures", () => {
