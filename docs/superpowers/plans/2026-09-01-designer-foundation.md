@@ -2833,6 +2833,25 @@ git commit -m "feat(parse): read BedrockGUI form documents into the project mode
 **Interfaces:**
 - Produces: `serializeFormDocument(doc: FormDoc): string`, and `applyBlockScalars(yamlText: string): string`
 
+**A component's `action` is NOT symmetric with a button's `onClick`.** Emit a single component
+action as a BARE block scalar string, never a one-item list. The plugin treats the two paths
+differently:
+
+- `handleOnClick` joins a list into `"[a, b]"` and then explicitly checks
+  `startsWith("[") && endsWith("]")`, routing to `handleMultipleActions`, which strips the
+  brackets before parsing. Lists are fine for buttons and for `global_actions`.
+- `handleCustomAction`, which runs a component's action, calls `actionExecutor.parseAction(action)`
+  directly with no bracket check. `parseAction`'s format regex is `^\s*(\w+)\s*\{[\s\S]*\}\s*$`,
+  which cannot match a string starting with `[`, so the action silently fails to run.
+
+All seven shipped fixtures write a component action as a single block scalar for this reason.
+Writing it as a list produces a file that loads without complaint and then does nothing when the
+form is submitted.
+
+A consequence worth recording: because that path has no bracket handling at all, the plugin can
+only ever execute ONE action per component. When the model somehow holds more than one, still
+emit the list rather than dropping data, and leave a note for validation to warn about it.
+
 Requirements: emit `content:` never `description:`; emit no `configVersion`, no
 `translations`, no `priority`, no `priority_condition`; emit `buttons` and `components` as
 keyed maps in model order; emit multi-line strings as `|-` block scalars because the action
@@ -2959,7 +2978,7 @@ function componentsToMap(components: BedrockComponent[]): Record<string, unknown
   for (const c of components) {
     const entry: Record<string, unknown> = { type: c.type, ...c.props };
     const action = actionsToList(c.action);
-    if (action) entry.action = action;
+    if (action) entry.action = action.length === 1 ? action[0] : action;
     out[c.id] = entry;
   }
   return out;
