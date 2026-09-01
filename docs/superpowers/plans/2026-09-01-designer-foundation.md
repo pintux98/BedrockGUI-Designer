@@ -87,8 +87,11 @@ Expected: PASS, 22 tests across 6 files. Note the number; it must not drop in an
 
 ```bash
 npm install react@19.2.8 react-dom@19.2.8
-npm install -D @types/react@19.2.18 @types/react-dom@19.2.8 @testing-library/react@16.3.3 @vitejs/plugin-react@6.1.1
+npm install -D @types/react@19.2.18 @types/react-dom@19.2.8 @testing-library/react@16.3.3
 ```
+
+Do **not** install `@vitejs/plugin-react@6` here. It peers on `vite@^8`, which Task 2 installs;
+adding it now fails with `ERESOLVE ... peer vite@"^8.0.0" from @vitejs/plugin-react@6.1.1`.
 
 - [ ] **Step 3: Run typecheck to see what React 19 breaks**
 
@@ -130,8 +133,11 @@ git commit -m "build: upgrade to React 19"
 
 - [ ] **Step 1: Install**
 
+Vite and its React plugin must move together — `@vitejs/plugin-react@6` requires `vite@^8`,
+so installing them in one command is what lets npm resolve the peer range.
+
 ```bash
-npm install -D vite@8.2.2 vitest@4.1.11 jsdom@30.0.1
+npm install -D vite@8.2.2 @vitejs/plugin-react@6.1.1 vitest@4.1.11 jsdom@30.0.1
 ```
 
 - [ ] **Step 2: Run the tests to surface runner breakage**
