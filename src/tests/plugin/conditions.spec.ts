@@ -54,8 +54,8 @@ describe("validateCondition", () => {
     expect(validateCondition("bedrock_player:true", "colon")).toEqual([]);
   });
 
-  it("accepts java_player:true in symbol context", () => {
-    expect(validateCondition("java_player:true", "symbol")).toEqual([]);
+  it("accepts java_player:true in colon context", () => {
+    expect(validateCondition("java_player:true", "colon")).toEqual([]);
   });
 
   it("rejects a bare bedrock_player with a message naming the fix", () => {
@@ -70,6 +70,31 @@ describe("validateCondition", () => {
 
   it("accepts bedrock_player combined with another atom", () => {
     expect(validateCondition("bedrock_player:true && permission:foo.bar", "colon")).toEqual([]);
+  });
+
+  it("rejects plugin: inside a conditional check", () => {
+    const problems = validateCondition("plugin:Vault", "symbol");
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems.some((p) => p.includes("show_condition"))).toBe(true);
+  });
+
+  it("rejects bedrock_player inside a conditional check", () => {
+    expect(validateCondition("bedrock_player:true", "symbol").length).toBeGreaterThan(0);
+  });
+
+  it("rejects java_player inside a conditional check", () => {
+    expect(validateCondition("java_player:true", "symbol").length).toBeGreaterThan(0);
+  });
+
+  it("rejects not:permission:a.b inside a conditional check", () => {
+    const problems = validateCondition("not:permission:a.b", "symbol");
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems.some((p) => p.includes("show_condition"))).toBe(true);
+  });
+
+  it("accepts a colon comparison whose expected value contains a comparison symbol", () => {
+    expect(validateCondition("placeholder:%x%:contains:a > b", "colon")).toEqual([]);
+    expect(validateCondition("placeholder:%x%:starts_with:score > 10", "colon")).toEqual([]);
   });
 });
 

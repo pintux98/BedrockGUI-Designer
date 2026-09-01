@@ -60,6 +60,17 @@ function splitAtoms(text: string): string[] {
 
 function validateAtom(atom: string, context: ConditionContext): string[] {
   const body = atom.startsWith("not:") ? atom.slice(4) : atom;
+
+  if (context === "symbol") {
+    if (atom.startsWith("not:")) return unsupportedInCheck("not");
+    const kind = body.split(":")[0];
+    if (kind === "permission") {
+      return body.split(":").slice(1).join(":").trim() ? [] : [`"${atom}" is missing its value.`];
+    }
+    if (kind !== "placeholder") return unsupportedInCheck(kind);
+    return validateSymbolAtom(atom, body);
+  }
+
   const valueless = VALUELESS_ATOMS.find((kind) => body === kind || body.startsWith(`${kind}:`));
   if (valueless) {
     const value = body.slice(valueless.length + 1);
@@ -73,7 +84,11 @@ function validateAtom(atom: string, context: ConditionContext): string[] {
   if (!body.startsWith("placeholder:")) {
     return [`"${atom}" is not a known condition. Use permission:, placeholder:, plugin:, bedrock_player:, java_player: or not:.`];
   }
-  return context === "symbol" ? validateSymbolAtom(atom, body) : validateColonAtom(atom, body);
+  return validateColonAtom(atom, body);
+}
+
+function unsupportedInCheck(kind: string): string[] {
+  return [`"${kind}:" is not supported inside a conditional check. Only placeholder: and permission: work here — put this condition on the button's show_condition instead.`];
 }
 
 function validateSymbolAtom(atom: string, body: string): string[] {
@@ -83,14 +98,16 @@ function validateSymbolAtom(atom: string, body: string): string[] {
 }
 
 function validateColonAtom(atom: string, body: string): string[] {
-  if (/\s(>=|<=|==|!=|>|<)\s/.test(body)) {
-    return [`"${atom}" uses conditional-check syntax. Here it must be placeholder:<value>:<operator>:<expected>.`];
-  }
   const parts = body.split(":");
   if (parts.length < 3) return [`"${atom}" must read placeholder:<value>:<operator>[:<expected>].`];
   const opToken = parts[2];
   const operator = OPERATORS.find((o) => o.word === opToken || o.symbol === opToken);
-  if (!operator) return [`"${opToken}" is not a valid operator.`];
+  if (!operator) {
+    if (/\s(>=|<=|==|!=|>|<)\s/.test(body)) {
+      return [`"${atom}" uses conditional-check syntax. Here it must be placeholder:<value>:<operator>:<expected>.`];
+    }
+    return [`"${opToken}" is not a valid operator.`];
+  }
   if (operator.needsExpected && parts.length < 4) return [`"${opToken}" needs a value to compare against.`];
   return [];
 }
