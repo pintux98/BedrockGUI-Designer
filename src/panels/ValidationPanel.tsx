@@ -1,19 +1,25 @@
 import React from "react";
 import { useDesignerStore } from "../core/store";
 import { ActionInstance } from "../core/types";
+import { validateProject } from "../core/validateProject";
 import { isActionId, classifyImage, validateCondition, LIMITS } from "../plugin";
 
 type Issue = { level: "error" | "warning"; message: string };
 
 export function ValidationPanel() {
-  const { activeForm } = useDesignerStore();
+  const { activeForm, project } = useDesignerStore();
   const active = activeForm();
   const issues = React.useMemo(() => validateState(active as any), [active]);
+  const projectIssues = React.useMemo(() => validateProject(project), [project]);
   const errors = issues.filter((i) => i.level === "error");
   const warnings = issues.filter((i) => i.level === "warning");
+  const projectErrors = projectIssues.filter((i) => i.level === "error");
+  const projectWarnings = projectIssues.filter((i) => i.level === "warning");
+  const errorCount = errors.length + projectErrors.length;
+  const warningCount = warnings.length + projectWarnings.length;
   const [expanded, setExpanded] = React.useState(false);
 
-  if (!issues.length) {
+  if (!issues.length && !projectIssues.length) {
     return (
       <div className="h-8 bg-brand-surface border-t border-brand-border flex items-center px-4 text-xs text-brand-muted">
         <span className="text-green-500 mr-2">✓</span> No validation issues
@@ -25,6 +31,22 @@ export function ValidationPanel() {
     <div className="flex flex-col bg-brand-surface border-t border-brand-border min-w-0">
       {expanded && (
         <div className="max-h-48 overflow-y-auto p-2 border-b border-brand-border bg-brand-surface2">
+          {projectIssues.length > 0 && (
+            <div className="text-[10px] uppercase tracking-wide text-brand-muted mb-1">Project</div>
+          )}
+          {projectErrors.map((e, idx) => (
+            <div key={`pe-${idx}`} className="flex gap-2 text-xs text-red-400 bg-red-900/10 p-1 mb-1 border border-red-900/30 whitespace-pre-wrap break-words">
+              <span className="font-bold shrink-0">!</span> {e.message}
+            </div>
+          ))}
+          {projectWarnings.map((w, idx) => (
+            <div key={`pw-${idx}`} className="flex gap-2 text-xs text-yellow-300 bg-yellow-900/10 p-1 mb-1 border border-yellow-900/30 whitespace-pre-wrap break-words">
+              <span className="font-bold shrink-0">?</span> {w.message}
+            </div>
+          ))}
+          {projectIssues.length > 0 && issues.length > 0 && (
+            <div className="text-[10px] uppercase tracking-wide text-brand-muted mb-1 mt-2">This form</div>
+          )}
           {errors.map((e, idx) => (
             <div key={`e-${idx}`} className="flex gap-2 text-xs text-red-400 bg-red-900/10 p-1 mb-1 border border-red-900/30 whitespace-pre-wrap break-words">
               <span className="font-bold shrink-0">!</span> {e.message}
@@ -43,18 +65,18 @@ export function ValidationPanel() {
       >
         <div className="flex items-center gap-4 min-w-0 flex-1">
           <div className="font-bold text-brand-text shrink-0">Validation</div>
-          {errors.length > 0 && (
+          {errorCount > 0 && (
             <div className="flex items-center gap-1 text-red-400 shrink-0">
-              <span className="font-bold">{errors.length}</span> Errors
+              <span className="font-bold">{errorCount}</span> Errors
             </div>
           )}
-          {warnings.length > 0 && (
+          {warningCount > 0 && (
             <div className="flex items-center gap-1 text-yellow-400 shrink-0">
-              <span className="font-bold">{warnings.length}</span> Warnings
+              <span className="font-bold">{warningCount}</span> Warnings
             </div>
           )}
           <div className="text-brand-muted truncate ml-4 opacity-75 min-w-0 flex-1">
-            {errors[0]?.message ?? warnings[0]?.message}
+            {errors[0]?.message ?? projectErrors[0]?.message ?? warnings[0]?.message ?? projectWarnings[0]?.message}
           </div>
         </div>
         <div className="text-brand-muted shrink-0 ml-2">
