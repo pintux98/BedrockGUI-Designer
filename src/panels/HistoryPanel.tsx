@@ -1,12 +1,13 @@
 import React from "react";
 import { useDesignerStore } from "../core/store";
+import { allHistoryRows } from "../store/historySlice";
 
 interface HistoryPanelProps {
   onCollapseChange?: (collapsed: boolean) => void;
 }
 
 export function HistoryPanel({ onCollapseChange }: HistoryPanelProps) {
-  const { history, activeForm, undo } = useDesignerStore();
+  const { history, projectHistory, project, undo } = useDesignerStore();
   const [collapsed, setCollapsed] = React.useState(false);
 
   // Notify parent of collapse state
@@ -14,17 +15,20 @@ export function HistoryPanel({ onCollapseChange }: HistoryPanelProps) {
     onCollapseChange?.(collapsed);
   }, [collapsed, onCollapseChange]);
 
-  const active = activeForm();
-  const formHistory = history[active.id] ?? { undo: [], redo: [] };
+  // One timeline over every form's stack plus project history. A panel reading only
+  // history[active.id] omitted structural changes entirely, and once undo() began
+  // choosing across all forms, counting steps from a narrower list would have made
+  // "revert to here" undo a different number of things than the row implies.
+  const undoRows = allHistoryRows(history, project, projectHistory, "undo");
+  const redoRows = allHistoryRows(history, project, projectHistory, "redo");
 
-  // Combine stacks for display
   const entries = [
-    ...formHistory.undo.map((x, i) => ({ ...x, index: i, active: false })),
-    { description: "Current State", timestamp: Date.now(), index: formHistory.undo.length, active: true },
-    ...formHistory.redo
+    ...undoRows.map((x, i) => ({ ...x, index: i, active: false })),
+    { description: "Current State", timestamp: Date.now(), index: undoRows.length, active: true },
+    ...redoRows
       .slice()
       .reverse()
-      .map((x, i) => ({ ...x, index: formHistory.undo.length + 1 + i, active: false }))
+      .map((x, i) => ({ ...x, index: undoRows.length + 1 + i, active: false }))
   ].reverse();
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -58,8 +62,8 @@ export function HistoryPanel({ onCollapseChange }: HistoryPanelProps) {
                    : "bg-brand-surface border-brand-border text-brand-muted hover:bg-brand-surface2"
                }`}
                onClick={() => {
-                 if (entry.active || entry.index >= formHistory.undo.length) return;
-                 const steps = formHistory.undo.length - entry.index;
+                 if (entry.active || entry.index >= undoRows.length) return;
+                 const steps = undoRows.length - entry.index;
                  for (let s = 0; s < steps; s++) undo();
                }}
              >
@@ -70,7 +74,7 @@ export function HistoryPanel({ onCollapseChange }: HistoryPanelProps) {
                  </div>
                </div>
                {entry.active && <div className="w-2 h-2 rounded-full bg-brand-accent shadow-[0_0_5px_rgba(0,255,0,0.5)]" />}
-               {!entry.active && entry.index < formHistory.undo.length && (
+               {!entry.active && entry.index < undoRows.length && (
                  <div className="hidden group-hover:block text-[10px] bg-brand-surface2 px-1 border border-brand-border">
                    Revert
                  </div>

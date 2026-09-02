@@ -64,8 +64,39 @@ describe("validateCondition", () => {
     expect(problems[0]).toContain("Unbalanced parentheses");
   });
 
-  it("accepts the operators that need no expected value", () => {
-    expect(validateCondition("placeholder:%x%:not_empty", "colon")).toEqual([]);
+  it("rejects empty/not_empty missing their value segment even though the segment is ignored", () => {
+    for (const op of ["not_empty", "empty"]) {
+      const problems = validateCondition(`placeholder:%x%:${op}`, "colon");
+      expect(problems.length).toBeGreaterThan(0);
+      expect(problems[0]).toContain(`placeholder:%x%:${op}:x`);
+    }
+  });
+
+  it("accepts empty/not_empty once their (ignored) value segment is present", () => {
+    for (const op of ["not_empty", "empty"]) {
+      expect(validateCondition(`placeholder:%x%:${op}:x`, "colon")).toEqual([]);
+    }
+  });
+
+  it("still rejects operators that genuinely need a value when it is missing", () => {
+    const problems = validateCondition("placeholder:%x%:contains", "colon");
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems[0]).toContain("needs a value to compare against");
+  });
+
+  it("still accepts operators that genuinely need a value when it is present", () => {
+    expect(validateCondition("placeholder:%x%:contains:a", "colon")).toEqual([]);
+  });
+
+  it("leaves other atom kinds unaffected by the placeholder segment-count fix", () => {
+    expect(validateCondition("permission:a.b", "colon")).toEqual([]);
+    expect(validateCondition("plugin:Vault", "colon")).toEqual([]);
+    expect(validateCondition("bedrock_player:true", "colon")).toEqual([]);
+    expect(validateCondition("not:permission:a.b", "colon")).toEqual([]);
+  });
+
+  it("leaves the symbol context unaffected by the placeholder segment-count fix", () => {
+    expect(validateCondition("placeholder:%x% >= 5", "symbol")).toEqual([]);
   });
 
   it("accepts a colon comparison using the symbol form of an operator", () => {

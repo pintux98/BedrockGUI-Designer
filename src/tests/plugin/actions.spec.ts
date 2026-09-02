@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { ACTION_IDS, ACTIONS, actionsForPlatform } from "../../plugin/actions";
+import { ACTION_IDS, ACTIONS, actionsForPlatform, type ActionId } from "../../plugin/actions";
 import { parseActionBlock } from "../../plugin/grammar";
+import { validateCondition } from "../../plugin/conditions";
 
 describe("action registry", () => {
   it("ships exactly 14 actions", () => {
@@ -54,6 +55,106 @@ describe("action registry", () => {
     for (const id of ACTION_IDS) {
       const parsed = parseActionBlock(ACTIONS[id].formatExample);
       expect(parsed.kind, `${id}: ${JSON.stringify(parsed)}`).not.toBe("raw");
+    }
+  });
+});
+
+/**
+ * The hint strings are copy targets: `placeholder` is the input's placeholder text
+ * and `formatExample` is rendered in a <pre>. A hint that does not run is worse than
+ * no hint, so each one is pinned against the handler that parses it.
+ */
+describe("action hints match the handlers that parse them", () => {
+  /**
+   * Minimum colon-separated parts each handler accepts on one action line.
+   * The value is what the Java rejects below, not what reads nicely.
+   */
+  const MIN_COLON_PARTS: Partial<Record<ActionId, number>> = {
+    // InventoryActionHandler.java:86-92 — split(":", 3), then
+    // `if (parts.length < 2) ... "Expected: operation:item[:amount]"`.
+    inventory: 2,
+    // EconomyActionHandler.java:121-127 — split(":"), then
+    // `if (parts.length < 2) ... "Expected: operation:amount"`.
+    economy: 2,
+    // SoundActionHandler.java:243-249 — split(":"), fails only when parts[0] is
+    // blank; volume and pitch are optional.
+    sound: 1,
+    // TitleActionHandler.java:157-164 — split(":"), parts[1..4] all optional.
+    title: 1
+  };
+
+  /** The colon-form samples a `placeholder` offers, e.g. "e.g. add:100, remove:50". */
+  function placeholderSamples(placeholder: string): string[] {
+    return placeholder
+      .replace(/^e\.g\.\s*/, "")
+      .split(", ")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  /** The quoted lines a `formatExample` block holds. */
+  function exampleLines(formatExample: string): string[] {
+    return [...formatExample.matchAll(/-\s*"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
+  }
+
+  it("uses no '||' separator anywhere — no handler splits on one", () => {
+    // TitleActionHandler.java:158 is `processedData.split(":")`. "||" was invented.
+    for (const id of ACTION_IDS) {
+      expect(ACTIONS[id].placeholder, `${id} placeholder`).not.toContain("||");
+      expect(ACTIONS[id].formatExample, `${id} formatExample`).not.toContain("||");
+      expect(ACTIONS[id].description, `${id} description`).not.toContain("||");
+    }
+  });
+
+  it("gives every colon-form example the arity its handler requires", () => {
+    for (const [id, min] of Object.entries(MIN_COLON_PARTS) as [ActionId, number][]) {
+      for (const line of exampleLines(ACTIONS[id].formatExample)) {
+        expect(line.split(":").length, `${id} formatExample line "${line}"`)
+          .toBeGreaterThanOrEqual(min);
+      }
+      for (const sample of placeholderSamples(ACTIONS[id].placeholder)) {
+        expect(sample.split(":").length, `${id} placeholder sample "${sample}"`)
+          .toBeGreaterThanOrEqual(min);
+      }
+    }
+  });
+
+  it("makes the inventory and economy placeholders agree with their examples", () => {
+    expect(placeholderSamples(ACTIONS.inventory.placeholder)).toEqual(["give:diamond:1", "clear:all"]);
+    expect(exampleLines(ACTIONS.inventory.formatExample)).toEqual(["give:diamond:1", "clear:all"]);
+    expect(placeholderSamples(ACTIONS.economy.placeholder)).toEqual(["add:100", "remove:50", "set:1000"]);
+    expect(exampleLines(ACTIONS.economy.formatExample)).toEqual(["add:100", "remove:50", "set:1000"]);
+  });
+
+  it("writes the title example as title:subtitle:fadeIn:stay:fadeOut", () => {
+    const [line] = exampleLines(ACTIONS.title.formatExample);
+    const parts = line.split(":");
+    expect(parts).toHaveLength(5);
+    expect(parts.slice(2)).toEqual(["20", "60", "20"]);
+    expect(ACTIONS.title.placeholder.replace(/^e\.g\.\s*/, "")).toBe(line);
+  });
+
+  it("writes the delay example as bare milliseconds", () => {
+    // DelayActionHandler.java:129 is Long.parseLong(delayValue): "1s" and "500ms"
+    // throw, and a bare number is milliseconds, never ticks.
+    for (const line of exampleLines(ACTIONS.delay.formatExample)) {
+      expect(line).toMatch(/^\d+$/);
+      expect(Number(line)).toBeLessThanOrEqual(30000);
+    }
+    expect(ACTIONS.delay.placeholder).not.toMatch(/\btick/i);
+    expect(ACTIONS.delay.placeholder).not.toMatch(/\d+\s*m?s\b/);
+    expect(ACTIONS.delay.placeholder).toMatch(/millisecond/i);
+  });
+
+  it("writes the conditional hint as a real condition atom", () => {
+    // "hasPermission" is not a condition kind. A check accepts permission: and
+    // placeholder:<value> <op> <expected> — validated here the same way the UI does.
+    const check = ACTIONS.conditional.placeholder.replace(/^e\.g\.\s*/, "");
+    expect(validateCondition(check, "symbol")).toEqual([]);
+    const parsed = parseActionBlock(ACTIONS.conditional.formatExample);
+    expect(parsed.kind).toBe("conditional");
+    if (parsed.kind === "conditional") {
+      expect(validateCondition(parsed.check, "symbol")).toEqual([]);
     }
   });
 });

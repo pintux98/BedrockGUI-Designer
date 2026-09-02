@@ -1,7 +1,8 @@
 import React from "react";
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, screen, cleanup } from "@testing-library/react";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+import { render, fireEvent, screen, cleanup, waitFor } from "@testing-library/react";
 import { DndContext } from "@dnd-kit/core";
+import { unzipSync } from "fflate";
 import { useDesignerStore } from "../core/store";
 import { useToastStore } from "../core/toast";
 import { PropertiesPanel } from "../panels/PropertiesPanel";
@@ -54,7 +55,102 @@ describe("ui panels", () => {
     wrap(<TopBar />);
     expect(screen.getByText("BEDROCK")).toBeInTheDocument();
     expect(screen.getByText("GUI")).toBeInTheDocument();
-    expect(screen.getByText("Export")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
+  });
+
+  it("exports a single-form project as that form's yml, named from its fileName, and the modal lists exactly that one entry", async () => {
+    useDesignerStore.setState((s) => ({
+      project: {
+        ...s.project,
+        forms: [{ ...s.project.forms[0], id: "shop", fileName: "store.yml" }],
+        activeFormId: "shop"
+      }
+    }));
+    wrap(<TopBar />);
+
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    let downloadedName: string | undefined;
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloadedName = this.download;
+      });
+
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Export" }));
+      await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+
+      expect(downloadedName).toBe("store.yml");
+      const blob = createObjectURL.mock.calls[0][0] as Blob;
+      expect(blob.type).toBe("text/yaml");
+      expect(await blob.text()).toContain("title:");
+
+      const dialog = await screen.findByRole("dialog", { name: /register your exported forms/i });
+      expect(dialog).toHaveTextContent("plugins/BedrockGUI/config.yml");
+      const snippet = screen.getByLabelText(/config registry snippet/i) as HTMLTextAreaElement;
+      expect(snippet.value).toBe('forms:\n  shop:\n    file: "store.yml"\n');
+
+      fireEvent.click(screen.getByRole("button", { name: /copy config snippet to clipboard/i }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith('forms:\n  shop:\n    file: "store.yml"\n'));
+
+      fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    } finally {
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+      clickSpy.mockRestore();
+    }
+  });
+
+  it("exports a multi-form project as a zip with no config.yml, and the modal lists every exported form by id", async () => {
+    useDesignerStore.setState((s) => ({
+      project: {
+        ...s.project,
+        forms: [
+          { ...s.project.forms[0], id: "main_menu", fileName: "main_menu.yml" },
+          { ...s.project.forms[0], id: "shop", fileName: "store.yml" }
+        ],
+        activeFormId: "main_menu"
+      }
+    }));
+    wrap(<TopBar />);
+
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    let downloadedName: string | undefined;
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloadedName = this.download;
+      });
+
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Export" }));
+      await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+
+      expect(downloadedName).toBe("bedrockgui-forms.zip");
+      const blob = createObjectURL.mock.calls[0][0] as Blob;
+      expect(blob.type).toBe("application/zip");
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const files = unzipSync(bytes);
+      expect(files["config.yml"]).toBeUndefined();
+      expect(Object.keys(files).sort()).toEqual(["forms/main_menu.yml", "forms/store.yml"]);
+
+      const dialog = await screen.findByRole("dialog", { name: /register your exported forms/i });
+      const snippet = screen.getByLabelText(/config registry snippet/i) as HTMLTextAreaElement;
+      expect(snippet.value).toBe(
+        'forms:\n  main_menu:\n    file: "main_menu.yml"\n  shop:\n    file: "store.yml"\n'
+      );
+      expect(dialog).toHaveTextContent(/main_menu/);
+      expect(dialog).toHaveTextContent(/shop/);
+    } finally {
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+      clickSpy.mockRestore();
+    }
   });
 
   it("refuses to load a legacy save that still fails validation after migration", () => {
@@ -281,17 +377,27 @@ describe("ui panels", () => {
     wrap(<PropertiesPanel />);
     fireEvent.click(screen.getAllByText("+ Add Action")[0]);
     fireEvent.click(screen.getByText("Bungee"));
-    const sub = screen.getByPlaceholderText("subchannel (e.g. Connect)") as HTMLInputElement;
-    fireEvent.change(sub, { target: { value: "Connect" } });
+    const sub = screen.getByLabelText("Subchannel") as HTMLInputElement;
+    fireEvent.change(sub, { target: { value: "Message" } });
     fireEvent.blur(sub);
-    const args = screen.getByPlaceholderText("e.g. Lobby") as HTMLTextAreaElement;
-    fireEvent.change(args, { target: { value: "lobby" } });
-    fireEvent.blur(args);
+    const arg = screen.getByLabelText("Arg 1") as HTMLInputElement;
+    fireEvent.change(arg, { target: { value: "lobby" } });
+    fireEvent.blur(arg);
     const st = useDesignerStore.getState() as any;
     const actions = st.activeForm().bedrock.buttons[0].onClick;
     expect(actions[0].raw).toContain("bungee");
-    expect(actions[0].raw).toContain('subchannel: "Connect"');
+    expect(actions[0].raw).toContain('subchannel: "Message"');
     expect(actions[0].raw).toContain('"lobby"');
+  });
+
+  it("labels each conditional-override property select so multiple rules stay distinguishable", () => {
+    wrap(<PropertiesPanel />);
+    fireEvent.click(screen.getByText("Conditions"));
+    fireEvent.click(screen.getByText("+ Add Rule"));
+    fireEvent.click(screen.getByText("+ Add Rule"));
+
+    expect(screen.getByRole("combobox", { name: /rule 1 property/i })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /rule 2 property/i })).toBeInTheDocument();
   });
 });
 

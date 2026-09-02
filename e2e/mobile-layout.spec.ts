@@ -4,7 +4,7 @@ test.describe("mobile layout", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   async function dismissMobileWarning(page: Page) {
-    const btn = page.getByRole("button", { name: "Continue Anyway" });
+    const btn = page.getByRole("button", { name: "Continue" });
     if (await btn.isVisible().catch(() => false)) {
       await btn.click();
     }
@@ -16,9 +16,9 @@ test.describe("mobile layout", () => {
     await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible();
     await page.getByRole("button", { name: "Open menu" }).click();
     await expect(page.getByRole("button", { name: "Export" })).toBeVisible();
-    await expect(page.getByText("Tools")).toBeVisible();
-    await expect(page.getByText("Canvas")).toBeVisible();
-    await expect(page.getByText("Props")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Tools tab" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Canvas tab" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Properties tab" })).toBeVisible();
 
     const metrics = await page.evaluate(() => {
       const root = document.getElementById("root");
@@ -58,7 +58,7 @@ test.describe("mobile layout", () => {
   test("project menu opens and shows save actions", async ({ page }) => {
     await page.goto("http://localhost:5173/");
     await dismissMobileWarning(page);
-    await page.getByRole("button", { name: /example/i }).click();
+    await page.locator('button[aria-haspopup="menu"]').click();
     await expect(page.getByText("Saved Projects", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /save/i })).toBeVisible();
   });
@@ -66,14 +66,15 @@ test.describe("mobile layout", () => {
   test("props tab keeps YAML visible on short screens", async ({ page }) => {
     await page.goto("http://localhost:5173/");
     await dismissMobileWarning(page);
-    await page.getByText("Props").click();
-    await expect(page.getByText("Form YAML")).toBeVisible();
+    await page.getByRole("button", { name: "Properties tab" }).click();
+    await page.getByRole("button", { name: "YAML", exact: true }).click();
+    await expect(page.getByRole("button", { name: "YAML Preview" })).toBeVisible();
   });
 });
 
 test.describe("tablet and small laptop topbar", () => {
   async function dismissMobileWarning(page: Page) {
-    const btn = page.getByRole("button", { name: "Continue Anyway" });
+    const btn = page.getByRole("button", { name: "Continue" });
     if (await btn.isVisible().catch(() => false)) {
       await btn.click();
     }

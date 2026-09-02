@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Palette } from "../panels/Palette";
 import { PropertiesPanel } from "../panels/PropertiesPanel";
+import { ProjectSettingsPanel } from "../panels/ProjectSettingsPanel";
 import { FormTypePanel } from "../panels/FormTypePanel";
+import { FormSwitcher } from "../panels/FormSwitcher";
 import { Canvas } from "../canvas/Canvas";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TopBar } from "./TopBar";
@@ -12,12 +14,14 @@ import { ValidationPanel } from "../panels/ValidationPanel";
 import { Wizard } from "../components/Wizard";
 import { HistoryPanel } from "../panels/HistoryPanel";
 import { ResizablePanel } from "../components/ResizablePanel";
+import { useUndoShortcuts } from "./useUndoShortcuts";
 
 type LeftPanelTab = "components" | "history";
 type RightPanelTab = "properties" | "yaml";
 
 export function DesignerShell() {
   const { isWizardOpen } = useDesignerStore();
+  useUndoShortcuts();
   const [viewport, setViewport] = useState<"mobile" | "tablet" | "desktop">("desktop");
   const [leftTab, setLeftTab] = useState<LeftPanelTab>("components");
   const [rightTab, setRightTab] = useState<RightPanelTab>("properties");
@@ -104,6 +108,7 @@ export function DesignerShell() {
                     <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar min-h-0">
                       {leftTab === "components" && (
                         <div className="p-2 space-y-2">
+                          <FormSwitcher />
                           <FormTypePanel />
                           <Palette />
                         </div>
@@ -134,6 +139,7 @@ export function DesignerShell() {
                   <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
                     {leftTab === "components" && (
                       <div className="p-2 space-y-2">
+                        <FormSwitcher />
                         <FormTypePanel />
                         <Palette />
                       </div>
@@ -194,6 +200,9 @@ export function DesignerShell() {
                     <div className="flex-1 overflow-hidden min-h-0">
                       {rightTab === "properties" && (
                         <div className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar">
+                          <div className="p-2">
+                            <ProjectSettingsPanel />
+                          </div>
                           <PropertiesPanel />
                         </div>
                       )}
@@ -223,6 +232,9 @@ export function DesignerShell() {
                   <div className="flex-1 overflow-hidden min-h-0">
                     {rightTab === "properties" && (
                       <div className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar">
+                        <div className="p-2">
+                          <ProjectSettingsPanel />
+                        </div>
                         <PropertiesPanel />
                       </div>
                     )}

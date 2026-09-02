@@ -86,6 +86,49 @@ describe("ValidationPanel", () => {
     expect(container.textContent).toContain("unknown action type 'nonsense_action'");
   });
 
+  it("does not call an addon action type unknown, and names the addon that supplies it", () => {
+    // Addons call registerActionHandler, so bw_shop_main sits in the same registry as
+    // the 14 builtins. Written as its own action block it is correct, and the only
+    // thing worth saying is that it needs the addon installed.
+    setActiveFormBedrock({
+      type: "SIMPLE",
+      title: "Form",
+      content: "",
+      buttons: [{ id: "a", text: "A", onClick: [{ id: "act1", params: {}, raw: "bw_shop_main {\n}" }] }]
+    });
+    const { container } = renderExpanded();
+    expect(container.textContent).not.toContain("unknown action type");
+    expect(container.textContent).toContain("Bedwars Addon");
+    expect(container.textContent).toContain("BedrockGUI-BedwarsAddon.jar");
+    expect(container.textContent).toContain("only runs on servers with that addon installed");
+  });
+
+  it("recognises an addon action type on a CUSTOM component too", () => {
+    setActiveFormBedrock({
+      type: "CUSTOM",
+      title: "Form",
+      content: "",
+      components: [
+        { id: "comp_1", type: "input", props: {}, action: [{ id: "act1", params: {}, raw: "hs_welcome {\n}" }] }
+      ]
+    });
+    const { container } = renderExpanded();
+    expect(container.textContent).not.toContain("unknown action type");
+    expect(container.textContent).toContain("Homestead Addon");
+  });
+
+  it("resolves an addon action type that carries a payload", () => {
+    setActiveFormBedrock({
+      type: "SIMPLE",
+      title: "Form",
+      content: "",
+      buttons: [{ id: "a", text: "A", onClick: [{ id: "act1", params: {}, raw: "hs_region_menu:spawn" }] }]
+    });
+    const { container } = renderExpanded();
+    expect(container.textContent).not.toContain("unknown action type");
+    expect(container.textContent).toContain("Homestead Addon");
+  });
+
   it("still reports a MODAL with 3 buttons", () => {
     setActiveFormBedrock({
       type: "MODAL",
@@ -101,7 +144,10 @@ describe("ValidationPanel", () => {
     expect(container.textContent).toContain("MODAL must have exactly 2 buttons");
   });
 
-  it("reports a SIMPLE form with zero buttons, even though the schema now accepts it", () => {
+  it("says nothing about a SIMPLE form with zero buttons — the plugin allows it", () => {
+    // ConfigValidator.validateButtons (ConfigValidator.java:97-104) warns about an
+    // empty button list only when the form type is modal. An empty SIMPLE form loads
+    // and opens, so calling it an error put a red mark on a valid config.
     setActiveFormBedrock({
       type: "SIMPLE",
       title: "Form",
@@ -109,10 +155,12 @@ describe("ValidationPanel", () => {
       buttons: []
     });
     const { container } = renderExpanded();
-    expect(container.textContent).toContain("SIMPLE must have at least 1 button");
+    expect(container.textContent).toContain("No validation issues");
+    expect(container.textContent).not.toContain("button");
   });
 
-  it("reports a CUSTOM form with zero components, even though the schema now accepts it", () => {
+  it("says nothing about a CUSTOM form with zero components — the plugin allows it", () => {
+    // validateFormTypeSpecific's CUSTOM branch is `case "custom": break;`.
     setActiveFormBedrock({
       type: "CUSTOM",
       title: "Form",
@@ -120,7 +168,8 @@ describe("ValidationPanel", () => {
       components: []
     });
     const { container } = renderExpanded();
-    expect(container.textContent).toContain("CUSTOM must have at least 1 component");
+    expect(container.textContent).toContain("No validation issues");
+    expect(container.textContent).not.toContain("component");
   });
 
   it("reports a button with empty text, even though the schema now accepts it", () => {

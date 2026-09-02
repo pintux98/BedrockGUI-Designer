@@ -36,6 +36,8 @@ published GitBook independently of this repo.
 | `bungee` action body | implied YAML | not YAML at all; a `subchannel:` line beside sequence items |
 | Component `action` | implied same as `onClick` | `handleCustomAction` calls `parseAction` directly with no bracket unwrap, so a list silently never runs — and only ONE action per component can ever execute |
 | Inline `config.yml` forms | implied `bedrock:` wrapper | flat: fields sit directly on `forms.<id>` |
+| `url` action, second look | removed | `ConfigConverter` still lists `url` in its knownTypes, so the legacy converter rewrites it into modern block form; `FormMenuUtil` registers 14 handlers and none is url, so it fails later and less legibly |
+| `open` with several values | implied a menu chain | first value is the menu and the rest are ARGUMENTS, unless every value is a valid, registered menu name |
 
 ## Open items
 

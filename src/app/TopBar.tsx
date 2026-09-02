@@ -2,26 +2,45 @@ import React, { useState, useEffect } from "react";
 import { useExporter } from "../exporters/useExporter";
 import { useImporter } from "../importers/useImporter";
 import { useDesignerStore } from "../core/store";
+import { allHistoryRows } from "../store/historySlice";
 import { toast } from "../core/toast";
 import { confirmDialog } from "../core/confirm";
 import { isLegacyDesign, migrateLegacyDesign } from "../core/migrate";
 import { parseProject } from "../core/projectSchemas";
+import { buildConfigSnippet } from "../serialize/configSnippet";
+import { ConfigSnippetDialog } from "../components/ConfigSnippetDialog";
 
 export function TopBar() {
-  const { exportYaml } = useExporter();
+  const { exportProject } = useExporter();
   const { importYaml } = useImporter();
-  const { undo, redo, history, activeForm, renameForm, loadProject: loadProjectIntoStore } = useDesignerStore();
+  const { undo, redo, history, projectHistory, activeForm, renameForm, loadProject: loadProjectIntoStore, project } = useDesignerStore();
   const active = activeForm();
   const menuName = active.id;
-  const formHistory = history[active.id] ?? { undo: [], redo: [] };
+  // Undo spans every form's stack plus project history, so the buttons have to ask
+  // the same question undo() answers. Gating on the active form alone greyed Undo
+  // out right after a form delete; gating on active-plus-project still missed an
+  // edit made on a form the user has since switched away from.
+  const canUndo = allHistoryRows(history, project, projectHistory, "undo").length > 0;
+  const canRedo = allHistoryRows(history, project, projectHistory, "redo").length > 0;
   const setMenuName = (name: string) => renameForm(active.id, name);
 
   const [showProjects, setShowProjects] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [projects, setProjects] = useState<string[]>([]);
+  const [configSnippet, setConfigSnippet] = useState<string | null>(null);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const mobileMenuRef = React.useRef<HTMLDivElement>(null);
   const projectsMenuId = React.useId();
+
+  const handleExport = async () => {
+    try {
+      await exportProject();
+      setConfigSnippet(buildConfigSnippet(project.forms));
+    } catch (e) {
+      console.error("Failed to export project", e);
+      toast.error("Failed to export the project.");
+    }
+  };
 
   useEffect(() => {
     updateProjectList();
@@ -142,7 +161,7 @@ export function TopBar() {
           <button 
             className="ui-btn ui-btn-secondary px-2 sm:px-3 py-1 text-xs"
             onClick={undo}
-            disabled={!formHistory.undo.length}
+            disabled={!canUndo}
             title="Undo (Ctrl+Z)"
           >
             ↶ <span className="hidden sm:inline">Undo</span>
@@ -150,7 +169,7 @@ export function TopBar() {
           <button 
             className="ui-btn ui-btn-secondary px-2 sm:px-3 py-1 text-xs"
             onClick={redo}
-            disabled={!formHistory.redo.length}
+            disabled={!canRedo}
             title="Redo (Ctrl+Y)"
           >
             ↷ <span className="hidden sm:inline">Redo</span>
@@ -318,7 +337,9 @@ export function TopBar() {
 
         <button
           className="ui-btn ui-btn-primary px-4 py-2 text-sm hidden sm:block"
-          onClick={() => exportYaml()}
+          onClick={() => void handleExport()}
+          aria-label="Export"
+          title="Export the project's forms"
         >
           Export
         </button>
@@ -326,7 +347,7 @@ export function TopBar() {
           Import
           <input
             type="file"
-            accept=".yml,.yaml"
+            accept=".yml,.yaml,.zip"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -339,19 +360,22 @@ export function TopBar() {
       {/* Mobile Menu Dropdown */}
       {showMobileMenu && (
         <div id="mobile-links-menu" ref={mobileMenuRef} className="absolute top-full right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] bg-brand-surface border border-brand-border rounded-lg shadow-lg z-50 p-4 flex flex-col gap-4 xl:hidden">
-           <div className="flex gap-2 sm:hidden">
-              <button
-                className="flex-1 ui-btn ui-btn-primary px-4 py-2 text-sm"
-                onClick={() => { exportYaml(); setShowMobileMenu(false); }}
-                type="button"
-              >
-                Export
-              </button>
+           <div className="flex flex-col gap-2 sm:hidden">
+              <div className="flex gap-2">
+                <button
+                  className="flex-1 ui-btn ui-btn-primary px-4 py-2 text-sm"
+                  onClick={() => { void handleExport(); setShowMobileMenu(false); }}
+                  type="button"
+                  aria-label="Export"
+                >
+                  Export
+                </button>
+              </div>
               <label className="flex-1 ui-btn ui-btn-secondary px-4 py-2 text-sm cursor-pointer text-center">
                 Import
                 <input
                   type="file"
-                  accept=".yml,.yaml"
+                  accept=".yml,.yaml,.zip"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -386,6 +410,12 @@ export function TopBar() {
            </div>
         </div>
       )}
+
+      <ConfigSnippetDialog
+        open={configSnippet !== null}
+        onClose={() => setConfigSnippet(null)}
+        snippet={configSnippet ?? ""}
+      />
     </div>
   );
 }
