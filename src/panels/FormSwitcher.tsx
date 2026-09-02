@@ -72,20 +72,36 @@ export function FormSwitcher() {
                 <button
                   type="button"
                   aria-current={isActive}
+                  aria-label={`Open form ${form.id}`}
                   onClick={() => setActiveForm(form.id)}
                   className={`flex-1 min-w-0 truncate text-left ui-btn ${isActive ? "ui-btn-primary" : "ui-btn-secondary"}`}
                 >
                   {form.id}
                 </button>
               )}
-              <button type="button" className="ui-btn-ghost" aria-label="Rename form" onClick={() => setRenamingId(form.id)}>
+              <button
+                type="button"
+                className="ui-btn-ghost"
+                aria-label={`Rename form ${form.id}`}
+                onClick={() => setRenamingId(form.id)}
+              >
                 ✎
               </button>
-              <button type="button" className="ui-btn-ghost" aria-label="Duplicate form" onClick={() => duplicateForm(form.id)}>
+              <button
+                type="button"
+                className="ui-btn-ghost"
+                aria-label={`Duplicate form ${form.id}`}
+                onClick={() => duplicateForm(form.id)}
+              >
                 ⧉
               </button>
               {canDelete && (
-                <button type="button" className="ui-btn-ghost" aria-label="Delete form" onClick={() => handleDelete(form.id)}>
+                <button
+                  type="button"
+                  className="ui-btn-ghost"
+                  aria-label={`Delete form ${form.id}`}
+                  onClick={() => handleDelete(form.id)}
+                >
                   ✕
                 </button>
               )}

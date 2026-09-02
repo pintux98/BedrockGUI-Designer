@@ -12,13 +12,13 @@ it("lists every form and marks the active one", () => {
   render(<FormSwitcher />);
   expect(screen.getByText("main_menu")).toBeInTheDocument();
   expect(screen.getByText("shop")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /main_menu/ })).toHaveAttribute("aria-current", "true");
+  expect(screen.getByRole("button", { name: "Open form main_menu" })).toHaveAttribute("aria-current", "true");
 });
 
 it("switches the active form on click", () => {
   useDesignerStore.getState().addForm("shop");
   render(<FormSwitcher />);
-  fireEvent.click(screen.getByRole("button", { name: /shop/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Open form shop" }));
   expect(useDesignerStore.getState().project.activeFormId).toBe("shop");
 });
 
@@ -30,5 +30,15 @@ it("adds a form", () => {
 
 it("refuses to delete the last remaining form", () => {
   render(<FormSwitcher />);
-  expect(screen.queryByRole("button", { name: /Delete main_menu/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Delete form main_menu" })).toBeNull();
+});
+
+it("gives each row's delete control a distinct, id-suffixed accessible name", () => {
+  useDesignerStore.getState().addForm("shop");
+  render(<FormSwitcher />);
+  const deleteMainMenu = screen.getByRole("button", { name: "Delete form main_menu" });
+  const deleteShop = screen.getByRole("button", { name: "Delete form shop" });
+  expect(deleteMainMenu).toBeInTheDocument();
+  expect(deleteShop).toBeInTheDocument();
+  expect(deleteMainMenu).not.toBe(deleteShop);
 });
