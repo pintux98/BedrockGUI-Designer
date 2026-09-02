@@ -81,6 +81,7 @@ export function PropertiesPanel() {
               />
               <BufferedInput
                 className="ui-input"
+                aria-label="Form title"
                 value={bedrock.title}
                 maxLength={64}
                 onCommit={(v) => setBedrock({ ...bedrock, title: v }, "Updated title")}
