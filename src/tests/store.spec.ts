@@ -57,10 +57,10 @@ describe("designer store", () => {
 
     useDesignerStore.getState().undo();
     const after = useDesignerStore.getState();
-    expect(after.project.activeFormId).toBe("hub");
-    expect(after.activeForm().id).toBe("hub");
-    expect(after.activeForm().bedrock.title).toBe("New Form");
-    expect(after.project.forms.map((f) => f.id)).toEqual(["hub"]);
+    expect(after.project.activeFormId).toBe("main_menu");
+    expect(after.activeForm().id).toBe("main_menu");
+    expect(after.activeForm().bedrock.title).toBe("Changed");
+    expect(after.project.forms.map((f) => f.id)).toEqual(["main_menu"]);
   });
 
   it("marks the project dirty on mutation", () => {
@@ -85,5 +85,49 @@ describe("designer store", () => {
     useDesignerStore.getState().redo();
     expect(useDesignerStore.getState().selectedBedrockButtonId).toBeNull();
     expect(useDesignerStore.getState().selectedBedrockComponentId).toBeNull();
+  });
+
+  it("undoes a form deletion", () => {
+    const s = () => useDesignerStore.getState();
+    s().loadProject(createEmptyProject());
+    s().addForm("shop");
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
+    s().removeForm("shop");
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+    s().undo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
+  });
+
+  it("undoes an add, a rename and a duplicate", () => {
+    const s = () => useDesignerStore.getState();
+    s().loadProject(createEmptyProject());
+    s().addForm("shop");
+    s().undo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+    s().renameForm("main_menu", "hub");
+    s().undo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+    s().duplicateForm("main_menu");
+    s().undo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+  });
+
+  it("keeps content undo working alongside structural undo", () => {
+    const s = () => useDesignerStore.getState();
+    s().loadProject(createEmptyProject());
+    const before = s().activeForm().bedrock.title;
+    s().setBedrock({ ...s().activeForm().bedrock, title: "Changed" });
+    s().addForm("shop");
+    s().undo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+    s().undo();
+    expect(s().activeForm().bedrock.title).toBe(before);
+  });
+
+  it("caps the project history at 20 entries", () => {
+    const s = () => useDesignerStore.getState();
+    s().loadProject(createEmptyProject());
+    for (let i = 0; i < 30; i++) s().addForm(`form_${i}`);
+    expect(s().projectHistory.undo.length).toBe(20);
   });
 });
