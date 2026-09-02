@@ -15,7 +15,7 @@ test.describe("mobile layout", () => {
     await dismissMobileWarning(page);
     await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible();
     await page.getByRole("button", { name: "Open menu" }).click();
-    await expect(page.getByRole("button", { name: "Export form" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Export" })).toBeVisible();
     await expect(page.getByText("Tools")).toBeVisible();
     await expect(page.getByText("Canvas")).toBeVisible();
     await expect(page.getByText("Props")).toBeVisible();

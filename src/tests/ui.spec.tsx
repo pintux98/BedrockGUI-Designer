@@ -55,33 +55,101 @@ describe("ui panels", () => {
     wrap(<TopBar />);
     expect(screen.getByText("BEDROCK")).toBeInTheDocument();
     expect(screen.getByText("GUI")).toBeInTheDocument();
-    expect(screen.getByText("Export form")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
   });
 
-  it("renders both export controls with distinct accessible names, and exporting the project produces a real zip", async () => {
+  it("exports a single-form project as that form's yml, named from its fileName, and the modal lists exactly that one entry", async () => {
+    useDesignerStore.setState((s) => ({
+      project: {
+        ...s.project,
+        forms: [{ ...s.project.forms[0], id: "shop", fileName: "store.yml" }],
+        activeFormId: "shop"
+      }
+    }));
     wrap(<TopBar />);
-    const exportFormBtn = screen.getByRole("button", { name: "Export form" });
-    const exportProjectBtn = screen.getByRole("button", { name: "Export project (.zip)" });
-    expect(exportFormBtn).toBeInTheDocument();
-    expect(exportProjectBtn).toBeInTheDocument();
-    expect(exportFormBtn).not.toBe(exportProjectBtn);
 
     const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock");
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    let downloadedName: string | undefined;
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloadedName = this.download;
+      });
 
     try {
-      fireEvent.click(exportProjectBtn);
+      fireEvent.click(screen.getByRole("button", { name: "Export" }));
       await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
 
+      expect(downloadedName).toBe("store.yml");
+      const blob = createObjectURL.mock.calls[0][0] as Blob;
+      expect(blob.type).toBe("text/yaml");
+      expect(await blob.text()).toContain("title:");
+
+      const dialog = await screen.findByRole("dialog", { name: /register your exported forms/i });
+      expect(dialog).toHaveTextContent("plugins/BedrockGUI/config.yml");
+      const snippet = screen.getByLabelText(/config registry snippet/i) as HTMLTextAreaElement;
+      expect(snippet.value).toBe('forms:\n  shop:\n    file: "store.yml"\n');
+
+      fireEvent.click(screen.getByRole("button", { name: /copy config snippet to clipboard/i }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith('forms:\n  shop:\n    file: "store.yml"\n'));
+
+      fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    } finally {
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+      clickSpy.mockRestore();
+    }
+  });
+
+  it("exports a multi-form project as a zip with no config.yml, and the modal lists every exported form by id", async () => {
+    useDesignerStore.setState((s) => ({
+      project: {
+        ...s.project,
+        forms: [
+          { ...s.project.forms[0], id: "main_menu", fileName: "main_menu.yml" },
+          { ...s.project.forms[0], id: "shop", fileName: "store.yml" }
+        ],
+        activeFormId: "main_menu"
+      }
+    }));
+    wrap(<TopBar />);
+
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    let downloadedName: string | undefined;
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloadedName = this.download;
+      });
+
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Export" }));
+      await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+
+      expect(downloadedName).toBe("bedrockgui-forms.zip");
       const blob = createObjectURL.mock.calls[0][0] as Blob;
       expect(blob.type).toBe("application/zip");
       const bytes = new Uint8Array(await blob.arrayBuffer());
       const files = unzipSync(bytes);
-      expect(files["config.yml"]).toBeDefined();
-      expect(Object.keys(files).some((name) => name.startsWith("forms/"))).toBe(true);
+      expect(files["config.yml"]).toBeUndefined();
+      expect(Object.keys(files).sort()).toEqual(["forms/main_menu.yml", "forms/store.yml"]);
+
+      const dialog = await screen.findByRole("dialog", { name: /register your exported forms/i });
+      const snippet = screen.getByLabelText(/config registry snippet/i) as HTMLTextAreaElement;
+      expect(snippet.value).toBe(
+        'forms:\n  main_menu:\n    file: "main_menu.yml"\n  shop:\n    file: "store.yml"\n'
+      );
+      expect(dialog).toHaveTextContent(/main_menu/);
+      expect(dialog).toHaveTextContent(/shop/);
     } finally {
       createObjectURL.mockRestore();
       revokeObjectURL.mockRestore();
+      clickSpy.mockRestore();
     }
   });
 

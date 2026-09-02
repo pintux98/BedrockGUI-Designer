@@ -19,7 +19,7 @@ export function useImporter() {
         const state = useDesignerStore.getState();
         state.setAssets(config.assets);
         toast.info(
-          "Imported assets settings from config.yml. Its registered forms must be imported individually, one file at a time.",
+          "config.yml registers form ids but not form content. Import each registered form file individually.",
           6000
         );
         return;

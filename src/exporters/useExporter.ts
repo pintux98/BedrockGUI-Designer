@@ -12,15 +12,16 @@ function download(blob: Blob, fileName: string) {
 }
 
 export function useExporter() {
-  const { activeForm, project } = useDesignerStore();
-  const exportYaml = () => {
-    const form = activeForm();
-    const doc = serializeFormDocument(form);
-    download(new Blob([doc], { type: "text/yaml" }), form.fileName);
-  };
-  const exportProjectZip = async () => {
+  const { project } = useDesignerStore();
+  const exportProject = async () => {
+    if (project.forms.length === 1) {
+      const form = project.forms[0];
+      const doc = serializeFormDocument(form);
+      download(new Blob([doc], { type: "text/yaml" }), form.fileName);
+      return;
+    }
     const zip = await serializeProjectToZip(project);
     download(new Blob([zip.slice().buffer as ArrayBuffer], { type: "application/zip" }), "bedrockgui-forms.zip");
   };
-  return { exportYaml, exportProjectZip };
+  return { exportProject };
 }

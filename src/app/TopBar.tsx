@@ -6,11 +6,13 @@ import { toast } from "../core/toast";
 import { confirmDialog } from "../core/confirm";
 import { isLegacyDesign, migrateLegacyDesign } from "../core/migrate";
 import { parseProject } from "../core/projectSchemas";
+import { buildConfigSnippet } from "../serialize/configSnippet";
+import { ConfigSnippetDialog } from "../components/ConfigSnippetDialog";
 
 export function TopBar() {
-  const { exportYaml, exportProjectZip } = useExporter();
+  const { exportProject } = useExporter();
   const { importYaml } = useImporter();
-  const { undo, redo, history, activeForm, renameForm, loadProject: loadProjectIntoStore } = useDesignerStore();
+  const { undo, redo, history, activeForm, renameForm, loadProject: loadProjectIntoStore, project } = useDesignerStore();
   const active = activeForm();
   const menuName = active.id;
   const formHistory = history[active.id] ?? { undo: [], redo: [] };
@@ -19,9 +21,20 @@ export function TopBar() {
   const [showProjects, setShowProjects] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [projects, setProjects] = useState<string[]>([]);
+  const [configSnippet, setConfigSnippet] = useState<string | null>(null);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const mobileMenuRef = React.useRef<HTMLDivElement>(null);
   const projectsMenuId = React.useId();
+
+  const handleExport = async () => {
+    try {
+      await exportProject();
+      setConfigSnippet(buildConfigSnippet(project.forms));
+    } catch (e) {
+      console.error("Failed to export project", e);
+      toast.error("Failed to export the project.");
+    }
+  };
 
   useEffect(() => {
     updateProjectList();
@@ -318,19 +331,11 @@ export function TopBar() {
 
         <button
           className="ui-btn ui-btn-primary px-4 py-2 text-sm hidden sm:block"
-          onClick={() => exportYaml()}
-          aria-label="Export form"
-          title="Export the current form's YAML file"
+          onClick={() => void handleExport()}
+          aria-label="Export"
+          title="Export the project's forms"
         >
-          Export form
-        </button>
-        <button
-          className="ui-btn ui-btn-secondary px-4 py-2 text-sm hidden sm:block"
-          onClick={() => exportProjectZip()}
-          aria-label="Export project (.zip)"
-          title="Export the whole project as a plugin-shaped ZIP"
-        >
-          Export project (.zip)
+          Export
         </button>
         <label className="ui-btn ui-btn-secondary px-4 py-2 text-sm cursor-pointer hidden sm:block">
           Import
@@ -353,19 +358,11 @@ export function TopBar() {
               <div className="flex gap-2">
                 <button
                   className="flex-1 ui-btn ui-btn-primary px-4 py-2 text-sm"
-                  onClick={() => { exportYaml(); setShowMobileMenu(false); }}
+                  onClick={() => { void handleExport(); setShowMobileMenu(false); }}
                   type="button"
-                  aria-label="Export form"
+                  aria-label="Export"
                 >
-                  Export form
-                </button>
-                <button
-                  className="flex-1 ui-btn ui-btn-secondary px-4 py-2 text-sm"
-                  onClick={() => { exportProjectZip(); setShowMobileMenu(false); }}
-                  type="button"
-                  aria-label="Export project (.zip)"
-                >
-                  Export project (.zip)
+                  Export
                 </button>
               </div>
               <label className="flex-1 ui-btn ui-btn-secondary px-4 py-2 text-sm cursor-pointer text-center">
@@ -407,6 +404,12 @@ export function TopBar() {
            </div>
         </div>
       )}
+
+      <ConfigSnippetDialog
+        open={configSnippet !== null}
+        onClose={() => setConfigSnippet(null)}
+        snippet={configSnippet ?? ""}
+      />
     </div>
   );
 }

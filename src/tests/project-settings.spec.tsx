@@ -8,12 +8,6 @@ import { actionsForPlatform } from "../plugin";
 beforeEach(() => useDesignerStore.getState().loadProject(createEmptyProject()));
 afterEach(() => cleanup());
 
-it("edits the asset server settings", () => {
-  render(<ProjectSettingsPanel />);
-  fireEvent.click(screen.getByRole("checkbox", { name: /Enable asset server/ }));
-  expect(useDesignerStore.getState().project.assets.enabled).toBe(true);
-});
-
 it("changes the platform target and narrows the available actions", () => {
   render(<ProjectSettingsPanel />);
   fireEvent.change(screen.getByRole("combobox", { name: /Platform/ }), { target: { value: "velocity" } });

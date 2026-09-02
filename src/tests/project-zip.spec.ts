@@ -9,31 +9,29 @@ import { serializeFormDocument } from "../serialize/form";
 import { parseFormDocument } from "../parse/form";
 
 describe("serializeProjectToZip", () => {
-  it("writes a config.yml and one file per form", async () => {
+  it("writes only forms/ entries, one file per form, and no config.yml", async () => {
     const project = createEmptyProject();
     project.forms.push(createForm("shop"));
     const files = unzipSync(await serializeProjectToZip(project));
     expect(Object.keys(files).sort()).toEqual([
-      "config.yml",
       "forms/main_menu.yml",
       "forms/shop.yml"
     ]);
-    const config = yaml.load(strFromU8(files["config.yml"])) as any;
-    expect(config["config-version"]).toBe(1);
-    expect(config.forms.shop.file).toBe("shop.yml");
+    expect(files["config.yml"]).toBeUndefined();
     const form = yaml.load(strFromU8(files["forms/shop.yml"])) as any;
     expect(form.bedrock.type).toBe("SIMPLE");
   });
 
-  it("registers a form by id even when its filename differs", async () => {
+  it("names a form's file entry after its fileName even when that differs from its id", async () => {
     const project = createEmptyProject();
     const f = createForm("shop");
     f.fileName = "store.yml";
     project.forms.push(f);
     const files = unzipSync(await serializeProjectToZip(project));
     expect(files["forms/store.yml"]).toBeDefined();
-    const config = yaml.load(strFromU8(files["config.yml"])) as any;
-    expect(config.forms.shop.file).toBe("store.yml");
+    expect(files["forms/shop.yml"]).toBeUndefined();
+    const form = yaml.load(strFromU8(files["forms/store.yml"])) as any;
+    expect(form.bedrock.title).toBe(f.bedrock.title);
   });
 
   it("carries a real plugin fixture through the zip byte-identically", async () => {
