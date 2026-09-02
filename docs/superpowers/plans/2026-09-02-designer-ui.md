@@ -11,6 +11,35 @@
 **Spec:** `docs/superpowers/specs/2026-09-01-designer-v2011-parity-design.md` — phases 5 to 9.
 **Handoff from the foundation branch:** `docs/superpowers/specs/2026-09-01-designer-v2011-parity-handoff.md` — read its "Open items" section; this plan closes most of it.
 
+## Scope decision — the designer does not own `config.yml`
+
+Taken by the user on 2026-09-02, after Task 4 shipped a `config.yml`-emitting ZIP.
+
+The designer works in the modern one-file-per-form layout and exports **form files only**. It
+never writes a `config.yml`. After an export it shows a modal containing the `forms:` registry
+entries the user pastes into their server's config to register what they just exported.
+
+Why: `config.yml` holds exactly three things — `config-version`, `assets` and the `forms`
+registry. Two of those are server infrastructure, not GUI design. Emitting the file forced the
+designer to invent values for `assets`, and anyone overwriting their live config with our export
+would silently lose their asset-server settings. Not emitting it removes the whole class of
+problem instead of managing it.
+
+Consequences, which override the task text further down where they conflict:
+
+- **No asset-server UI.** `ProjectSettingsPanel` keeps only the platform target, which is genuine
+  design input because it gates which actions are offered.
+- **No `config.yml` in the export.** The ZIP contains `forms/*.yml` and nothing else.
+- **A post-export modal** lists the registry snippet for the exported forms.
+- **`Project.assets` stays on the model** but is never edited in the UI. It costs nothing and
+  preserves values if a config is ever read.
+- **Import still reads a `config.yml` when one is present in an archive, for form IDs only.** The
+  plugin keys forms by id and an id may differ from its filename — `shop` can live in `store.yml`
+  — so ignoring a registry that is present would import that form under the wrong id. Reading it
+  is not the same as owning it, and nothing is ever written back.
+- The question of preserving unknown `config.yml` keys is moot, since the file is no longer
+  emitted.
+
 ## Global Constraints
 
 - Target plugin version is **BedrockGUI 2.0.11**. `PLUGIN_TARGET` in `src/plugin/index.ts`.
