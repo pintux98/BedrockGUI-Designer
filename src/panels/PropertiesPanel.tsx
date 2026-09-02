@@ -426,6 +426,7 @@ function ConditionRuleList({
           <div className="grid grid-cols-12 gap-2">
             <select
               className="ui-input text-xs col-span-3"
+              aria-label={`Rule ${idx + 1} property`}
               value={rule.property}
               onChange={(e) => updateRule(idx, { property: e.target.value as BedrockButtonConditionRule["property"] })}
             >

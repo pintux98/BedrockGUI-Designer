@@ -111,6 +111,9 @@ function validateColonAtom(atom: string, body: string): string[] {
     if (parts.length < 3) return [`"${atom}" must read placeholder:<value>:<operator>[:<expected>].`];
     return [`"${opToken}" is not a valid operator.`];
   }
-  if (operator.needsExpected && parts.length < 4) return [`"${opToken}" needs a value to compare against.`];
+  if (parts.length < 4) {
+    if (operator.needsExpected) return [`"${opToken}" needs a value to compare against.`];
+    return [`"${opToken}" still needs a value segment, even though it is ignored — write placeholder:%x%:${opToken}:x.`];
+  }
   return [];
 }

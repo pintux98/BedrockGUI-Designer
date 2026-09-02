@@ -389,5 +389,15 @@ describe("ui panels", () => {
     expect(actions[0].raw).toContain('subchannel: "Message"');
     expect(actions[0].raw).toContain('"lobby"');
   });
+
+  it("labels each conditional-override property select so multiple rules stay distinguishable", () => {
+    wrap(<PropertiesPanel />);
+    fireEvent.click(screen.getByText("Conditions"));
+    fireEvent.click(screen.getByText("+ Add Rule"));
+    fireEvent.click(screen.getByText("+ Add Rule"));
+
+    expect(screen.getByRole("combobox", { name: /rule 1 property/i })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /rule 2 property/i })).toBeInTheDocument();
+  });
 });
 
