@@ -18,6 +18,7 @@ export default defineConfig({
           if (id.includes("zod")) return "zod";
           if (id.includes("zustand")) return "zustand";
           if (id.includes("js-yaml")) return "yaml";
+          if (id.includes("fflate")) return "fflate";
           return "vendor";
         }
       }
