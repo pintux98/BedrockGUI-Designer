@@ -1,7 +1,8 @@
 import React from "react";
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, screen, cleanup } from "@testing-library/react";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+import { render, fireEvent, screen, cleanup, waitFor } from "@testing-library/react";
 import { DndContext } from "@dnd-kit/core";
+import { unzipSync } from "fflate";
 import { useDesignerStore } from "../core/store";
 import { useToastStore } from "../core/toast";
 import { PropertiesPanel } from "../panels/PropertiesPanel";
@@ -54,7 +55,34 @@ describe("ui panels", () => {
     wrap(<TopBar />);
     expect(screen.getByText("BEDROCK")).toBeInTheDocument();
     expect(screen.getByText("GUI")).toBeInTheDocument();
-    expect(screen.getByText("Export")).toBeInTheDocument();
+    expect(screen.getByText("Export form")).toBeInTheDocument();
+  });
+
+  it("renders both export controls with distinct accessible names, and exporting the project produces a real zip", async () => {
+    wrap(<TopBar />);
+    const exportFormBtn = screen.getByRole("button", { name: "Export form" });
+    const exportProjectBtn = screen.getByRole("button", { name: "Export project (.zip)" });
+    expect(exportFormBtn).toBeInTheDocument();
+    expect(exportProjectBtn).toBeInTheDocument();
+    expect(exportFormBtn).not.toBe(exportProjectBtn);
+
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    try {
+      fireEvent.click(exportProjectBtn);
+      await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+
+      const blob = createObjectURL.mock.calls[0][0] as Blob;
+      expect(blob.type).toBe("application/zip");
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const files = unzipSync(bytes);
+      expect(files["config.yml"]).toBeDefined();
+      expect(Object.keys(files).some((name) => name.startsWith("forms/"))).toBe(true);
+    } finally {
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+    }
   });
 
   it("refuses to load a legacy save that still fails validation after migration", () => {

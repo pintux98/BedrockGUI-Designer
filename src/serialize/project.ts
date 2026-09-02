@@ -1,9 +1,9 @@
-import { zipSync, strToU8 } from "fflate";
 import { Project } from "../core/project";
 import { serializeFormDocument } from "./form";
 import { serializeConfigDocument } from "./config";
 
-export function serializeProjectToZip(project: Project): Uint8Array {
+export async function serializeProjectToZip(project: Project): Promise<Uint8Array> {
+  const { zipSync, strToU8 } = await import("fflate");
   const files: Record<string, Uint8Array> = {
     "config.yml": strToU8(serializeConfigDocument(project))
   };

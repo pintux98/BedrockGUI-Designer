@@ -18,8 +18,8 @@ export function useExporter() {
     const doc = serializeFormDocument(form);
     download(new Blob([doc], { type: "text/yaml" }), form.fileName);
   };
-  const exportProjectZip = () => {
-    const zip = serializeProjectToZip(project);
+  const exportProjectZip = async () => {
+    const zip = await serializeProjectToZip(project);
     download(new Blob([zip.slice().buffer as ArrayBuffer], { type: "application/zip" }), "bedrockgui-forms.zip");
   };
   return { exportYaml, exportProjectZip };

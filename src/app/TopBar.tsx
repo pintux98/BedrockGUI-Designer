@@ -8,7 +8,7 @@ import { isLegacyDesign, migrateLegacyDesign } from "../core/migrate";
 import { parseProject } from "../core/projectSchemas";
 
 export function TopBar() {
-  const { exportYaml } = useExporter();
+  const { exportYaml, exportProjectZip } = useExporter();
   const { importYaml } = useImporter();
   const { undo, redo, history, activeForm, renameForm, loadProject: loadProjectIntoStore } = useDesignerStore();
   const active = activeForm();
@@ -319,8 +319,18 @@ export function TopBar() {
         <button
           className="ui-btn ui-btn-primary px-4 py-2 text-sm hidden sm:block"
           onClick={() => exportYaml()}
+          aria-label="Export form"
+          title="Export the current form's YAML file"
         >
-          Export
+          Export form
+        </button>
+        <button
+          className="ui-btn ui-btn-secondary px-4 py-2 text-sm hidden sm:block"
+          onClick={() => exportProjectZip()}
+          aria-label="Export project (.zip)"
+          title="Export the whole project as a plugin-shaped ZIP"
+        >
+          Export project (.zip)
         </button>
         <label className="ui-btn ui-btn-secondary px-4 py-2 text-sm cursor-pointer hidden sm:block">
           Import
@@ -339,14 +349,25 @@ export function TopBar() {
       {/* Mobile Menu Dropdown */}
       {showMobileMenu && (
         <div id="mobile-links-menu" ref={mobileMenuRef} className="absolute top-full right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] bg-brand-surface border border-brand-border rounded-lg shadow-lg z-50 p-4 flex flex-col gap-4 xl:hidden">
-           <div className="flex gap-2 sm:hidden">
-              <button
-                className="flex-1 ui-btn ui-btn-primary px-4 py-2 text-sm"
-                onClick={() => { exportYaml(); setShowMobileMenu(false); }}
-                type="button"
-              >
-                Export
-              </button>
+           <div className="flex flex-col gap-2 sm:hidden">
+              <div className="flex gap-2">
+                <button
+                  className="flex-1 ui-btn ui-btn-primary px-4 py-2 text-sm"
+                  onClick={() => { exportYaml(); setShowMobileMenu(false); }}
+                  type="button"
+                  aria-label="Export form"
+                >
+                  Export form
+                </button>
+                <button
+                  className="flex-1 ui-btn ui-btn-secondary px-4 py-2 text-sm"
+                  onClick={() => { exportProjectZip(); setShowMobileMenu(false); }}
+                  type="button"
+                  aria-label="Export project (.zip)"
+                >
+                  Export project (.zip)
+                </button>
+              </div>
               <label className="flex-1 ui-btn ui-btn-secondary px-4 py-2 text-sm cursor-pointer text-center">
                 Import
                 <input
