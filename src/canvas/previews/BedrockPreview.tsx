@@ -5,6 +5,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { useDesignerStore } from "../../core/store";
 import { MinecraftText } from "../../components/MinecraftText";
 import { hasMinecraftCodes } from "../../core/minecraftText";
+import { resolveImageForPreview } from "../../core/resolveImage";
 import { InlineTextEditor } from "../InlineEditor";
 
 function contentToString(content?: string | string[]): string {
@@ -406,12 +407,16 @@ function BedrockComponentView({ type, props }: { type: string; props: any }) {
 }
 
 function BedrockButtonImage({ image }: { image: string }) {
-  const src = resolveBedrockImageSrc(image);
-  if (src) return <img src={src} alt="" className="w-7 h-7 image-rendering-pixelated" />;
-  const label = image.trim().slice(0, 2).toUpperCase() || "IMG";
+  const assets = useDesignerStore((s) => s.project.assets);
+  const { src, label } = resolveImageForPreview(image, assets);
+  if (src) return <img src={src} alt="" title={label} className="w-7 h-7 image-rendering-pixelated" />;
+  const initials = image.trim().slice(0, 2).toUpperCase() || "IMG";
   return (
-    <div className="w-7 h-7 bg-[#5b5b5b] border border-[#8b8b8b] flex items-center justify-center text-[9px] text-white">
-      {label}
+    <div
+      title={label}
+      className="w-7 h-7 bg-[#5b5b5b] border border-[#8b8b8b] flex items-center justify-center text-[9px] text-white"
+    >
+      {initials}
     </div>
   );
 }
@@ -436,12 +441,4 @@ function getBedrockButtonDisplay(button: any, assumeTrue: boolean): { text: stri
   const image = altImage ?? baseImage;
   const hidden = hasShow && !altText && !altImage;
   return { text, image, hidden };
-}
-
-function resolveBedrockImageSrc(raw: string): string | undefined {
-  const s = raw.trim().replace(/^`+|`+$/g, "").trim();
-  if (!s) return undefined;
-  if (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:")) return s;
-  if (s.startsWith("textures.minecraft.net/texture/")) return `https://${s}`;
-  return undefined;
 }
