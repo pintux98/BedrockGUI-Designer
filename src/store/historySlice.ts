@@ -7,7 +7,18 @@ import { UiSlice } from "./uiSlice";
 export interface HistoryEntry {
   form: FormDoc;
   description: string;
+  /** Monotonic counter used ONLY to order this entry against project history. */
   timestamp: number;
+  /**
+   * Real wall-clock time of the push, used ONLY to decide coalescing.
+   *
+   * Deliberately separate from `timestamp`: nextTimestamp() returns
+   * lastTimestamp + 1 when several pushes land in the same millisecond, so it
+   * drifts ahead of Date.now() during exactly the fast burst coalescing cares
+   * about. Comparing a real clock against a synthetic counter made the window
+   * unbounded. 0 means "never coalesce onto this entry".
+   */
+  pushedAt: number;
 }
 
 export interface FormHistory {
@@ -39,6 +50,22 @@ export interface HistorySlice {
 const EMPTY: FormHistory = { undo: [], redo: [] };
 const EMPTY_PROJECT_HISTORY: ProjectHistory = { undo: [], redo: [] };
 const PROJECT_HISTORY_LIMIT = 20;
+const FORM_HISTORY_LIMIT = 100;
+
+/**
+ * Consecutive pushes with the same description inside this window collapse into
+ * one undo step.
+ *
+ * Some editors emit per keystroke rather than on blur — the open-target combobox
+ * has to, because it is a controlled input with live suggestions — so without
+ * this, typing a nine-character menu name costs nine presses of Ctrl+Z and nine
+ * structuredClones of the whole form.
+ *
+ * The entry kept is the OLDER one: pushHistory snapshots the state BEFORE the
+ * change, so the first push of a burst is the one that returns you to where you
+ * started typing.
+ */
+const COALESCE_MS = 700;
 
 let lastTimestamp = 0;
 function nextTimestamp(): number {
@@ -62,10 +89,24 @@ export const createHistorySlice: StateCreator<
       for (const [key, value] of Object.entries(s.history)) {
         history[key] = { undo: value.undo, redo: [] };
       }
-      history[formId] = {
-        undo: [...current.undo, { form: structuredClone(form), description, timestamp: nextTimestamp() }],
-        redo: []
-      };
+
+      const previous = current.undo[current.undo.length - 1];
+      const coalesce =
+        previous !== undefined &&
+        previous.pushedAt > 0 &&
+        previous.description === description &&
+        Date.now() - previous.pushedAt < COALESCE_MS;
+
+      // Keep the older snapshot, but refresh its timestamp so a continuing burst
+      // keeps extending the window and stays ordered against project history.
+      const undo = coalesce
+        ? [...current.undo.slice(0, -1), { ...previous, timestamp: nextTimestamp(), pushedAt: Date.now() }]
+        : [
+            ...current.undo,
+            { form: structuredClone(form), description, timestamp: nextTimestamp(), pushedAt: Date.now() }
+          ];
+
+      history[formId] = { undo: undo.slice(-FORM_HISTORY_LIMIT), redo: [] };
       return {
         history,
         projectHistory: { ...s.projectHistory, redo: [] }
@@ -141,7 +182,7 @@ export const createHistorySlice: StateCreator<
           ...s.history,
           [id]: {
             undo: formStack.undo.slice(0, -1),
-            redo: [...formStack.redo, { form: structuredClone(live), description: formEntry.description, timestamp: nextTimestamp() }]
+            redo: [...formStack.redo, { form: structuredClone(live), description: formEntry.description, timestamp: nextTimestamp(), pushedAt: 0 }]
           }
         },
         dirty: true,
@@ -191,7 +232,7 @@ export const createHistorySlice: StateCreator<
         history: {
           ...s.history,
           [id]: {
-            undo: [...formStack.undo, { form: structuredClone(live), description: formEntry.description, timestamp: nextTimestamp() }],
+            undo: [...formStack.undo, { form: structuredClone(live), description: formEntry.description, timestamp: nextTimestamp(), pushedAt: 0 }],
             redo: formStack.redo.slice(0, -1)
           }
         },

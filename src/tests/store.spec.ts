@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { useDesignerStore } from "../store";
 import { createEmptyProject } from "../core/project";
 
@@ -225,5 +225,65 @@ describe("designer store", () => {
     s().setActiveForm("shop");
     s().redo();
     expect(s().activeForm().bedrock.title).toBe("New Form");
+  });
+});
+
+describe("history coalescing", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    useDesignerStore.getState().loadProject(createEmptyProject());
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  function setTitle(title: string, description: string) {
+    const s = useDesignerStore.getState();
+    s.setBedrock({ ...s.activeForm().bedrock, title }, description);
+  }
+
+  function undoStack() {
+    const s = useDesignerStore.getState();
+    return s.history[s.project.activeFormId]?.undo ?? [];
+  }
+
+  it("collapses a burst of same-description edits into one undo step", () => {
+    setTitle("s", "Updated title");
+    setTitle("sh", "Updated title");
+    setTitle("sho", "Updated title");
+    setTitle("shop", "Updated title");
+    expect(undoStack()).toHaveLength(1);
+  });
+
+  it("undoes a coalesced burst back to before the burst began, not one keystroke", () => {
+    const original = useDesignerStore.getState().activeForm().bedrock.title;
+    setTitle("s", "Updated title");
+    setTitle("sh", "Updated title");
+    setTitle("shop", "Updated title");
+    useDesignerStore.getState().undo();
+    expect(useDesignerStore.getState().activeForm().bedrock.title).toBe(original);
+  });
+
+  it("keeps edits of different descriptions as separate steps", () => {
+    setTitle("a", "Updated title");
+    setTitle("b", "Updated content");
+    setTitle("c", "Updated title");
+    expect(undoStack()).toHaveLength(3);
+  });
+
+  it("starts a new step once the coalescing window has passed", () => {
+    vi.useFakeTimers();
+    setTitle("a", "Updated title");
+    vi.advanceTimersByTime(1500);
+    setTitle("b", "Updated title");
+    expect(undoStack()).toHaveLength(2);
+  });
+
+  it("caps the per-form undo stack so a long session cannot grow without bound", () => {
+    vi.useFakeTimers();
+    for (let i = 0; i < 140; i++) {
+      vi.advanceTimersByTime(1500);
+      setTitle(`t${i}`, "Updated title");
+    }
+    expect(undoStack()).toHaveLength(100);
   });
 });
