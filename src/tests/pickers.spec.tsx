@@ -64,3 +64,17 @@ describe("ImagePicker", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
+
+describe("$value", () => {
+  it("offers $value, which the plugin sets for a component's own action", () => {
+    render(<PlaceholderPicker onSelect={vi.fn()} />);
+    expect(screen.getByText("$value")).toBeInTheDocument();
+  });
+
+  it("inserts $value verbatim when picked", () => {
+    const onSelect = vi.fn();
+    render(<PlaceholderPicker onSelect={onSelect} />);
+    fireEvent.click(screen.getByText("$value"));
+    expect(onSelect).toHaveBeenCalledWith("$value");
+  });
+});

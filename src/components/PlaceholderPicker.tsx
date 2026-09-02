@@ -34,20 +34,35 @@ const COMPONENT_ENTRIES: Entry[] = [
     description: "In global_actions: the value submitted by the CUSTOM form component with that key",
     group: "component",
     paperOnly: false
+  },
+  {
+    token: componentReference("value"),
+    description:
+      "Inside a component's own action: that component's submitted value. Unambiguous — unlike $1, it means this and nothing else",
+    group: "component",
+    paperOnly: false
   }
 ];
 
 /**
  * Positional arguments. These are NOT brace placeholders and are not part of
- * BUILTIN_PLACEHOLDERS — the plugin substitutes them positionally: inside a
- * component's own `action` block `$1` is that component's submitted value, and a
- * command-opened form receives its command arguments the same way.
+ * BUILTIN_PLACEHOLDERS. `$1` is overloaded in the plugin and means two different
+ * things depending on where it appears:
+ *
+ *   FormMenuUtil.handleCustomAction  -> action.replace("$1", value), so inside a
+ *                                       component's own action block $1 is that
+ *                                       component's submitted value
+ *   FormMenuUtil.openMenu            -> placeholders.put(String.valueOf(i + 1), args[i]),
+ *                                       so at form level $1 is the first command argument
+ *
+ * Both readings are correct in their own context. `$value` (above) is the spelling
+ * that is never ambiguous.
  */
 const ARGUMENT_ENTRIES: Entry[] = [1, 2, 3].map((n) => ({
   token: `$${n}`,
   description:
     n === 1
-      ? "First positional value — a component's own submitted value inside its action, or the first command argument"
+      ? "A component's own submitted value inside its action; the first command argument at form level. Prefer $value for the former"
       : `${n === 2 ? "Second" : "Third"} positional value passed to the form`,
   group: "argument",
   paperOnly: false
