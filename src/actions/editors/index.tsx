@@ -1,4 +1,3 @@
-import React from "react";
 import { ParsedAction } from "../../plugin/grammar";
 import { LinesEditor } from "./LinesEditor";
 import { ConditionalEditor } from "./ConditionalEditor";
@@ -11,17 +10,17 @@ export interface ActionEditorProps {
   onChange: (next: ParsedAction) => void;
 }
 
-export function ActionEditor({ action, onChange }: ActionEditorProps): React.ReactElement {
+export function ActionEditor({ action, onChange }: ActionEditorProps) {
   switch (action.kind) {
     case "lines":
-      return React.createElement(LinesEditor, { action, onChange });
+      return <LinesEditor action={action} onChange={onChange} />;
     case "conditional":
-      return React.createElement(ConditionalEditor, { action, onChange });
+      return <ConditionalEditor action={action} onChange={onChange} />;
     case "random":
-      return React.createElement(RandomEditor, { action, onChange });
+      return <RandomEditor action={action} onChange={onChange} />;
     case "bungee":
-      return React.createElement(BungeeEditor, { action, onChange });
+      return <BungeeEditor action={action} onChange={onChange} />;
     case "raw":
-      return React.createElement(RawEditor, { action, onChange });
+      return <RawEditor action={action} onChange={onChange} />;
   }
 }
