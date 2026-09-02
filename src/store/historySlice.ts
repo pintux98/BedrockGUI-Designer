@@ -17,6 +17,7 @@ export interface FormHistory {
 
 export interface ProjectHistoryEntry {
   project: Project;
+  history: Record<string, FormHistory>;
   description: string;
   timestamp: number;
 }
@@ -71,11 +72,17 @@ export const createHistorySlice: StateCreator<
 
   pushProjectHistory: (description) => {
     const project = get().project;
+    const history = get().history;
     set((s) => ({
       projectHistory: {
         undo: [
           ...s.projectHistory.undo,
-          { project: structuredClone(project), description, timestamp: nextTimestamp() }
+          {
+            project: structuredClone(project),
+            history: structuredClone(history),
+            description,
+            timestamp: nextTimestamp()
+          }
         ].slice(-PROJECT_HISTORY_LIMIT),
         redo: []
       }
@@ -94,11 +101,17 @@ export const createHistorySlice: StateCreator<
       if (projectEntry && (!formEntry || projectEntry.timestamp >= formEntry.timestamp)) {
         return {
           project: projectEntry.project,
+          history: projectEntry.history,
           projectHistory: {
             undo: s.projectHistory.undo.slice(0, -1),
             redo: [
               ...s.projectHistory.redo,
-              { project: structuredClone(s.project), description: projectEntry.description, timestamp: nextTimestamp() }
+              {
+                project: structuredClone(s.project),
+                history: structuredClone(s.history),
+                description: projectEntry.description,
+                timestamp: nextTimestamp()
+              }
             ]
           },
           dirty: true,
@@ -139,10 +152,16 @@ export const createHistorySlice: StateCreator<
       if (projectEntry && (!formEntry || projectEntry.timestamp >= formEntry.timestamp)) {
         return {
           project: projectEntry.project,
+          history: projectEntry.history,
           projectHistory: {
             undo: [
               ...s.projectHistory.undo,
-              { project: structuredClone(s.project), description: projectEntry.description, timestamp: nextTimestamp() }
+              {
+                project: structuredClone(s.project),
+                history: structuredClone(s.history),
+                description: projectEntry.description,
+                timestamp: nextTimestamp()
+              }
             ],
             redo: s.projectHistory.redo.slice(0, -1)
           },

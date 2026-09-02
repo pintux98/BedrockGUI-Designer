@@ -130,4 +130,41 @@ describe("designer store", () => {
     for (let i = 0; i < 30; i++) s().addForm(`form_${i}`);
     expect(s().projectHistory.undo.length).toBe(20);
   });
+
+  it("keeps a form's content history intact across an undone rename", () => {
+    const s = () => useDesignerStore.getState();
+    s().loadProject(createEmptyProject());
+    const before = s().activeForm().bedrock.title;
+    s().setBedrock({ ...s().activeForm().bedrock, title: "Changed" });
+    s().renameForm("main_menu", "hub");
+    s().undo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+    expect(s().activeForm().bedrock.title).toBe("Changed");
+    s().undo();
+    expect(s().activeForm().bedrock.title).toBe(before);
+  });
+
+  it("keeps a deleted form's content history intact after undoing the deletion", () => {
+    const s = () => useDesignerStore.getState();
+    s().loadProject(createEmptyProject());
+    s().addForm("shop");
+    s().setActiveForm("shop");
+    const before = s().activeForm().bedrock.title;
+    s().setBedrock({ ...s().activeForm().bedrock, title: "Changed" });
+    s().removeForm("shop");
+    s().undo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
+    expect(s().activeForm().id).toBe("shop");
+    expect(s().activeForm().bedrock.title).toBe("Changed");
+    s().undo();
+    expect(s().activeForm().bedrock.title).toBe(before);
+  });
+
+  it("keeps the project history cap after entries carry per-form history", () => {
+    const s = () => useDesignerStore.getState();
+    s().loadProject(createEmptyProject());
+    s().setBedrock({ ...s().activeForm().bedrock, title: "Changed" });
+    for (let i = 0; i < 30; i++) s().addForm(`form_${i}`);
+    expect(s().projectHistory.undo.length).toBe(20);
+  });
 });
