@@ -14,12 +14,14 @@ import { ValidationPanel } from "../panels/ValidationPanel";
 import { Wizard } from "../components/Wizard";
 import { HistoryPanel } from "../panels/HistoryPanel";
 import { ResizablePanel } from "../components/ResizablePanel";
+import { useUndoShortcuts } from "./useUndoShortcuts";
 
 type LeftPanelTab = "components" | "history";
 type RightPanelTab = "properties" | "yaml";
 
 export function DesignerShell() {
   const { isWizardOpen } = useDesignerStore();
+  useUndoShortcuts();
   const [viewport, setViewport] = useState<"mobile" | "tablet" | "desktop">("desktop");
   const [leftTab, setLeftTab] = useState<LeftPanelTab>("components");
   const [rightTab, setRightTab] = useState<RightPanelTab>("properties");

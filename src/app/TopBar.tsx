@@ -12,10 +12,15 @@ import { ConfigSnippetDialog } from "../components/ConfigSnippetDialog";
 export function TopBar() {
   const { exportProject } = useExporter();
   const { importYaml } = useImporter();
-  const { undo, redo, history, activeForm, renameForm, loadProject: loadProjectIntoStore, project } = useDesignerStore();
+  const { undo, redo, history, projectHistory, activeForm, renameForm, loadProject: loadProjectIntoStore, project } = useDesignerStore();
   const active = activeForm();
   const menuName = active.id;
   const formHistory = history[active.id] ?? { undo: [], redo: [] };
+  // Structural changes (add/rename/duplicate/delete form, assets, platform) record
+  // project history, not per-form history. Gating on formHistory alone left Undo
+  // greyed out immediately after a delete, with a non-empty stack behind it.
+  const canUndo = formHistory.undo.length > 0 || projectHistory.undo.length > 0;
+  const canRedo = formHistory.redo.length > 0 || projectHistory.redo.length > 0;
   const setMenuName = (name: string) => renameForm(active.id, name);
 
   const [showProjects, setShowProjects] = useState(false);
@@ -155,7 +160,7 @@ export function TopBar() {
           <button 
             className="ui-btn ui-btn-secondary px-2 sm:px-3 py-1 text-xs"
             onClick={undo}
-            disabled={!formHistory.undo.length}
+            disabled={!canUndo}
             title="Undo (Ctrl+Z)"
           >
             ↶ <span className="hidden sm:inline">Undo</span>
@@ -163,7 +168,7 @@ export function TopBar() {
           <button 
             className="ui-btn ui-btn-secondary px-2 sm:px-3 py-1 text-xs"
             onClick={redo}
-            disabled={!formHistory.redo.length}
+            disabled={!canRedo}
             title="Redo (Ctrl+Y)"
           >
             ↷ <span className="hidden sm:inline">Redo</span>
