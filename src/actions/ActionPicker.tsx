@@ -1,7 +1,7 @@
 import React from "react";
 import { ACTIONS, actionsForPlatform } from "../plugin";
 import { useDesignerStore } from "../core/store";
-import { ActionKind, RAW_ACTION_INFO } from "./ActionBlock";
+import { ActionKind, RAW_ACTION_INFO } from "./actionInfo";
 
 interface ActionPickerProps {
   onSelect: (type: ActionKind) => void;
