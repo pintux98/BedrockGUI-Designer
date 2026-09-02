@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { useDesignerStore } from "../store";
 import { createEmptyProject } from "../core/project";
 
@@ -228,62 +228,167 @@ describe("designer store", () => {
   });
 });
 
-describe("history coalescing", () => {
+describe("history granularity", () => {
+  const s = () => useDesignerStore.getState();
+
   beforeEach(() => {
-    vi.useRealTimers();
-    useDesignerStore.getState().loadProject(createEmptyProject());
+    s().loadProject(createEmptyProject());
   });
 
-  afterEach(() => vi.useRealTimers());
+  function buttons() {
+    const bedrock = s().activeForm().bedrock;
+    if (bedrock.type === "CUSTOM") throw new Error("the empty project's form should have buttons");
+    return bedrock;
+  }
 
-  function setTitle(title: string, description: string) {
-    const s = useDesignerStore.getState();
-    s.setBedrock({ ...s.activeForm().bedrock, title }, description);
+  function addButton(id: string) {
+    const bedrock = buttons();
+    s().setBedrock({ ...bedrock, buttons: [...bedrock.buttons, { id, text: id }] }, "Added button");
+  }
+
+  function setButtonText(id: string, text: string) {
+    const bedrock = buttons();
+    s().setBedrock(
+      { ...bedrock, buttons: bedrock.buttons.map((b) => (b.id === id ? { ...b, text } : b)) },
+      "Updated button text"
+    );
+  }
+
+  function setTitle(title: string) {
+    s().setBedrock({ ...s().activeForm().bedrock, title }, "Updated title");
+  }
+
+  function buttonIds() {
+    return buttons().buttons.map((b) => b.id);
+  }
+
+  function buttonText(id: string) {
+    return buttons().buttons.find((b) => b.id === id)?.text;
   }
 
   function undoStack() {
-    const s = useDesignerStore.getState();
-    return s.history[s.project.activeFormId]?.undo ?? [];
+    return s().history[s().project.activeFormId]?.undo ?? [];
   }
 
-  it("collapses a burst of same-description edits into one undo step", () => {
-    setTitle("s", "Updated title");
-    setTitle("sh", "Updated title");
-    setTitle("sho", "Updated title");
-    setTitle("shop", "Updated title");
-    expect(undoStack()).toHaveLength(1);
-  });
-
-  it("undoes a coalesced burst back to before the burst began, not one keystroke", () => {
-    const original = useDesignerStore.getState().activeForm().bedrock.title;
-    setTitle("s", "Updated title");
-    setTitle("sh", "Updated title");
-    setTitle("shop", "Updated title");
-    useDesignerStore.getState().undo();
-    expect(useDesignerStore.getState().activeForm().bedrock.title).toBe(original);
-  });
-
-  it("keeps edits of different descriptions as separate steps", () => {
-    setTitle("a", "Updated title");
-    setTitle("b", "Updated content");
-    setTitle("c", "Updated title");
-    expect(undoStack()).toHaveLength(3);
-  });
-
-  it("starts a new step once the coalescing window has passed", () => {
-    vi.useFakeTimers();
-    setTitle("a", "Updated title");
-    vi.advanceTimersByTime(1500);
-    setTitle("b", "Updated title");
+  // A description is not an identity. Two Add clicks push the same string, so
+  // merging on it made one ctrl+z remove both buttons.
+  it("keeps two Add button clicks as two undo steps", () => {
+    addButton("button_2");
+    addButton("button_3");
     expect(undoStack()).toHaveLength(2);
+
+    s().undo();
+    expect(buttonIds()).toEqual(["button_1", "button_2"]);
+    s().undo();
+    expect(buttonIds()).toEqual(["button_1"]);
+  });
+
+  // Same string, different subject: editing two buttons in quick succession
+  // must not let one ctrl+z revert both.
+  it("keeps edits to two different buttons as two undo steps", () => {
+    addButton("button_2");
+    setButtonText("button_1", "First");
+    setButtonText("button_2", "Second");
+    expect(undoStack()).toHaveLength(3);
+
+    s().undo();
+    expect(buttonText("button_2")).toBe("button_2");
+    expect(buttonText("button_1")).toBe("First");
+    s().undo();
+    expect(buttonText("button_1")).toBe("Click me");
+  });
+
+  // No wall-clock window either: a burst is still one step per push, however
+  // fast it lands. Editors that fire per keystroke buffer their own writes.
+  it("keeps a rapid burst of same-description edits as one step each", () => {
+    setTitle("s");
+    setTitle("sh");
+    setTitle("sho");
+    setTitle("shop");
+    expect(undoStack()).toHaveLength(4);
+
+    s().undo();
+    expect(s().activeForm().bedrock.title).toBe("sho");
   });
 
   it("caps the per-form undo stack so a long session cannot grow without bound", () => {
-    vi.useFakeTimers();
-    for (let i = 0; i < 140; i++) {
-      vi.advanceTimersByTime(1500);
-      setTitle(`t${i}`, "Updated title");
-    }
+    for (let i = 0; i < 140; i++) setTitle(`t${i}`);
     expect(undoStack()).toHaveLength(100);
+  });
+
+  // The 1a scenario: a form edit, a structural change, then another form edit.
+  // Refreshing a merged entry's timestamp sorted it past the project entry, so
+  // the second undo restored a project snapshot holding the value just undone.
+  it("undoes a form edit and a structural change in strict reverse order", () => {
+    setTitle("A");
+    s().addForm("shop");
+    setTitle("B");
+    expect(s().activeForm().bedrock.title).toBe("B");
+
+    s().undo();
+    expect(s().activeForm().bedrock.title).toBe("A");
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
+
+    s().undo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+    expect(s().activeForm().bedrock.title).toBe("A");
+
+    s().undo();
+    expect(s().activeForm().bedrock.title).toBe("New Form");
+    expect(undoStack()).toEqual([]);
+  });
+});
+
+describe("undo spans every form, not just the active one", () => {
+  const s = () => useDesignerStore.getState();
+
+  beforeEach(() => {
+    s().loadProject(createEmptyProject());
+  });
+
+  function setTitle(title: string) {
+    s().setBedrock({ ...s().activeForm().bedrock, title }, "Updated title");
+  }
+
+  function titleOf(id: string) {
+    return s().project.forms.find((f) => f.id === id)?.bedrock.title;
+  }
+
+  // Finding 2. With the active form's stack empty, undo used to fall through to
+  // project history unconditionally and delete the form on screen, while the
+  // newer edit it should have reverted survived.
+  it("does not delete the form on screen when that form has no history", () => {
+    s().addForm("shop");
+    setTitle("Edited");
+    s().setActiveForm("shop");
+
+    s().undo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
+    expect(titleOf("main_menu")).toBe("New Form");
+  });
+
+  it("undoes the newest edit even when it belongs to another form, and switches to it", () => {
+    s().addForm("shop");
+    s().setActiveForm("shop");
+    setTitle("Shop edit");
+    s().setActiveForm("main_menu");
+    setTitle("Main edit");
+    s().setActiveForm("shop");
+
+    s().undo();
+    expect(s().project.activeFormId).toBe("main_menu");
+    expect(titleOf("main_menu")).toBe("New Form");
+    expect(titleOf("shop")).toBe("Shop edit");
+  });
+
+  it("redoes on the form the change belongs to, switching to it", () => {
+    s().addForm("shop");
+    setTitle("Main edit");
+    s().undo();
+    s().setActiveForm("shop");
+
+    s().redo();
+    expect(s().project.activeFormId).toBe("main_menu");
+    expect(titleOf("main_menu")).toBe("Main edit");
   });
 });

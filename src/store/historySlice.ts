@@ -7,18 +7,11 @@ import { UiSlice } from "./uiSlice";
 export interface HistoryEntry {
   form: FormDoc;
   description: string;
-  /** Monotonic counter used ONLY to order this entry against project history. */
-  timestamp: number;
   /**
-   * Real wall-clock time of the push, used ONLY to decide coalescing.
-   *
-   * Deliberately separate from `timestamp`: nextTimestamp() returns
-   * lastTimestamp + 1 when several pushes land in the same millisecond, so it
-   * drifts ahead of Date.now() during exactly the fast burst coalescing cares
-   * about. Comparing a real clock against a synthetic counter made the window
-   * unbounded. 0 means "never coalesce onto this entry".
+   * Strictly monotonic counter used to order this entry against every other
+   * history entry — the other forms' stacks as well as project history.
    */
-  pushedAt: number;
+  timestamp: number;
 }
 
 export interface FormHistory {
@@ -52,26 +45,79 @@ const EMPTY_PROJECT_HISTORY: ProjectHistory = { undo: [], redo: [] };
 const PROJECT_HISTORY_LIMIT = 20;
 const FORM_HISTORY_LIMIT = 100;
 
-/**
- * Consecutive pushes with the same description inside this window collapse into
- * one undo step.
- *
- * Some editors emit per keystroke rather than on blur — the open-target combobox
- * has to, because it is a controlled input with live suggestions — so without
- * this, typing a nine-character menu name costs nine presses of Ctrl+Z and nine
- * structuredClones of the whole form.
- *
- * The entry kept is the OLDER one: pushHistory snapshots the state BEFORE the
- * change, so the first push of a burst is the one that returns you to where you
- * started typing.
- */
-const COALESCE_MS = 700;
-
 let lastTimestamp = 0;
 function nextTimestamp(): number {
   const now = Date.now();
   lastTimestamp = now > lastTimestamp ? now : lastTimestamp + 1;
   return lastTimestamp;
+}
+
+/**
+ * The newest entry on any form's `stack`, not just the active form's.
+ *
+ * Ctrl+Z has to undo the last thing the USER did, wherever it happened. Reading
+ * only the active form's stack meant an empty active stack fell through to
+ * project history unconditionally and deleted the form on screen, and it meant
+ * an edit made on another form could be stepped over entirely.
+ *
+ * Stacks whose form is no longer in the project are ignored: there is nothing to
+ * restore the snapshot onto, and undoing the structural change that removed the
+ * form brings its stack back with it.
+ */
+function newestFormEntry(
+  history: Record<string, FormHistory>,
+  project: Project,
+  stack: "undo" | "redo"
+): { formId: string; entry: HistoryEntry } | undefined {
+  let best: { formId: string; entry: HistoryEntry } | undefined;
+  for (const [formId, value] of Object.entries(history)) {
+    const entry = value[stack][value[stack].length - 1];
+    if (!entry) continue;
+    if (!findForm(project, formId)) continue;
+    if (!best || entry.timestamp > best.entry.timestamp) best = { formId, entry };
+  }
+  return best;
+}
+
+/** One row of the user-visible history timeline, from either stack. */
+export interface HistoryRow {
+  description: string;
+  timestamp: number;
+}
+
+/**
+ * Every entry on one side of the timeline, across all forms plus project history,
+ * oldest first.
+ *
+ * undo()/redo() choose across every form's stack, not just the active form's, so
+ * anything that reports on "what can be undone" has to scan the same set or it
+ * disagrees with the button it is describing. TopBar and HistoryPanel both use
+ * this rather than keeping their own idea of the timeline.
+ */
+export function allHistoryRows(
+  history: Record<string, FormHistory>,
+  project: Project,
+  projectHistory: ProjectHistory,
+  stack: "undo" | "redo"
+): HistoryRow[] {
+  const rows: HistoryRow[] = [];
+  for (const [formId, value] of Object.entries(history)) {
+    if (!findForm(project, formId)) continue;
+    for (const entry of value[stack]) rows.push({ description: entry.description, timestamp: entry.timestamp });
+  }
+  for (const entry of projectHistory[stack]) {
+    rows.push({ description: entry.description, timestamp: entry.timestamp });
+  }
+  return rows.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+/** Every form's stack with its redo cleared — a new action invalidates all redos. */
+function withClearedRedo(history: Record<string, FormHistory>): Record<string, FormHistory> {
+  const next: Record<string, FormHistory> = {};
+  for (const [key, value] of Object.entries(history)) {
+    next[key] = { undo: value.undo, redo: [] };
+  }
+  return next;
 }
 
 export const createHistorySlice: StateCreator<
@@ -85,26 +131,18 @@ export const createHistorySlice: StateCreator<
     if (!form) return;
     set((s) => {
       const current = s.history[formId] ?? EMPTY;
-      const history: Record<string, FormHistory> = {};
-      for (const [key, value] of Object.entries(s.history)) {
-        history[key] = { undo: value.undo, redo: [] };
-      }
+      const history = withClearedRedo(s.history);
 
-      const previous = current.undo[current.undo.length - 1];
-      const coalesce =
-        previous !== undefined &&
-        previous.pushedAt > 0 &&
-        previous.description === description &&
-        Date.now() - previous.pushedAt < COALESCE_MS;
-
-      // Keep the older snapshot, but refresh its timestamp so a continuing burst
-      // keeps extending the window and stays ordered against project history.
-      const undo = coalesce
-        ? [...current.undo.slice(0, -1), { ...previous, timestamp: nextTimestamp(), pushedAt: Date.now() }]
-        : [
-            ...current.undo,
-            { form: structuredClone(form), description, timestamp: nextTimestamp(), pushedAt: Date.now() }
-          ];
+      // One push, one undo step. Entries are never merged. A description is not
+      // an identity — two "Added button" clicks, two different buttons both
+      // "Updated button text", a drag-reorder and a palette drop both falling
+      // through to "Updated form" — so collapsing on it silently threw away
+      // steps the user still needed. Editors that fire per keystroke buffer
+      // their own writes instead of being retro-merged here.
+      const undo = [
+        ...current.undo,
+        { form: structuredClone(form), description, timestamp: nextTimestamp() }
+      ];
 
       history[formId] = { undo: undo.slice(-FORM_HISTORY_LIMIT), redo: [] };
       return {
@@ -117,39 +155,30 @@ export const createHistorySlice: StateCreator<
   pushProjectHistory: (description) => {
     const project = get().project;
     const historySnapshot = get().history;
-    set((s) => {
-      const history: Record<string, FormHistory> = {};
-      for (const [key, value] of Object.entries(s.history)) {
-        history[key] = { undo: value.undo, redo: [] };
+    set((s) => ({
+      history: withClearedRedo(s.history),
+      projectHistory: {
+        undo: [
+          ...s.projectHistory.undo,
+          {
+            project: structuredClone(project),
+            history: structuredClone(historySnapshot),
+            description,
+            timestamp: nextTimestamp()
+          }
+        ].slice(-PROJECT_HISTORY_LIMIT),
+        redo: []
       }
-      return {
-        history,
-        projectHistory: {
-          undo: [
-            ...s.projectHistory.undo,
-            {
-              project: structuredClone(project),
-              history: structuredClone(historySnapshot),
-              description,
-              timestamp: nextTimestamp()
-            }
-          ].slice(-PROJECT_HISTORY_LIMIT),
-          redo: []
-        }
-      };
-    });
+    }));
   },
 
   undo: () =>
     set((s) => {
-      const id = s.project.activeFormId;
-      const formStack = s.history[id] ?? EMPTY;
-      const formEntry = formStack.undo[formStack.undo.length - 1];
       const projectEntry = s.projectHistory.undo[s.projectHistory.undo.length - 1];
+      const newest = newestFormEntry(s.history, s.project, "undo");
 
-      if (!formEntry && !projectEntry) return s;
-
-      if (projectEntry && (!formEntry || projectEntry.timestamp >= formEntry.timestamp)) {
+      // nextTimestamp() is strictly monotonic, so no two entries can tie.
+      if (projectEntry && (!newest || projectEntry.timestamp > newest.entry.timestamp)) {
         return {
           project: projectEntry.project,
           history: projectEntry.history,
@@ -171,18 +200,27 @@ export const createHistorySlice: StateCreator<
         };
       }
 
-      const live = findForm(s.project, id);
-      if (!formEntry || !live) return s;
+      if (!newest) return s;
+      const { formId, entry } = newest;
+      const live = findForm(s.project, formId);
+      if (!live) return s;
+      const stack = s.history[formId] ?? EMPTY;
       return {
+        // Follow the change: reverting a form the user cannot see reads as
+        // nothing having happened, or as the wrong thing having changed.
         project: {
           ...s.project,
-          forms: s.project.forms.map((f) => (f.id === id ? { ...f, bedrock: formEntry.form.bedrock } : f))
+          activeFormId: formId,
+          forms: s.project.forms.map((f) => (f.id === formId ? { ...f, bedrock: entry.form.bedrock } : f))
         },
         history: {
           ...s.history,
-          [id]: {
-            undo: formStack.undo.slice(0, -1),
-            redo: [...formStack.redo, { form: structuredClone(live), description: formEntry.description, timestamp: nextTimestamp(), pushedAt: 0 }]
+          [formId]: {
+            undo: stack.undo.slice(0, -1),
+            redo: [
+              ...stack.redo,
+              { form: structuredClone(live), description: entry.description, timestamp: nextTimestamp() }
+            ]
           }
         },
         dirty: true,
@@ -193,14 +231,10 @@ export const createHistorySlice: StateCreator<
 
   redo: () =>
     set((s) => {
-      const id = s.project.activeFormId;
-      const formStack = s.history[id] ?? EMPTY;
-      const formEntry = formStack.redo[formStack.redo.length - 1];
       const projectEntry = s.projectHistory.redo[s.projectHistory.redo.length - 1];
+      const newest = newestFormEntry(s.history, s.project, "redo");
 
-      if (!formEntry && !projectEntry) return s;
-
-      if (projectEntry && (!formEntry || projectEntry.timestamp >= formEntry.timestamp)) {
+      if (projectEntry && (!newest || projectEntry.timestamp > newest.entry.timestamp)) {
         return {
           project: projectEntry.project,
           history: projectEntry.history,
@@ -222,18 +256,25 @@ export const createHistorySlice: StateCreator<
         };
       }
 
-      const live = findForm(s.project, id);
-      if (!formEntry || !live) return s;
+      if (!newest) return s;
+      const { formId, entry } = newest;
+      const live = findForm(s.project, formId);
+      if (!live) return s;
+      const stack = s.history[formId] ?? EMPTY;
       return {
         project: {
           ...s.project,
-          forms: s.project.forms.map((f) => (f.id === id ? { ...f, bedrock: formEntry.form.bedrock } : f))
+          activeFormId: formId,
+          forms: s.project.forms.map((f) => (f.id === formId ? { ...f, bedrock: entry.form.bedrock } : f))
         },
         history: {
           ...s.history,
-          [id]: {
-            undo: [...formStack.undo, { form: structuredClone(live), description: formEntry.description, timestamp: nextTimestamp(), pushedAt: 0 }],
-            redo: formStack.redo.slice(0, -1)
+          [formId]: {
+            undo: [
+              ...stack.undo,
+              { form: structuredClone(live), description: entry.description, timestamp: nextTimestamp() }
+            ],
+            redo: stack.redo.slice(0, -1)
           }
         },
         dirty: true,

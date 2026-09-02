@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useExporter } from "../exporters/useExporter";
 import { useImporter } from "../importers/useImporter";
 import { useDesignerStore } from "../core/store";
+import { allHistoryRows } from "../store/historySlice";
 import { toast } from "../core/toast";
 import { confirmDialog } from "../core/confirm";
 import { isLegacyDesign, migrateLegacyDesign } from "../core/migrate";
@@ -15,12 +16,12 @@ export function TopBar() {
   const { undo, redo, history, projectHistory, activeForm, renameForm, loadProject: loadProjectIntoStore, project } = useDesignerStore();
   const active = activeForm();
   const menuName = active.id;
-  const formHistory = history[active.id] ?? { undo: [], redo: [] };
-  // Structural changes (add/rename/duplicate/delete form, assets, platform) record
-  // project history, not per-form history. Gating on formHistory alone left Undo
-  // greyed out immediately after a delete, with a non-empty stack behind it.
-  const canUndo = formHistory.undo.length > 0 || projectHistory.undo.length > 0;
-  const canRedo = formHistory.redo.length > 0 || projectHistory.redo.length > 0;
+  // Undo spans every form's stack plus project history, so the buttons have to ask
+  // the same question undo() answers. Gating on the active form alone greyed Undo
+  // out right after a form delete; gating on active-plus-project still missed an
+  // edit made on a form the user has since switched away from.
+  const canUndo = allHistoryRows(history, project, projectHistory, "undo").length > 0;
+  const canRedo = allHistoryRows(history, project, projectHistory, "redo").length > 0;
   const setMenuName = (name: string) => renameForm(active.id, name);
 
   const [showProjects, setShowProjects] = useState(false);

@@ -1,12 +1,13 @@
 import React from "react";
 import { useDesignerStore } from "../core/store";
+import { allHistoryRows } from "../store/historySlice";
 
 interface HistoryPanelProps {
   onCollapseChange?: (collapsed: boolean) => void;
 }
 
 export function HistoryPanel({ onCollapseChange }: HistoryPanelProps) {
-  const { history, projectHistory, activeForm, undo } = useDesignerStore();
+  const { history, projectHistory, project, undo } = useDesignerStore();
   const [collapsed, setCollapsed] = React.useState(false);
 
   // Notify parent of collapse state
@@ -14,22 +15,12 @@ export function HistoryPanel({ onCollapseChange }: HistoryPanelProps) {
     onCollapseChange?.(collapsed);
   }, [collapsed, onCollapseChange]);
 
-  const active = activeForm();
-  const formHistory = history[active.id] ?? { undo: [], redo: [] };
-
-  // One timeline, both stacks. Structural changes (add/rename/duplicate/delete
-  // form, assets, platform) land in projectHistory, so a panel reading only
-  // history[active.id] silently omitted them and offered no way to revert them.
-  // undo() already pops whichever stack holds the newer entry, so ordering the
-  // merged list by timestamp is what makes "revert to here" count steps correctly.
-  const byTime = (a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp;
-  const toRow = (x: { description: string; timestamp: number }) => ({
-    description: x.description,
-    timestamp: x.timestamp
-  });
-
-  const undoRows = [...formHistory.undo.map(toRow), ...projectHistory.undo.map(toRow)].sort(byTime);
-  const redoRows = [...formHistory.redo.map(toRow), ...projectHistory.redo.map(toRow)].sort(byTime);
+  // One timeline over every form's stack plus project history. A panel reading only
+  // history[active.id] omitted structural changes entirely, and once undo() began
+  // choosing across all forms, counting steps from a narrower list would have made
+  // "revert to here" undo a different number of things than the row implies.
+  const undoRows = allHistoryRows(history, project, projectHistory, "undo");
+  const redoRows = allHistoryRows(history, project, projectHistory, "redo");
 
   const entries = [
     ...undoRows.map((x, i) => ({ ...x, index: i, active: false })),
