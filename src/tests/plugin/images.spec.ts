@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import * as yaml from "js-yaml";
-import { classifyImage } from "../../plugin/images";
+import { classifyImage, HEAD_FALLBACK_MATERIALS } from "../../plugin/images";
 
 describe("images.ts is data-only", () => {
   it("imports nothing from the app", () => {
@@ -45,9 +45,17 @@ describe("classifyImage", () => {
     expect(classifyImage("banner.webp").kind).toBe("assetFile");
   });
 
-  it("recognises materials that draw no icon", () => {
-    expect(classifyImage("BARRIER").kind).toBe("none");
-    expect(classifyImage("AIR").kind).toBe("none");
+  it("reports the texture-less materials as the head render the plugin actually draws", () => {
+    // The "no icon" guard is only in IconResolver.resolveImage (IconResolver.java:373-375),
+    // which buttons never reach. FormMenuUtil.mapImageSource gets null from resolveIcon
+    // and falls through to FormMenuUtil.java:1472-1474, which returns
+    // https://mc-heads.net/head/BARRIER/64 — a player head named BARRIER.
+    expect(classifyImage("BARRIER").kind).toBe("headFallback");
+    expect(classifyImage("BARRIER").detail).toBe("BARRIER");
+    expect(classifyImage("AIR").kind).toBe("headFallback");
+    for (const material of HEAD_FALLBACK_MATERIALS) {
+      expect(classifyImage(material).kind, material).toBe("headFallback");
+    }
   });
 
   it("reports anything else as unknown", () => {
@@ -129,5 +137,59 @@ describe("image sources the plugin maps but the classifier used to miss", () => 
   it("accepts a blob on shape alone, as the plugin's validator does", () => {
     // ValidationUtils.isValidImageSource never decodes; only mapImageSource does.
     expect(classifyImage("A".repeat(60)).kind).toBe("base64Skin");
+  });
+});
+
+describe("shapes the plugin accepts that used to read as unknown", () => {
+  it("classifies any value carrying a placeholder", () => {
+    // ValidationUtils.java:93-96 returns true for anything containing '%', and
+    // FormMenuUtil substitutes placeholders (FormMenuUtil.java:676-677, 697-698)
+    // before mapImageSource ever sees the value.
+    expect(classifyImage("%player_skin_texture%").kind).toBe("placeholder");
+    expect(classifyImage("%vault_rank%_icon").kind).toBe("placeholder");
+    expect(classifyImage("POTION:%effect%").kind).toBe("placeholder");
+  });
+
+  it("gives a placeholder no detail to build a src from", () => {
+    expect(classifyImage("%player_skin_texture%").detail).toBeUndefined();
+  });
+
+  it("keeps head: winning over the placeholder rule", () => {
+    // head:%player% is the documented spelling (IconResolver.java:445-447).
+    const result = classifyImage("head:%player%");
+    expect(result.kind).toBe("head");
+    expect(result.detail).toBe("%player%");
+  });
+
+  it("keeps a URL and a texture path winning over the placeholder rule", () => {
+    expect(classifyImage("https://example.com/%player%.png").kind).toBe("url");
+    expect(classifyImage("textures/ui/%icon%").kind).toBe("texturePath");
+  });
+
+  it("classifies a pack-relative path under a non-textures root", () => {
+    // ValidationUtils.java:103-106 accepts it and FormMenuUtil.java:1476 passes it
+    // to the client verbatim as FormImage.Type.PATH.
+    expect(classifyImage("mypack/icons/gold").kind).toBe("texturePath");
+    expect(classifyImage("custom/deep/nested/icon").kind).toBe("texturePath");
+    expect(classifyImage("pack-1/icon_v2").kind).toBe("texturePath");
+  });
+
+  it("still reads a slashed path with an image extension as a local asset", () => {
+    // IconResolver.isLocalImageFile accepts a slashed path, so mapImageSource routes
+    // it through the asset server (FormMenuUtil.java:1468-1470) rather than 1476.
+    expect(classifyImage("assets/logo.png").kind).toBe("assetFile");
+    expect(classifyImage("icons/shop/banner.webp").kind).toBe("assetFile");
+  });
+
+  it("still reports a namespaced material as unknown, on purpose", () => {
+    // ValidationUtils.java:108-111 accepts it, but resolveIcon rejects the colon
+    // (IconResolver.java:414) and the value reaches the client as a dead PATH.
+    // The designer's warning is more useful than the plugin's silence.
+    expect(classifyImage("minecraft:diamond_sword").kind).toBe("unknown");
+  });
+
+  it("still reports genuine nonsense as unknown", () => {
+    expect(classifyImage("not a real thing").kind).toBe("unknown");
+    expect(classifyImage("who/knows what this is").kind).toBe("unknown");
   });
 });
