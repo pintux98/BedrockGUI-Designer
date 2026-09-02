@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Palette } from "../panels/Palette";
 import { PropertiesPanel } from "../panels/PropertiesPanel";
 import { FormTypePanel } from "../panels/FormTypePanel";
+import { FormSwitcher } from "../panels/FormSwitcher";
 import { Canvas } from "../canvas/Canvas";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TopBar } from "./TopBar";
@@ -104,6 +105,7 @@ export function DesignerShell() {
                     <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar min-h-0">
                       {leftTab === "components" && (
                         <div className="p-2 space-y-2">
+                          <FormSwitcher />
                           <FormTypePanel />
                           <Palette />
                         </div>
@@ -134,6 +136,7 @@ export function DesignerShell() {
                   <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
                     {leftTab === "components" && (
                       <div className="p-2 space-y-2">
+                        <FormSwitcher />
                         <FormTypePanel />
                         <Palette />
                       </div>
