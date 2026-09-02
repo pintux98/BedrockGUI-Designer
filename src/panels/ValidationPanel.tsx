@@ -2,7 +2,7 @@ import React from "react";
 import { useDesignerStore } from "../core/store";
 import { ActionInstance } from "../core/types";
 import { validateProject } from "../core/validateProject";
-import { isActionId, classifyImage, validateCondition, LIMITS } from "../plugin";
+import { isActionId, classifyImage, validateCondition, findAddonForActionId, LIMITS } from "../plugin";
 
 type Issue = { level: "error" | "warning"; message: string };
 
@@ -95,12 +95,10 @@ function validateState(state: any): Issue[] {
     if (b.type === "MODAL" && Array.isArray(b.buttons) && b.buttons.length !== LIMITS.modalButtonCount) {
       out.push({ level: "error", message: `Bedrock MODAL must have exactly ${LIMITS.modalButtonCount} buttons.` });
     }
-    if (b.type === "SIMPLE" && Array.isArray(b.buttons) && b.buttons.length < LIMITS.minButtonsPerForm) {
-      out.push({ level: "error", message: `Bedrock SIMPLE must have at least ${LIMITS.minButtonsPerForm} button.` });
-    }
-    if (b.type === "CUSTOM" && Array.isArray(b.components) && b.components.length < LIMITS.minComponentsPerForm) {
-      out.push({ level: "error", message: `Bedrock CUSTOM must have at least ${LIMITS.minComponentsPerForm} component.` });
-    }
+    // No minimum button or component count is checked: the plugin has none.
+    // ConfigValidator.validateButtons (ConfigValidator.java:97-104) warns about an
+    // empty button list only for MODAL, and validateFormTypeSpecific's CUSTOM branch
+    // is `case "custom": break;`. An empty SIMPLE or CUSTOM form loads and opens.
     if (b.commandIntercept && typeof b.commandIntercept === "string" && b.commandIntercept.trim().length < 2) {
       out.push({ level: "warning", message: "command_intercept looks too short." });
     }
@@ -148,7 +146,21 @@ function validateActionBlocks(label: string, actions?: ActionInstance[]): Issue[
       continue;
     }
     if (!isActionId(type)) {
-      out.push({ level: "warning", message: `${label}: unknown action type '${type}'.` });
+      /**
+       * An addon action type is a real, correct action — addons register handlers
+       * alongside the 14 builtins (FormMenuUtil.java:1163) — so `bw_shop_main { }` is
+       * not an unknown type. It does depend on that addon being installed, which is
+       * the only thing worth saying about it.
+       */
+      const addon = findAddonForActionId(type);
+      if (addon) {
+        out.push({
+          level: "warning",
+          message: `${label}: '${type}' is supplied by the ${addon.name} (${addon.jar}) — it only runs on servers with that addon installed.`
+        });
+      } else {
+        out.push({ level: "warning", message: `${label}: unknown action type '${type}'.` });
+      }
     }
     if (raw.includes(":") && !raw.includes("{") && !raw.includes("}")) {
       out.push({ level: "warning", message: `${label}: legacy action format detected '${shorten(raw)}'.` });

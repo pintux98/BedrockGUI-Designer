@@ -5,22 +5,33 @@ import { createEmptyProject, createForm, FormDoc, Project } from "../core/projec
 import { useDesignerStore } from "../core/store";
 import { validateProject } from "../core/validateProject";
 import { ValidationPanel } from "../panels/ValidationPanel";
-import { BedrockForm } from "../core/types";
+import { BedrockButton, BedrockForm } from "../core/types";
 
 /** Give a form a single button whose onClick is the supplied raw action block. */
 function withOnClick(form: FormDoc, ...raws: string[]): FormDoc {
+  return withButton(form, { id: "b1", text: "B", onClick: raws.map((raw, i) => ({ id: `a${i}`, params: {}, raw })) });
+}
+
+function withButton(form: FormDoc, button: BedrockButton): FormDoc {
+  return { ...form, bedrock: { ...form.bedrock, type: "SIMPLE", buttons: [button] } as BedrockForm };
+}
+
+function withGlobalActions(form: FormDoc, ...raws: string[]): FormDoc {
+  return {
+    ...form,
+    bedrock: { ...form.bedrock, globalActions: raws.map((raw, i) => ({ id: `g${i}`, params: {}, raw })) } as BedrockForm
+  };
+}
+
+/** A CUSTOM form whose single component carries the supplied raw action block. */
+function withComponentAction(form: FormDoc, raw: string): FormDoc {
   return {
     ...form,
     bedrock: {
-      ...form.bedrock,
-      type: "SIMPLE",
-      buttons: [
-        {
-          id: "b1",
-          text: "B",
-          onClick: raws.map((raw, i) => ({ id: `a${i}`, params: {}, raw }))
-        }
-      ]
+      type: "CUSTOM",
+      title: "T",
+      content: "",
+      components: [{ id: "c1", type: "input", props: {}, action: [{ id: "a0", params: {}, raw }] }]
     } as BedrockForm
   };
 }
@@ -29,12 +40,27 @@ function withCommand(form: FormDoc, command: string): FormDoc {
   return { ...form, bedrock: { ...form.bedrock, command } as BedrockForm };
 }
 
+function withCommandIntercept(form: FormDoc, commandIntercept: string): FormDoc {
+  return { ...form, bedrock: { ...form.bedrock, commandIntercept } as BedrockForm };
+}
+
 function projectWith(...forms: FormDoc[]): Project {
   return { ...createEmptyProject(), forms, activeFormId: forms[0].id };
 }
 
 function openBlock(...targets: string[]): string {
   return `open {\n${targets.map((t) => `  - ${JSON.stringify(t)}`).join("\n")}\n}`;
+}
+
+function conditionalBlock(branch: "true" | "false", inner: string): string {
+  return [
+    "conditional {",
+    '  check: "permission:some.node"',
+    `  ${branch}:`,
+    "    - |",
+    ...inner.split("\n").map((line) => `      ${line}`),
+    "}"
+  ].join("\n");
 }
 
 const messages = (issues: { message: string }[]) => issues.map((i) => i.message).join("\n");
@@ -54,15 +80,6 @@ describe("validateProject — open targets", () => {
     expect(issues).toEqual([]);
   });
 
-  it("accepts an addon target and names the addon", () => {
-    const issues = validateProject(projectWith(withOnClick(createForm("main_menu"), openBlock("bw_arena_main"))));
-    expect(issues.filter((i) => i.level === "error")).toEqual([]);
-    const warnings = issues.filter((i) => i.level === "warning");
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0].message).toContain("Bedwars");
-    expect(warnings[0].message).toContain("bw_arena_main");
-  });
-
   it("says nothing about an open target that is a runtime placeholder", () => {
     const main = withCommand(withOnClick(createForm("main_menu"), openBlock("category_{selected}")), "/menu");
     expect(validateProject(projectWith(main))).toEqual([]);
@@ -71,6 +88,55 @@ describe("validateProject — open targets", () => {
   it("does not report the same unknown target twice when two blocks in one form open it", () => {
     const main = withOnClick(createForm("main_menu"), openBlock("ghost_menu"), openBlock("ghost_menu"));
     expect(validateProject(projectWith(main)).filter((i) => i.level === "error")).toHaveLength(1);
+  });
+});
+
+describe("validateProject — an addon id is never an open target", () => {
+  it("errors on an addon action id used as an open target and names the working form", () => {
+    // FormMenuUtil.hasMenu reads formMenus, filled only from config.getKeys("forms").
+    // bw_arena_main is a registered action handler, never a key under forms:, so the
+    // open fails with ACTION_FORM_NOT_FOUND however the server is set up.
+    const issues = validateProject(projectWith(withOnClick(createForm("main_menu"), openBlock("bw_arena_main"))));
+    const errors = issues.filter((i) => i.level === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].formId).toBe("main_menu");
+    expect(errors[0].message).toContain("bw_arena_main");
+    expect(errors[0].message).toContain("Bedwars Addon");
+    expect(errors[0].message).toContain("BedrockGUI-BedwarsAddon.jar");
+    expect(errors[0].message).toContain("is an action type");
+    expect(errors[0].message).toContain("ACTION_FORM_NOT_FOUND");
+    expect(errors[0].message).toContain("'bw_arena_main { }'");
+  });
+
+  it("never downgrades an addon target to a needs-that-addon warning", () => {
+    const issues = validateProject(projectWith(withOnClick(createForm("main_menu"), openBlock("pd_duel"))));
+    expect(issues.filter((i) => i.level === "warning" && i.formId === "main_menu")).toEqual([]);
+    expect(messages(issues)).not.toContain("only works on servers");
+  });
+
+  it("keeps the author's own payload in the suggested usage", () => {
+    const issues = validateProject(projectWith(withOnClick(createForm("main_menu"), openBlock("hs_region_menu:spawn"))));
+    const errors = issues.filter((i) => i.level === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("Homestead Addon");
+    expect(errors[0].message).toContain("Write it as its own action instead: 'hs_region_menu:spawn'.");
+    expect(errors[0].message).not.toContain("hs_region_menu { }");
+  });
+
+  it("suggests the empty-block form when the addon id carries no payload", () => {
+    const issues = validateProject(projectWith(withOnClick(createForm("main_menu"), openBlock("hs_region_menu"))));
+    const errors = issues.filter((i) => i.level === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("Write it as its own action instead: 'hs_region_menu { }'.");
+  });
+
+  it("does not let an addon id complete a menu chain", () => {
+    // shouldTreatValuesAsMenuChain calls hasMenu on every line; bw_shop_main fails it,
+    // so the plugin opens shop and hands 'bw_shop_main' to it as an argument.
+    const main = withCommand(withOnClick(createForm("main_menu"), openBlock("shop", "bw_shop_main")), "/menu");
+    const issues = validateProject(projectWith(main, createForm("shop")));
+    expect(messages(issues)).not.toContain("bw_shop_main");
+    expect(issues).toEqual([]);
   });
 });
 
@@ -109,6 +175,40 @@ describe("validateProject — open line[0] is a menu, the tail may be arguments"
   });
 });
 
+describe("validateProject — the colon form carries exactly one menu name", () => {
+  it("counts a colon-form open as reaching its target", () => {
+    const main = withCommand(withOnClick(createForm("main_menu"), "open:shop"), "/menu");
+    expect(validateProject(projectWith(main, createForm("shop")))).toEqual([]);
+  });
+
+  it("treats a space-separated remainder as one malformed name, not a menu plus arguments", () => {
+    // ActionExecutor.parseAction splits on the first colon only, and
+    // BaseActionHandler.parseActionData adds the remainder whole when it is neither a
+    // { } block nor a [ ] list. So this is a menu literally named
+    // "shop diamond_sword", which isValidAction rejects before execute ever runs —
+    // there is no head/arguments rule in the colon form, and shop is not opened.
+    const main = withCommand(withOnClick(createForm("main_menu"), "open:shop diamond_sword"), "/menu");
+    const issues = validateProject(projectWith(main, createForm("shop")));
+    const errors = issues.filter((i) => i.level === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("shop diamond_sword");
+    expect(errors[0].message).toContain("not a usable menu name");
+    const warnings = issues.filter((i) => i.level === "warning");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].formId).toBe("shop");
+  });
+
+  it("separates a malformed name from a well-formed one that simply does not exist", () => {
+    const bad = withOnClick(createForm("bad"), "open:has spaces");
+    const missing = withOnClick(createForm("missing"), openBlock("ghost_menu"));
+    const errors = validateProject(projectWith(bad, missing)).filter((i) => i.level === "error");
+    expect(errors).toHaveLength(2);
+    expect(errors[0].message).toContain("not a usable menu name");
+    expect(errors[1].message).toContain("is not a form in this project");
+    expect(errors[1].message).not.toContain("not a usable menu name");
+  });
+});
+
 describe("validateProject — nested actions", () => {
   it("finds an open hidden inside a random entry", () => {
     const raw = 'random {\n  - "open:ghost_menu@1"\n  - "message:nothing"\n}';
@@ -119,17 +219,8 @@ describe("validateProject — nested actions", () => {
     expect(errors[0].message).toContain("ghost_menu");
   });
 
-  it("finds an open inside a conditional branch", () => {
-    const raw = [
-      "conditional {",
-      '  check: "permission:some.node"',
-      "  true:",
-      "    - |",
-      "      open {",
-      '        - "ghost_menu"',
-      "      }",
-      "}"
-    ].join("\n");
+  it("finds an open inside the true branch of a conditional", () => {
+    const raw = conditionalBlock("true", openBlock("ghost_menu"));
     const errors = validateProject(projectWith(withOnClick(createForm("main_menu"), raw))).filter(
       (i) => i.level === "error"
     );
@@ -137,8 +228,103 @@ describe("validateProject — nested actions", () => {
     expect(errors[0].message).toContain("ghost_menu");
   });
 
-  it("counts a colon-form open as reaching its target", () => {
-    const main = withCommand(withOnClick(createForm("main_menu"), "open:shop"), "/menu");
+  it("finds an open inside the false branch of a conditional", () => {
+    const raw = conditionalBlock("false", openBlock("ghost_menu"));
+    const errors = validateProject(projectWith(withOnClick(createForm("main_menu"), raw))).filter(
+      (i) => i.level === "error"
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("ghost_menu");
+  });
+
+  it("counts a form opened only from the false branch of a conditional as reached", () => {
+    const main = withCommand(withOnClick(createForm("main_menu"), conditionalBlock("false", openBlock("shop"))), "/menu");
+    expect(validateProject(projectWith(main, createForm("shop")))).toEqual([]);
+  });
+});
+
+describe("validateProject — every place an action can live", () => {
+  it("scans a button's alternative_onClick", () => {
+    const main = withButton(createForm("main_menu"), {
+      id: "b1",
+      text: "B",
+      showCondition: "permission:vip",
+      alternativeOnClick: openBlock("ghost_menu")
+    });
+    const errors = validateProject(projectWith(main)).filter((i) => i.level === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("ghost_menu");
+  });
+
+  it("counts a form opened only from alternative_onClick as reached", () => {
+    const main = withCommand(
+      withButton(createForm("main_menu"), {
+        id: "b1",
+        text: "B",
+        showCondition: "permission:vip",
+        alternativeOnClick: openBlock("shop")
+      }),
+      "/menu"
+    );
+    expect(validateProject(projectWith(main, createForm("shop")))).toEqual([]);
+  });
+
+  it("scans a conditions rule whose property is onClick", () => {
+    const main = withButton(createForm("main_menu"), {
+      id: "b1",
+      text: "B",
+      conditions: [{ id: "r1", condition: "permission:vip", property: "onClick", value: openBlock("ghost_menu") }]
+    });
+    const errors = validateProject(projectWith(main)).filter((i) => i.level === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("ghost_menu");
+  });
+
+  it("counts a form opened only from a conditions onClick rule as reached", () => {
+    const main = withCommand(
+      withButton(createForm("main_menu"), {
+        id: "b1",
+        text: "B",
+        conditions: [{ id: "r1", condition: "permission:vip", property: "onClick", value: openBlock("shop") }]
+      }),
+      "/menu"
+    );
+    expect(validateProject(projectWith(main, createForm("shop")))).toEqual([]);
+  });
+
+  it("does not read a conditions rule that overrides text as if it were an action", () => {
+    const main = withCommand(
+      withButton(createForm("main_menu"), {
+        id: "b1",
+        text: "B",
+        conditions: [{ id: "r1", condition: "permission:vip", property: "text", value: "open:ghost_menu" }]
+      }),
+      "/menu"
+    );
+    expect(validateProject(projectWith(main))).toEqual([]);
+  });
+
+  it("scans globalActions", () => {
+    const main = withGlobalActions(createForm("main_menu"), openBlock("ghost_menu"));
+    const errors = validateProject(projectWith(main)).filter((i) => i.level === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("ghost_menu");
+  });
+
+  it("counts a form opened only from globalActions as reached", () => {
+    const main = withCommand(withGlobalActions(createForm("main_menu"), openBlock("shop")), "/menu");
+    expect(validateProject(projectWith(main, createForm("shop")))).toEqual([]);
+  });
+
+  it("scans a CUSTOM component's action", () => {
+    const main = withComponentAction(createForm("main_menu"), openBlock("ghost_menu"));
+    const errors = validateProject(projectWith(main)).filter((i) => i.level === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("ghost_menu");
+  });
+
+  it("counts a form opened only from a CUSTOM component action as reached", () => {
+    const main = withCommand(withComponentAction(createForm("main_menu"), openBlock("shop")), "/menu");
     expect(validateProject(projectWith(main, createForm("shop")))).toEqual([]);
   });
 });
@@ -178,6 +364,22 @@ describe("validateProject — reachability", () => {
     const main = withCommand(createForm("main_menu"), "/menu");
     const other = withCommand(createForm("other"), "/other");
     expect(validateProject(projectWith(main, other))).toEqual([]);
+  });
+
+  it("treats a form that registers only a command_intercept as reachable", () => {
+    // BedrockGUI.java:186-193 and :232-239 both call api.openMenu on an intercept
+    // match, exactly as they do for form_command.
+    const main = withCommand(createForm("main_menu"), "/menu");
+    const warp = withCommandIntercept(createForm("warp"), "/warp");
+    expect(validateProject(projectWith(main, warp))).toEqual([]);
+  });
+
+  it("still reports a form whose command_intercept is blank", () => {
+    const main = withCommand(createForm("main_menu"), "/menu");
+    const warp = withCommandIntercept(createForm("warp"), "   ");
+    const warnings = validateProject(projectWith(main, warp)).filter((i) => i.level === "warning");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].formId).toBe("warp");
   });
 
   it("does not let a form reach itself", () => {
