@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import { zipSync, strToU8 } from "fflate";
 import { useDesignerStore } from "../store";
 import { useImporter } from "../importers/useImporter";
 import { useToastStore } from "../core/toast";
+import { createEmptyProject, createForm } from "../core/project";
+import { serializeFormDocument } from "../serialize/form";
+import { serializeConfigDocument } from "../serialize/config";
 import type { Project } from "../core/project";
 
 function twoFormProject(): Project {
@@ -104,5 +108,110 @@ describe("useImporter name-collision handling", () => {
 
     const shop = state.project.forms.find((f) => f.id === "shop")!;
     expect(shop.bedrock.title).toBe("Shop Title");
+  });
+});
+
+describe("useImporter ZIP handling", () => {
+  beforeEach(() => {
+    useDesignerStore.getState().loadProject(twoFormProject());
+    useToastStore.setState({ toasts: [] });
+  });
+
+  it("replaces the whole project with the ZIP's forms rather than merging into the current one", async () => {
+    const files = {
+      "forms/x.yml": strToU8(serializeFormDocument(createForm("x"))),
+      "forms/y.yml": strToU8(serializeFormDocument(createForm("y")))
+    };
+    const file = new File([zipSync(files)], "bundle.zip");
+
+    const { result } = renderHook(() => useImporter());
+    await act(async () => {
+      await result.current.importYaml(file);
+    });
+
+    const state = useDesignerStore.getState();
+    expect(state.project.forms.map((f) => f.id)).toEqual(["x", "y"]);
+    expect(state.project.forms.find((f) => f.id === "shop")).toBeUndefined();
+  });
+
+  it("resolves an id from the config.yml registry key, not the file name, and reports the missing config.yml note when absent", async () => {
+    const project = createEmptyProject();
+    const shop = createForm("shop");
+    shop.fileName = "store.yml";
+    project.forms.push(shop);
+    const files = {
+      "config.yml": strToU8(serializeConfigDocument(project)),
+      "forms/main_menu.yml": strToU8(serializeFormDocument(project.forms[0])),
+      "forms/store.yml": strToU8(serializeFormDocument(shop))
+    };
+    const file = new File([zipSync(files)], "bundle.zip");
+
+    const { result } = renderHook(() => useImporter());
+    await act(async () => {
+      await result.current.importYaml(file);
+    });
+
+    const state = useDesignerStore.getState();
+    const imported = state.project.forms.find((f) => f.fileName === "store.yml");
+    expect(imported?.id).toBe("shop");
+  });
+
+  it("reports a config.yml-registered form whose file is missing from the archive as a toast, and imports the rest anyway", async () => {
+    const project = createEmptyProject();
+    project.forms.push(createForm("shop"));
+    const files: Record<string, Uint8Array> = {
+      "config.yml": strToU8(serializeConfigDocument(project)),
+      "forms/main_menu.yml": strToU8(serializeFormDocument(project.forms[0])),
+      "forms/shop.yml": strToU8(serializeFormDocument(project.forms[1]))
+    };
+    delete files["forms/shop.yml"];
+    const file = new File([zipSync(files)], "bundle.zip");
+
+    const { result } = renderHook(() => useImporter());
+    await act(async () => {
+      await result.current.importYaml(file);
+    });
+
+    const state = useDesignerStore.getState();
+    expect(state.project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts.some((t) => t.variant === "info" && t.message.includes("shop.yml"))).toBe(true);
+  });
+});
+
+describe("useImporter legacy multi-form config", () => {
+  beforeEach(() => {
+    useDesignerStore.getState().loadProject(twoFormProject());
+    useToastStore.setState({ toasts: [] });
+  });
+
+  it("sets assets even when the legacy config also has inline forms to import (closes the handoff item)", async () => {
+    const yamlText = [
+      "config-version: 1",
+      "assets:",
+      "  enabled: true",
+      "  port: 9000",
+      "  host: mc.test",
+      "forms:",
+      "  warp_menu:",
+      "    type: SIMPLE",
+      "    title: Warp Title",
+      "    buttons:",
+      "      button_1:",
+      "        text: Warp Button",
+      ""
+    ].join("\n");
+    const file = new File([yamlText], "config.yml", { type: "text/yaml" });
+
+    const { result } = renderHook(() => useImporter());
+    await act(async () => {
+      await result.current.importYaml(file);
+    });
+
+    const state = useDesignerStore.getState();
+    expect(state.project.assets).toEqual({ enabled: true, port: 9000, host: "mc.test" });
+    expect(state.project.forms.some((f) => f.id === "warp_menu")).toBe(true);
+    expect(state.project.forms.some((f) => f.id === "shop")).toBe(true);
   });
 });

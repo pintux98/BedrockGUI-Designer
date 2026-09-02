@@ -341,7 +341,7 @@ export function TopBar() {
           Import
           <input
             type="file"
-            accept=".yml,.yaml"
+            accept=".yml,.yaml,.zip"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -369,7 +369,7 @@ export function TopBar() {
                 Import
                 <input
                   type="file"
-                  accept=".yml,.yaml"
+                  accept=".yml,.yaml,.zip"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
