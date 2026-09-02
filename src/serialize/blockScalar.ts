@@ -1,3 +1,5 @@
+import * as yaml from "js-yaml";
+
 export function applyBlockScalars(text: string) {
   return postprocessMultilineStrings(text);
 }
@@ -18,6 +20,10 @@ function postprocessMultilineStrings(text: string) {
 
       const indent = prefix.match(/^\s*/)?.[0] ?? "";
       const decoded = unescapeDoubleQuoted(inner);
+      if (decoded === undefined || isUnsafeForLiteralBlock(decoded)) {
+        out.push(line);
+        continue;
+      }
       const { indicator, body } = chomp(decoded);
       out.push(`${indent}- ${indicator}`);
       pushBody(out, indent, body);
@@ -35,6 +41,10 @@ function postprocessMultilineStrings(text: string) {
 
       const indent = prefix.match(/^\s*/)?.[0] ?? "";
       const decoded = unescapeDoubleQuoted(inner);
+      if (decoded === undefined || isUnsafeForLiteralBlock(decoded)) {
+        out.push(line);
+        continue;
+      }
       const { indicator, body } = chomp(decoded);
       out.push(`${prefix}${indicator}`);
       pushBody(out, indent, body);
@@ -58,24 +68,17 @@ function chomp(decoded: string): { indicator: "|" | "|-"; body: string } {
   return { indicator: "|", body: decoded.replace(/\n+$/, "") };
 }
 
-function unescapeDoubleQuoted(s: string) {
-  let out = "";
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    if (ch !== "\\") {
-      out += ch;
-      continue;
-    }
-    const next = s[i + 1];
-    if (next === undefined) {
-      out += "\\";
-      continue;
-    }
-    i++;
-    if (next === "n") out += "\n";
-    else if (next === "\"") out += "\"";
-    else if (next === "\\") out += "\\";
-    else out += `\\${next}`;
+const UNSAFE_LITERAL_BLOCK_CHARS = /[\x00-\x08\x0B-\x1F]/;
+
+function isUnsafeForLiteralBlock(decoded: string): boolean {
+  return decoded.startsWith(" ") || UNSAFE_LITERAL_BLOCK_CHARS.test(decoded);
+}
+
+function unescapeDoubleQuoted(inner: string): string | undefined {
+  try {
+    const loaded = yaml.load(`"${inner}"`);
+    return typeof loaded === "string" ? loaded : undefined;
+  } catch {
+    return undefined;
   }
-  return out;
 }

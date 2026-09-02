@@ -100,4 +100,37 @@ describe("ValidationPanel", () => {
     const { container } = renderExpanded();
     expect(container.textContent).toContain("MODAL must have exactly 2 buttons");
   });
+
+  it("reports a SIMPLE form with zero buttons, even though the schema now accepts it", () => {
+    setActiveFormBedrock({
+      type: "SIMPLE",
+      title: "Form",
+      content: "",
+      buttons: []
+    });
+    const { container } = renderExpanded();
+    expect(container.textContent).toContain("SIMPLE must have at least 1 button");
+  });
+
+  it("reports a CUSTOM form with zero components, even though the schema now accepts it", () => {
+    setActiveFormBedrock({
+      type: "CUSTOM",
+      title: "Form",
+      content: "",
+      components: []
+    });
+    const { container } = renderExpanded();
+    expect(container.textContent).toContain("CUSTOM must have at least 1 component");
+  });
+
+  it("reports a button with empty text, even though the schema now accepts it", () => {
+    setActiveFormBedrock({
+      type: "SIMPLE",
+      title: "Form",
+      content: "",
+      buttons: [{ id: "a", text: "" }]
+    });
+    const { container } = renderExpanded();
+    expect(container.textContent).toContain("Button 'a': text is required");
+  });
 });

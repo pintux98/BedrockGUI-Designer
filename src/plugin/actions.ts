@@ -165,7 +165,7 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     color: "border-violet-500",
     description: "Check a condition, run different actions based on result.",
     placeholder: "e.g. hasPermission: my.permission",
-    formatExample: 'conditional {\n  check: "permission:my.perm"\n  true:\n    - "message { - \"You have permission!\" }"\n  false:\n    - "message { - \"No permission!\" }"\n}',
+    formatExample: 'conditional {\n  check: "permission:my.perm"\n  true:\n    - "message { - \\"You have permission!\\" }"\n  false:\n    - "message { - \\"No permission!\\" }"\n}',
     hasNestedBlocks: true,
     nestedBlockLabels: ["If true", "If false"]
   },
@@ -176,11 +176,10 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     body: "random",
     icon: "🎲",
     color: "border-indigo-500",
-    description: "Randomly pick one action group to execute.",
-    placeholder: "Add multiple groups below",
-    formatExample: 'random {\n  1:\n    - "message { - \"You got diamond!\" }"\n  2:\n    - "message { - \"You got emerald!\" }"\n}',
-    hasNestedBlocks: true,
-    nestedBlockLabels: ["Group 1", "Group 2"]
+    description: "Randomly pick one weighted entry to execute per press.",
+    placeholder: "e.g. inventory:give:diamond:1@1.0 (append @weight, default 1.0)",
+    formatExample: 'random {\n  - "inventory:give:diamond:1@1.0"\n  - "inventory:give:gold_ingot:4@3.0"\n  - "inventory:give:iron_ingot:8@6.0"\n}',
+    hasNestedBlocks: false
   },
   bungee: {
     id: "bungee",

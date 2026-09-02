@@ -12,7 +12,8 @@ import {
   useSensors
 } from "@dnd-kit/core";
 import { useDesignerStore } from "../core/store";
-import { BedrockForm } from "../core/types";
+import { BedrockForm, isBedrockComponentType } from "../core/types";
+import { nextSequentialId } from "../core/ids";
 import { IconTile } from "../components/IconTile";
 import { arrayMove } from "@dnd-kit/sortable";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
@@ -84,24 +85,8 @@ export function DndHost({ children }: { children: React.ReactNode }) {
     if (bedrock) {
       const t = data?.type as string | undefined;
       if (!t) return;
-      if (over === "bedrock-buttons" && (bedrock.type === "SIMPLE" || bedrock.type === "MODAL") && t === "button") {
-        const nextId = nextSequentialId("button", (bedrock.buttons ?? []).map((b: any) => String(b.id)));
-        const n = Number(nextId.split("_")[1] ?? (bedrock.buttons ?? []).length + 1);
-        const buttons = [
-          ...(bedrock.buttons ?? []),
-          { id: nextId, text: `Button ${Number.isFinite(n) ? n : (bedrock.buttons ?? []).length + 1}` }
-        ];
-        setBedrock({ ...(bedrock as any), buttons } as BedrockForm);
-      }
-      if (over === "bedrock-components" && bedrock.type === "CUSTOM") {
-        const id = nextSequentialId("component", (bedrock.components ?? []).map((c: any) => String(c.id)));
-        const props = defaultBedrockComponentProps(t);
-        const components = [
-          ...(bedrock.components ?? []),
-          { id, type: t, props }
-        ];
-        setBedrock({ ...(bedrock as any), components } as BedrockForm);
-      }
+      const next = computeDropResult(bedrock, over, t);
+      if (next) setBedrock(next);
     }
   };
 
@@ -140,19 +125,28 @@ export function DndHost({ children }: { children: React.ReactNode }) {
 }
 
 function defaultBedrockComponentProps(type: string) {
-  if (type === "label") return { text: "Label" };
   if (type === "input") return { text: "Input", placeholder: "Type here...", default: "" };
   if (type === "dropdown") return { text: "Dropdown", options: ["Option 1", "Option 2"], default: 0 };
   if (type === "toggle") return { text: "Toggle", default: false };
   if (type === "slider") return { text: "Slider", min: 0, max: 10, step: 1, default: 5 };
-  if (type === "stepper") return { text: "Stepper", steps: ["A", "B", "C"], default: 0 };
   return {};
 }
 
-function nextSequentialId(prefix: string, existing: string[]) {
-  const used = new Set(existing);
-  let i = 1;
-  while (used.has(`${prefix}_${i}`)) i++;
-  return `${prefix}_${i}`;
+export function computeDropResult(
+  bedrock: BedrockForm,
+  overId: string,
+  dropType: string
+): BedrockForm | null {
+  if (overId === "bedrock-buttons" && (bedrock.type === "SIMPLE" || bedrock.type === "MODAL") && dropType === "button") {
+    const nextId = nextSequentialId("button", bedrock.buttons.map((b) => b.id));
+    return { ...bedrock, buttons: [...bedrock.buttons, { id: nextId, text: `Button ${nextId.split("_")[1]}` }] };
+  }
+  if (overId === "bedrock-components" && bedrock.type === "CUSTOM") {
+    if (!isBedrockComponentType(dropType)) return null;
+    const id = nextSequentialId("component", bedrock.components.map((c) => c.id));
+    const props = defaultBedrockComponentProps(dropType);
+    return { ...bedrock, components: [...bedrock.components, { id, type: dropType, props }] };
+  }
+  return null;
 }
 

@@ -73,12 +73,21 @@ function validateState(state: any): Issue[] {
     if (b.type === "MODAL" && Array.isArray(b.buttons) && b.buttons.length !== LIMITS.modalButtonCount) {
       out.push({ level: "error", message: `Bedrock MODAL must have exactly ${LIMITS.modalButtonCount} buttons.` });
     }
+    if (b.type === "SIMPLE" && Array.isArray(b.buttons) && b.buttons.length < LIMITS.minButtonsPerForm) {
+      out.push({ level: "error", message: `Bedrock SIMPLE must have at least ${LIMITS.minButtonsPerForm} button.` });
+    }
+    if (b.type === "CUSTOM" && Array.isArray(b.components) && b.components.length < LIMITS.minComponentsPerForm) {
+      out.push({ level: "error", message: `Bedrock CUSTOM must have at least ${LIMITS.minComponentsPerForm} component.` });
+    }
     if (b.commandIntercept && typeof b.commandIntercept === "string" && b.commandIntercept.trim().length < 2) {
       out.push({ level: "warning", message: "command_intercept looks too short." });
     }
 
     if (b.type === "SIMPLE" || b.type === "MODAL") {
       for (const btn of b.buttons ?? []) {
+        if (!btn?.text || !String(btn.text).trim()) {
+          out.push({ level: "error", message: `Button '${btn?.id ?? "?"}': text is required.` });
+        }
         if (btn?.image && classifyImage(btn.image).kind === "unknown") {
           out.push({ level: "warning", message: `Button '${btn.id}': image source looks invalid.` });
         }

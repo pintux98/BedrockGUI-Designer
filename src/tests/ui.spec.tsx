@@ -63,13 +63,9 @@ describe("ui panels", () => {
       menuName: "broken",
       platform: "bedrock",
       bedrock: {
-        type: "MODAL",
+        type: "NOT_A_REAL_TYPE",
         title: "Broken",
-        buttons: [
-          { id: "a", text: "A" },
-          { id: "b", text: "B" },
-          { id: "c", text: "C" }
-        ]
+        buttons: [{ id: "a", text: "A" }]
       }
     };
     localStorage.setItem("project_broken", JSON.stringify(CORRUPT_LEGACY));
@@ -88,14 +84,81 @@ describe("ui panels", () => {
       expect(errorToast?.message).toContain("broken");
       expect(errorToast?.message).toContain("old format");
       expect(errorToast?.message).toContain("could not be migrated");
-      expect(errorToast?.message).toContain("buttons");
     } finally {
       localStorage.removeItem("project_broken");
       useToastStore.setState({ toasts: [] });
     }
   });
 
-  it("refuses to save an invalid project and does not touch localStorage", () => {
+  it("loads a legacy MODAL with 3 buttons as a work-in-progress state instead of refusing it", () => {
+    const WIP_LEGACY = {
+      configVersion: "1.0.0",
+      menuName: "wip",
+      platform: "bedrock",
+      bedrock: {
+        type: "MODAL",
+        title: "Wip",
+        buttons: [
+          { id: "a", text: "A" },
+          { id: "b", text: "B" },
+          { id: "c", text: "C" }
+        ]
+      }
+    };
+    localStorage.setItem("project_wip", JSON.stringify(WIP_LEGACY));
+    useToastStore.setState({ toasts: [] });
+
+    try {
+      wrap(<TopBar />);
+      fireEvent.click(screen.getByText("example"));
+      fireEvent.click(screen.getByText("wip"));
+
+      const st = useDesignerStore.getState();
+      expect(st.project.activeFormId).toBe("wip");
+      expect((st.activeForm().bedrock as any).buttons).toHaveLength(3);
+
+      const errorToast = useToastStore.getState().toasts.find((t) => t.variant === "error");
+      expect(errorToast).toBeUndefined();
+    } finally {
+      localStorage.removeItem("project_wip");
+      useToastStore.setState({ toasts: [] });
+    }
+  });
+
+  it("refuses to save a structurally invalid project and does not touch localStorage", () => {
+    useDesignerStore.setState((s: any) => ({
+      project: {
+        ...s.project,
+        forms: [
+          {
+            ...s.project.forms[0],
+            bedrock: {
+              type: "NOT_A_REAL_TYPE",
+              title: "Example Form",
+              content: "Content"
+            }
+          }
+        ]
+      }
+    }));
+    useToastStore.setState({ toasts: [] });
+    localStorage.removeItem("project_example");
+
+    try {
+      wrap(<TopBar />);
+      window.dispatchEvent(new Event("save-project"));
+
+      expect(localStorage.getItem("project_example")).toBeNull();
+      const errorToast = useToastStore.getState().toasts.find((t) => t.variant === "error");
+      expect(errorToast?.message).toContain("example");
+      expect(errorToast?.message).toContain("not saved");
+    } finally {
+      localStorage.removeItem("project_example");
+      useToastStore.setState({ toasts: [] });
+    }
+  });
+
+  it("saves a work-in-progress project (0-component CUSTOM form) now that structural validity and plugin-readiness are separate", () => {
     useDesignerStore.setState((s: any) => ({
       project: {
         ...s.project,
@@ -119,10 +182,9 @@ describe("ui panels", () => {
       wrap(<TopBar />);
       window.dispatchEvent(new Event("save-project"));
 
-      expect(localStorage.getItem("project_example")).toBeNull();
-      const errorToast = useToastStore.getState().toasts.find((t) => t.variant === "error");
-      expect(errorToast?.message).toContain("example");
-      expect(errorToast?.message).toContain("not saved");
+      expect(localStorage.getItem("project_example")).not.toBeNull();
+      const successToast = useToastStore.getState().toasts.find((t) => t.variant === "success");
+      expect(successToast?.message).toContain("saved");
     } finally {
       localStorage.removeItem("project_example");
       useToastStore.setState({ toasts: [] });
@@ -151,6 +213,68 @@ describe("ui panels", () => {
     fireEvent.blur(textarea);
     const st = useDesignerStore.getState() as any;
     expect(st.activeForm().bedrock.buttons[0].text).toBe("Line1\nLine2");
+  });
+
+  it("mints a unique id when Add reuses a removed button's slot, so no button is lost on export", () => {
+    useDesignerStore.setState((s: any) => ({
+      project: {
+        ...s.project,
+        forms: [
+          {
+            ...s.project.forms[0],
+            bedrock: {
+              type: "SIMPLE",
+              title: "Example Form",
+              content: "Content",
+              buttons: [
+                { id: "button_1", text: "First" },
+                { id: "button_2", text: "Second" }
+              ]
+            }
+          }
+        ]
+      }
+    }));
+
+    wrap(<PropertiesPanel />);
+    fireEvent.click(screen.getAllByText("Remove")[0]);
+    fireEvent.click(screen.getByText("Add"));
+
+    const buttons = (useDesignerStore.getState().activeForm().bedrock as any).buttons;
+    const ids = buttons.map((b: any) => b.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(buttons).toHaveLength(2);
+    expect(buttons.find((b: any) => b.text === "Second")).toBeDefined();
+  });
+
+  it("refuses a button id rename that collides with an existing button id", () => {
+    useDesignerStore.setState((s: any) => ({
+      project: {
+        ...s.project,
+        forms: [
+          {
+            ...s.project.forms[0],
+            bedrock: {
+              type: "SIMPLE",
+              title: "Example Form",
+              content: "Content",
+              buttons: [
+                { id: "button_1", text: "First" },
+                { id: "button_2", text: "Second" }
+              ]
+            }
+          }
+        ]
+      }
+    }));
+
+    wrap(<PropertiesPanel />);
+    const secondIdInput = screen.getByDisplayValue("button_2") as HTMLInputElement;
+    fireEvent.change(secondIdInput, { target: { value: "button_1" } });
+    fireEvent.blur(secondIdInput);
+
+    const buttons = (useDesignerStore.getState().activeForm().bedrock as any).buttons;
+    expect(buttons.map((b: any) => b.id)).toEqual(["button_1", "button_2"]);
   });
 
   it("action editor supports bungee action blocks", () => {

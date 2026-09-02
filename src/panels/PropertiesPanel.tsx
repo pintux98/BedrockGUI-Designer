@@ -7,6 +7,7 @@ import { VisualActionEditor } from "../actions/VisualActionEditor";
 import { CollapsibleSection } from "../components/CollapsibleSection";
 import { ConditionBuilder } from "../components/ConditionBuilder";
 import { FormChainVisualizer } from "../components/FormChainVisualizer";
+import { nextSequentialId } from "../core/ids";
 
 export function PropertiesPanel() {
   const {
@@ -90,10 +91,8 @@ export function PropertiesPanel() {
                   className="ui-btn-secondary px-2 py-1 text-xs"
                   onClick={(e) => {
                     e.stopPropagation();
-                    const buttons = [
-                      ...bedrock.buttons,
-                      { id: `button_${bedrock.buttons.length + 1}`, text: `Button ${bedrock.buttons.length + 1}` }
-                    ];
+                    const id = nextSequentialId("button", bedrock.buttons.map((b) => b.id));
+                    const buttons = [...bedrock.buttons, { id, text: `Button ${id.split("_")[1]}` }];
                     setBedrock({ ...bedrock, buttons }, "Added button");
                   }}
                 >
@@ -139,8 +138,11 @@ export function PropertiesPanel() {
                     value={b.id}
                     disabled={bedrock.type === "MODAL"}
                     onCommit={(v) => {
+                      const trimmed = v.trim();
+                      if (!trimmed) return;
+                      if (bedrock.buttons.some((other, i) => i !== idx && other.id === trimmed)) return;
                       const buttons = [...bedrock.buttons];
-                      buttons[idx] = { ...b, id: v };
+                      buttons[idx] = { ...b, id: trimmed };
                       setBedrock({ ...bedrock, buttons }, "Renamed button ID");
                     }}
                   />

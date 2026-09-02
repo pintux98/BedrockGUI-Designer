@@ -51,6 +51,12 @@ export interface BedrockButtonConditionRule {
 
 export type BedrockComponentType = "input" | "slider" | "dropdown" | "toggle";
 
+export const BEDROCK_COMPONENT_TYPES: BedrockComponentType[] = ["input", "slider", "dropdown", "toggle"];
+
+export function isBedrockComponentType(value: string): value is BedrockComponentType {
+  return (BEDROCK_COMPONENT_TYPES as string[]).includes(value);
+}
+
 export interface BedrockComponent {
   id: string;
   type: BedrockComponentType;

@@ -1,14 +1,14 @@
 import React from "react";
 import { ActionBlock, ActionBlockData, ActionKind } from "./ActionBlock";
 import { ActionPicker } from "./ActionPicker";
-import { isActionId } from "../plugin";
+import { isActionId, parseActionBlock, serializeActionBlock } from "../plugin";
 
 interface VisualActionEditorProps {
   value: string[];
   onChange: (v: string[]) => void;
 }
 
-interface ParsedAction {
+export interface ParsedAction {
   type: ActionKind;
   lines: string[];
   subchannel?: string;
@@ -19,7 +19,7 @@ interface ParsedAction {
   condition?: string;
 }
 
-function parseAction(raw: string): ParsedAction {
+export function parseAction(raw: string): ParsedAction {
   const s = String(raw ?? "").trim();
   if (!s) return { type: "message", lines: [""] };
 
@@ -38,25 +38,14 @@ function parseAction(raw: string): ParsedAction {
     }
 
     if (type === "conditional") {
-      const conditionMatch = inner.match(/check\s*:\s*(.+)/i);
-      const condition = conditionMatch ? conditionMatch[1].trim().replace(/^"+|"+$/g, "") : "";
-      const parts = splitConditionalBlocks(inner);
+      const parsed = parseActionBlock(s);
+      if (parsed.kind !== "conditional") return { type: "raw", lines: [], raw: s };
       return {
         type: "conditional",
         lines: [],
-        condition,
-        trueLines: parts.true.length ? parts.true : [""],
-        falseLines: parts.false.length ? parts.false : [""]
-      };
-    }
-
-    if (type === "random") {
-      const parts = splitRandomBlocks(inner);
-      return {
-        type: "random",
-        lines: [],
-        trueLines: parts[0]?.length ? parts[0] : [""],
-        falseLines: parts[1]?.length ? parts[1] : [""]
+        condition: parsed.check,
+        trueLines: parsed.whenTrue.length ? parsed.whenTrue.map(serializeActionBlock) : [""],
+        falseLines: parsed.whenFalse.length ? parsed.whenFalse.map(serializeActionBlock) : [""]
       };
     }
 
@@ -84,64 +73,7 @@ function extractListLines(inner: string): string[] {
     .filter((l) => l.length > 0 || true);
 }
 
-function splitConditionalBlocks(inner: string): { true: string[]; false: string[] } {
-  const trueLines: string[] = [];
-  const falseLines: string[] = [];
-  let current: "true" | "false" | null = null;
-
-  for (const line of inner.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.match(/^true\s*:/i) || trimmed.match(/^if\s+true\s*:/i)) {
-      current = "true";
-      continue;
-    }
-    if (trimmed.match(/^false\s*:/i) || trimmed.match(/^if\s+false\s*:/i)) {
-      current = "false";
-      continue;
-    }
-    if (current && trimmed.startsWith("-")) {
-      let v = trimmed.replace(/^-+\s*/, "");
-      v = v.replace(/^"+|"+$/g, "");
-      v = v.replace(/\\"/g, '"');
-      if (current === "true") trueLines.push(v);
-      else falseLines.push(v);
-    }
-  }
-
-  if (!trueLines.length && !falseLines.length) {
-    const allLines = extractListLines(inner);
-    const mid = Math.ceil(allLines.length / 2);
-    return { true: allLines.slice(0, mid), false: allLines.slice(mid) };
-  }
-
-  return { true: trueLines, false: falseLines };
-}
-
-function splitRandomBlocks(inner: string): string[][] {
-  const groups: string[][] = [[]];
-  let currentGroup = 0;
-
-  for (const line of inner.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.match(/^\d+\s*:/) || trimmed.match(/^group\s*\d+\s*:/i)) {
-      currentGroup++;
-      groups[currentGroup] = [];
-      continue;
-    }
-    if (trimmed.startsWith("-")) {
-      let v = trimmed.replace(/^-+\s*/, "");
-      v = v.replace(/^"+|"+$/g, "");
-      v = v.replace(/\\"/g, '"');
-      if (!groups[currentGroup]) groups[currentGroup] = [];
-      groups[currentGroup].push(v);
-    }
-  }
-
-  while (groups.length < 2) groups.push([""]);
-  return groups.slice(0, 2).map((g) => (g.length ? g : [""]));
-}
-
-function serializeAction(action: ParsedAction): string | undefined {
+export function serializeAction(action: ParsedAction): string | undefined {
   const escapeLine = (l: string) => l.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
   if (action.type === "raw") return action.raw?.trim() ? action.raw.trim() : undefined;
@@ -156,28 +88,14 @@ function serializeAction(action: ParsedAction): string | undefined {
   }
 
   if (action.type === "conditional") {
-    const condition = action.condition ?? "";
-    const trueBody = (action.trueLines ?? [""])
-      .filter((l) => l.trim())
-      .map((l) => `  - "${escapeLine(l)}"`)
-      .join("\n");
-    const falseBody = (action.falseLines ?? [""])
-      .filter((l) => l.trim())
-      .map((l) => `  - "${escapeLine(l)}"`)
-      .join("\n");
-    return `conditional {\n  check: "${escapeLine(condition)}"\n  true:\n${trueBody ? `    ${trueBody}\n` : ""}  false:\n${falseBody ? `    ${falseBody}\n` : ""}}`;
-  }
-
-  if (action.type === "random") {
-    const group1 = (action.trueLines ?? [""])
-      .filter((l) => l.trim())
-      .map((l) => `  - "${escapeLine(l)}"`)
-      .join("\n");
-    const group2 = (action.falseLines ?? [""])
-      .filter((l) => l.trim())
-      .map((l) => `  - "${escapeLine(l)}"`)
-      .join("\n");
-    return `random {\n  1:\n${group1 ? `    ${group1}\n` : ""}  2:\n${group2 ? `    ${group2}\n` : ""}}`;
+    const whenTrue = (action.trueLines ?? [""]).filter((l) => l.trim()).map(parseActionBlock);
+    const whenFalse = (action.falseLines ?? [""]).filter((l) => l.trim()).map(parseActionBlock);
+    return serializeActionBlock({
+      kind: "conditional",
+      check: action.condition ?? "",
+      whenTrue,
+      whenFalse
+    });
   }
 
   const lines = (action.lines ?? [""]).filter((l) => l.trim());
@@ -210,8 +128,8 @@ export function VisualActionEditor({ value, onChange }: VisualActionEditorProps)
       subchannel: type === "bungee" ? "Connect" : undefined,
       args: type === "bungee" ? [""] : undefined,
       condition: type === "conditional" ? "" : undefined,
-      trueLines: (type === "conditional" || type === "random") ? [""] : undefined,
-      falseLines: (type === "conditional" || type === "random") ? [""] : undefined
+      trueLines: type === "conditional" ? [""] : undefined,
+      falseLines: type === "conditional" ? [""] : undefined
     };
     updateActions([...actions, newAction]);
     setShowPicker(false);

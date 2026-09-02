@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ACTION_IDS, ACTIONS, actionsForPlatform } from "../../plugin/actions";
+import { parseActionBlock } from "../../plugin/grammar";
 
 describe("action registry", () => {
   it("ships exactly 14 actions", () => {
@@ -47,5 +48,12 @@ describe("action registry", () => {
       "title", "actionbar", "inventory", "delay", "random", "bungee", "conditional"];
     for (const id of legacy) expect(ACTION_IDS).toContain(id);
     expect(ACTION_IDS).not.toContain("raw");
+  });
+
+  it("every action's formatExample parses to a non-raw ParsedAction", () => {
+    for (const id of ACTION_IDS) {
+      const parsed = parseActionBlock(ACTIONS[id].formatExample);
+      expect(parsed.kind, `${id}: ${JSON.stringify(parsed)}`).not.toBe("raw");
+    }
   });
 });

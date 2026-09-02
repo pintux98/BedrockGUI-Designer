@@ -4,7 +4,6 @@ import { useDesignerStore } from "../core/store";
 
 const items = [
   { id: "btn", label: "Button", data: { type: "button", label: "Button" } },
-  { id: "label", label: "Label", data: { type: "label" } },
   { id: "input", label: "Input", data: { type: "input" } },
   { id: "dropdown", label: "Dropdown", data: { type: "dropdown" } },
   { id: "toggle", label: "Toggle", data: { type: "toggle" } },
@@ -18,7 +17,7 @@ export function Palette() {
   const visibleItems =
     bedrock?.type === "SIMPLE"
       ? items.filter((i) => i.id === "btn")
-      : items;
+      : items.filter((i) => i.id !== "btn");
   return (
     <div className="ui-panel h-full">
       <div className="ui-panel-title">Palette</div>

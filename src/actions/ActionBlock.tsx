@@ -5,6 +5,13 @@ import { PlaceholderPicker } from "../components/PlaceholderPicker";
 
 export type ActionKind = ActionId | "raw";
 
+const BRANCH_ENTRY_SEPARATOR = "---";
+const BRANCH_ENTRY_JOIN = `\n${BRANCH_ENTRY_SEPARATOR}\n`;
+
+function splitBranchEntries(value: string): string[] {
+  return value.split(new RegExp(`\\n${BRANCH_ENTRY_SEPARATOR}\\n`));
+}
+
 export const RAW_ACTION_INFO = {
   label: "Raw",
   icon: "📝",
@@ -66,9 +73,8 @@ export function ActionBlock({
   const info = type === "raw" ? RAW_ACTION_INFO : ACTIONS[type];
   const isBungee = type === "bungee";
   const isConditional = type === "conditional";
-  const isRandom = type === "random";
   const isRaw = type === "raw";
-  const hasNested = isConditional || isRandom;
+  const hasNested = isConditional;
 
   return (
     <div className={`bg-brand-surface2 border-l-4 ${info.color} border border-brand-border rounded overflow-hidden transition-all duration-150`}>
@@ -171,29 +177,25 @@ export function ActionBlock({
                 <div>
                   <div className="flex items-center gap-1 mb-1">
                     <div className="w-2 h-2 rounded-full bg-brand-success" />
-                    <span className="text-[10px] text-brand-muted">
-                      {isConditional ? "If true" : "Group 1"}
-                    </span>
+                    <span className="text-[10px] text-brand-muted">If true</span>
                   </div>
                   <BufferedTextArea
                     className="ui-textarea h-16 text-xs"
-                    placeholder="Actions (one per line)"
-                    value={trueLines.join("\n")}
-                    onCommit={(v) => onUpdate({ trueLines: v.split("\n") })}
+                    placeholder={`Actions, one per line. For a multi-line/nested action, separate entries with a line containing only ${BRANCH_ENTRY_SEPARATOR}.`}
+                    value={trueLines.join(BRANCH_ENTRY_JOIN)}
+                    onCommit={(v) => onUpdate({ trueLines: splitBranchEntries(v) })}
                   />
                 </div>
                 <div>
                   <div className="flex items-center gap-1 mb-1">
                     <div className="w-2 h-2 rounded-full bg-brand-danger" />
-                    <span className="text-[10px] text-brand-muted">
-                      {isConditional ? "If false" : "Group 2"}
-                    </span>
+                    <span className="text-[10px] text-brand-muted">If false</span>
                   </div>
                   <BufferedTextArea
                     className="ui-textarea h-16 text-xs"
-                    placeholder="Actions (one per line)"
-                    value={falseLines.join("\n")}
-                    onCommit={(v) => onUpdate({ falseLines: v.split("\n") })}
+                    placeholder={`Actions, one per line. For a multi-line/nested action, separate entries with a line containing only ${BRANCH_ENTRY_SEPARATOR}.`}
+                    value={falseLines.join(BRANCH_ENTRY_JOIN)}
+                    onCommit={(v) => onUpdate({ falseLines: splitBranchEntries(v) })}
                   />
                 </div>
               </div>
@@ -233,13 +235,13 @@ export function ActionBlock({
               const newValue = current + (current.endsWith("\n") || current === "" ? "" : "\n") + placeholder;
               onUpdate({ args: newValue.split("\n") });
             } else if (pickerTarget === "trueLines") {
-              const current = trueLines.join("\n");
+              const current = trueLines.join(BRANCH_ENTRY_JOIN);
               const newValue = current + (current.endsWith("\n") || current === "" ? "" : "\n") + placeholder;
-              onUpdate({ trueLines: newValue.split("\n") });
+              onUpdate({ trueLines: splitBranchEntries(newValue) });
             } else if (pickerTarget === "falseLines") {
-              const current = falseLines.join("\n");
+              const current = falseLines.join(BRANCH_ENTRY_JOIN);
               const newValue = current + (current.endsWith("\n") || current === "" ? "" : "\n") + placeholder;
-              onUpdate({ falseLines: newValue.split("\n") });
+              onUpdate({ falseLines: splitBranchEntries(newValue) });
             } else if (pickerTarget === "condition") {
               onUpdate({ condition: condition + placeholder });
             }

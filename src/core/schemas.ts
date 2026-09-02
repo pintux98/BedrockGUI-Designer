@@ -10,7 +10,7 @@ const bedrockButtonConditionPropertySchema = z.enum(["text", "image", "onClick"]
 
 export const bedrockButtonSchema = z.object({
   id: z.string().min(1),
-  text: z.string().min(1),
+  text: z.string(),
   image: z.string().optional(),
   onClick: z.array(actionSchema).optional(),
   showCondition: z.string().optional(),
@@ -49,15 +49,15 @@ export const bedrockBaseSchema = z.object({
 
 export const bedrockSimpleSchema = bedrockBaseSchema.extend({
   type: z.literal("SIMPLE"),
-  buttons: z.array(bedrockButtonSchema).min(1)
+  buttons: z.array(bedrockButtonSchema)
 });
 
 export const bedrockModalSchema = bedrockBaseSchema.extend({
   type: z.literal("MODAL"),
-  buttons: z.array(bedrockButtonSchema).length(2)
+  buttons: z.array(bedrockButtonSchema)
 });
 
 export const bedrockCustomSchema = bedrockBaseSchema.extend({
   type: z.literal("CUSTOM"),
-  components: z.array(bedrockComponentSchema).min(1)
+  components: z.array(bedrockComponentSchema)
 });

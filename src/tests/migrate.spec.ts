@@ -59,14 +59,14 @@ describe("migrateLegacyDesign", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("a hand-corrupted legacy save (MODAL with 3 buttons) still fails parseProject after migration", () => {
-    const CORRUPT_LEGACY = {
+  it("migrates a MODAL with 3 buttons as a work-in-progress state parseProject now accepts", () => {
+    const WIP_LEGACY = {
       configVersion: "1.0.0",
-      menuName: "broken",
+      menuName: "wip",
       platform: "bedrock",
       bedrock: {
         type: "MODAL",
-        title: "Broken",
+        title: "Wip",
         buttons: [
           { id: "a", text: "A" },
           { id: "b", text: "B" },
@@ -74,10 +74,25 @@ describe("migrateLegacyDesign", () => {
         ]
       }
     };
+    const { project } = migrateLegacyDesign(WIP_LEGACY);
+    const result = parseProject(project);
+    expect(result.ok).toBe(true);
+  });
+
+  it("a genuinely malformed legacy save (bad bedrock type) still fails parseProject after migration", () => {
+    const CORRUPT_LEGACY = {
+      configVersion: "1.0.0",
+      menuName: "broken",
+      platform: "bedrock",
+      bedrock: {
+        type: "NOT_A_REAL_TYPE",
+        title: "Broken",
+        buttons: [{ id: "a", text: "A" }]
+      }
+    };
     const { project } = migrateLegacyDesign(CORRUPT_LEGACY);
     const result = parseProject(project);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.problems.join(" ")).toContain("buttons");
   });
 });
 
