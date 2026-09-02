@@ -108,4 +108,42 @@ describe("parseProjectFromZip", () => {
     expect(project.forms.map((f) => f.id)).toEqual(["main_menu"]);
     expect(notes.join(" ")).toContain("No forms were found");
   });
+
+  it("skips a malformed form file and still imports the good ones, naming the bad file and the parse error", async () => {
+    let parseError = "";
+    try {
+      yaml.load("foo: [1, 2");
+    } catch (e) {
+      parseError = (e as Error).message.split("\n")[0];
+    }
+    const files: Record<string, Uint8Array> = {
+      "forms/good1.yml": strToU8(serializeFormDocument(createForm("good1"))),
+      "forms/bad.yml": strToU8("foo: [1, 2"),
+      "forms/good2.yml": strToU8(serializeFormDocument(createForm("good2")))
+    };
+    const { project, notes } = await parseProjectFromZip(zipSync(files));
+    expect(project.forms.map((f) => f.id)).toEqual(["good1", "good2"]);
+    expect(notes.join(" ")).toContain("bad.yml");
+    expect(notes.join(" ")).toContain(parseError);
+  });
+
+  it("falls back to filename-derived ids and explains why when config.yml itself is malformed", async () => {
+    const files: Record<string, Uint8Array> = {
+      "config.yml": strToU8("forms: [unterminated"),
+      "forms/a.yml": strToU8(serializeFormDocument(createForm("a")))
+    };
+    const { project, notes } = await parseProjectFromZip(zipSync(files));
+    expect(project.forms.map((f) => f.id)).toEqual(["a"]);
+    expect(notes.join(" ")).toContain("config.yml");
+    expect(notes.join(" ")).toMatch(/could not be read/);
+  });
+
+  it("imports a .yaml form file, not just .yml, when there is no config.yml", async () => {
+    const files: Record<string, Uint8Array> = {
+      "forms/a.yaml": strToU8(serializeFormDocument(createForm("a")))
+    };
+    const { project, notes } = await parseProjectFromZip(zipSync(files));
+    expect(project.forms.map((f) => f.id)).toEqual(["a"]);
+    expect(notes.join(" ")).not.toContain("Skipped archive entry");
+  });
 });

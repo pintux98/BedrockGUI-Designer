@@ -180,6 +180,73 @@ describe("useImporter ZIP handling", () => {
   });
 });
 
+describe("useImporter malformed input handling", () => {
+  beforeEach(() => {
+    useDesignerStore.getState().loadProject(twoFormProject());
+    useToastStore.setState({ toasts: [] });
+  });
+
+  it("shows an error toast naming the file and leaves the store unchanged when a single .yml is malformed", async () => {
+    const file = new File(["foo: [1, 2"], "broken.yml", { type: "text/yaml" });
+
+    const { result } = renderHook(() => useImporter());
+    await act(async () => {
+      await result.current.importYaml(file);
+    });
+
+    const state = useDesignerStore.getState();
+    expect(state.project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
+
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts.some((t) => t.variant === "error" && t.message.includes("broken.yml"))).toBe(true);
+  });
+
+  it("reports a malformed form file inside a ZIP as a note and still imports the rest", async () => {
+    const files: Record<string, Uint8Array> = {
+      "forms/good.yml": strToU8(serializeFormDocument(createForm("good"))),
+      "forms/bad.yml": strToU8("foo: [1, 2")
+    };
+    const file = new File([zipSync(files)], "bundle.zip");
+
+    const { result } = renderHook(() => useImporter());
+    await act(async () => {
+      await result.current.importYaml(file);
+    });
+
+    const state = useDesignerStore.getState();
+    expect(state.project.forms.map((f) => f.id)).toEqual(["good"]);
+
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts.some((t) => t.variant === "info" && t.message.includes("bad.yml"))).toBe(true);
+  });
+
+  it("shows an error toast and leaves the store unchanged when the imported project fails validation", async () => {
+    const yamlText = [
+      "bedrock:",
+      "  type: CUSTOM",
+      "  title: Broken",
+      "  components:",
+      "    field1:",
+      "      type: not_a_real_type",
+      ""
+    ].join("\n");
+    const file = new File([yamlText], "broken_custom.yml", { type: "text/yaml" });
+
+    const { result } = renderHook(() => useImporter());
+    await act(async () => {
+      await result.current.importYaml(file);
+    });
+
+    const state = useDesignerStore.getState();
+    expect(state.project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
+
+    const toasts = useToastStore.getState().toasts;
+    expect(
+      toasts.some((t) => t.variant === "error" && t.message.includes("Could not import"))
+    ).toBe(true);
+  });
+});
+
 describe("useImporter legacy multi-form config", () => {
   beforeEach(() => {
     useDesignerStore.getState().loadProject(twoFormProject());
