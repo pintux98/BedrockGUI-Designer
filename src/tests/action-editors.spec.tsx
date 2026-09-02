@@ -4,7 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 import * as yaml from "js-yaml";
 import { ActionEditor } from "../actions/editors";
-import { parseActionBlock, serializeActionBlock } from "../plugin/grammar";
+import { parseActionBlock, serializeActionBlock, ParsedAction } from "../plugin/grammar";
+import { validateCondition } from "../plugin/conditions";
 
 afterEach(() => cleanup());
 
@@ -97,5 +98,70 @@ describe("real advanced_flow.yml actions survive an edit through the editor", ()
       entries: before.entries.map((e, i) => (i === 0 ? { ...e, weight: 2 } : e))
     };
     expect(roundTripped).toEqual(expected);
+  });
+});
+
+describe("ConditionalEditor check field (symbol context)", () => {
+  function conditionalAction(check: string): Extract<ParsedAction, { kind: "conditional" }> {
+    return { kind: "conditional", check, whenTrue: [], whenFalse: [] };
+  }
+
+  it("offers only placeholder and permission as atom kinds", () => {
+    const onChange = vi.fn();
+    render(<ActionEditor action={conditionalAction("permission:a.b")} onChange={onChange} />);
+    const typeSelect = screen.getByRole("combobox", { name: /type/i });
+    const optionValues = Array.from(typeSelect.querySelectorAll("option")).map(
+      (o) => (o as HTMLOptionElement).value
+    );
+    expect(optionValues).toContain("permission");
+    expect(optionValues).toContain("placeholder");
+    expect(optionValues).not.toContain("plugin");
+    expect(optionValues).not.toContain("bedrock_player");
+    expect(optionValues).not.toContain("java_player");
+    expect(optionValues).not.toContain("not");
+    expect(optionValues.some((v) => v.startsWith("not:"))).toBe(false);
+  });
+
+  it("editing through the builder produces a check that validateCondition(..., 'symbol') accepts", () => {
+    const onChange = vi.fn();
+    render(<ActionEditor action={conditionalAction("permission:a.b")} onChange={onChange} />);
+    fireEvent.change(screen.getByRole("combobox", { name: /type/i }), { target: { value: "placeholder" } });
+    const next = onChange.mock.calls.at(-1)![0] as Extract<ParsedAction, { kind: "conditional" }>;
+    expect(next.kind).toBe("conditional");
+    expect(validateCondition(next.check, "symbol")).toEqual([]);
+  });
+
+  it("loads an existing compound check without mangling it, and it remains editable", () => {
+    const compound = "permission:a.b && placeholder:%x% >= 5";
+    const onChange = vi.fn();
+    render(<ActionEditor action={conditionalAction(compound)} onChange={onChange} />);
+
+    const field = screen.getByLabelText(/check/i);
+    expect(field).toHaveValue(compound);
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.change(field, { target: { value: compound + " && permission:c.d" } });
+    fireEvent.blur(field);
+    expect(onChange).toHaveBeenCalledWith({
+      kind: "conditional",
+      check: compound + " && permission:c.d",
+      whenTrue: [],
+      whenFalse: []
+    });
+  });
+
+  it("round-trips the real nested_conditional action from advanced_flow.yml unchanged", () => {
+    const src = fs.readFileSync(FIXTURE("advanced_flow.yml"), "utf8");
+    const doc = yaml.load(src) as any;
+    const raw = doc.bedrock.buttons.nested_conditional.onClick[0] as string;
+    const before = parseActionBlock(raw);
+    if (before.kind !== "conditional") throw new Error("expected a conditional");
+
+    const onChange = vi.fn();
+    render(<ActionEditor action={before} onChange={onChange} />);
+
+    expect(screen.getByLabelText(/check/i)).toHaveValue(before.check);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(parseActionBlock(serializeActionBlock(before))).toEqual(before);
   });
 });

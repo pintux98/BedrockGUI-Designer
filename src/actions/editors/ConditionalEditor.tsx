@@ -5,39 +5,87 @@ import { ActionBlock } from "../ActionBlock";
 import { ActionPicker } from "../ActionPicker";
 import { BufferedInput } from "../../components/BufferedInput";
 import { PlaceholderPicker } from "../../components/PlaceholderPicker";
+import { ConditionBuilder } from "../../components/ConditionBuilder";
+import { validateCondition } from "../../plugin/conditions";
 
 interface ConditionalEditorProps {
   action: Extract<ParsedAction, { kind: "conditional" }>;
   onChange: (next: ParsedAction) => void;
 }
 
+function isCompoundCondition(text: string): boolean {
+  return /&&|\|\||[()]/.test(text);
+}
+
+function defaultCheckMode(check: string): "simple" | "advanced" {
+  const trimmed = check.trim();
+  if (!trimmed) return "simple";
+  if (isCompoundCondition(trimmed)) return "advanced";
+  return validateCondition(trimmed, "symbol").length === 0 ? "simple" : "advanced";
+}
+
 export function ConditionalEditor({ action, onChange }: ConditionalEditorProps) {
   const checkId = React.useId();
   const [showPlaceholderPicker, setShowPlaceholderPicker] = React.useState(false);
+  const [mode, setMode] = React.useState<"simple" | "advanced">(() => defaultCheckMode(action.check));
+
+  const problems = mode === "advanced" && action.check.trim() ? validateCondition(action.check, "symbol") : [];
 
   return (
     <div className="space-y-2">
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label htmlFor={checkId} className="text-[10px] text-brand-muted">
-            Check condition
-          </label>
-          <button
-            type="button"
-            className="ui-btn-ghost px-1.5 py-0.5 text-xs"
-            aria-label="Insert placeholder"
-            onClick={() => setShowPlaceholderPicker(true)}
-          >
-            @
-          </button>
+          {mode === "advanced" ? (
+            <label htmlFor={checkId} className="text-[10px] text-brand-muted">
+              Check condition
+            </label>
+          ) : (
+            <span className="text-[10px] text-brand-muted">Check condition</span>
+          )}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="ui-btn-ghost px-1.5 py-0.5 text-xs"
+              onClick={() => setMode(mode === "simple" ? "advanced" : "simple")}
+            >
+              {mode === "simple" ? "Advanced" : "Builder"}
+            </button>
+            {mode === "advanced" && (
+              <button
+                type="button"
+                className="ui-btn-ghost px-1.5 py-0.5 text-xs"
+                aria-label="Insert placeholder"
+                onClick={() => setShowPlaceholderPicker(true)}
+              >
+                @
+              </button>
+            )}
+          </div>
         </div>
-        <BufferedInput
-          id={checkId}
-          className="ui-input text-xs"
-          placeholder="e.g. permission:my.perm"
-          value={action.check}
-          onCommit={(v) => onChange({ ...action, check: v })}
-        />
+
+        {mode === "simple" ? (
+          <ConditionBuilder
+            value={action.check}
+            context="symbol"
+            onChange={(check) => onChange({ ...action, check })}
+          />
+        ) : (
+          <BufferedInput
+            id={checkId}
+            className="ui-input text-xs"
+            placeholder="e.g. permission:my.perm"
+            value={action.check}
+            onCommit={(v) => onChange({ ...action, check: v })}
+          />
+        )}
+
+        {problems.length > 0 && (
+          <div className="text-[10px] text-brand-danger space-y-0.5 mt-1">
+            {problems.map((p, i) => (
+              <div key={i}>{p}</div>
+            ))}
+          </div>
+        )}
       </div>
 
       <Branch
