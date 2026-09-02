@@ -42,7 +42,11 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     color: "border-cyan-500",
     description: "Open another BedrockGUI form for the player.",
     placeholder: "e.g. my_other_menu",
-    formatExample: 'open {\n  - "shop_menu"\n  - "warp_menu {player}"\n}'
+    // Both values must be valid, registered menu names for this to open a chain.
+    // "warp_menu {player}" held a space, so it was never a menu name: the plugin
+    // would have passed it to shop_menu as an argument, leaving the example
+    // looking like a chain while actually documenting the argument case.
+    formatExample: 'open {\n  - "shop_menu"\n  - "warp_menu"\n}'
   },
   message: {
     id: "message",
