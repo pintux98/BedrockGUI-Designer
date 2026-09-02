@@ -19,6 +19,7 @@ npm run test:ui      # vitest watch mode
 npm run e2e          # Playwright e2e (auto-starts dev server, runs chromium/firefox/webkit)
 npm run check:bundle # bundle-size guard (scripts/check-bundle.mjs)
 npm run deploy       # wrangler deploy (Cloudflare)
+npm run verify       # the full gate: typecheck + test + build + check:bundle + chromium e2e
 ```
 
 Run a single unit test:
@@ -27,6 +28,8 @@ npx vitest run src/tests/golden-roundtrip.spec.ts   # one file
 npx vitest run -t "has all seven fixtures"          # by test name
 ```
 Run a single e2e test: `npx playwright test e2e/basic.spec.ts -g "name"`.
+
+`npm run verify` is the full pre-merge gate and should be run before finishing any branch of work — it is not wired into `npm test` because e2e needs a dev server and is slow; keeping the fast unit suite fast is what makes people actually run it.
 
 Unit/integration specs live in `src/tests/*.spec.{ts,tsx}` (config: `vitest.config.ts`, setup `src/tests/setup.ts`). E2e specs live in `e2e/` (config: `playwright.config.ts`). These are two separate runners — vitest never picks up `e2e/`.
 

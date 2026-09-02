@@ -15,7 +15,8 @@
     "deploy": "node --input-type=module -e \"import fs from 'node:fs'; try{fs.rmSync('dist/_redirects')}catch{}; try{fs.rmSync('dist/_headers')}catch{}\" && wrangler deploy",
     "test": "vitest run",
     "test:ui": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "verify": "npm run typecheck && npm test && npm run build && npm run check:bundle && npx playwright test --project=chromium"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
