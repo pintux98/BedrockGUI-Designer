@@ -30,7 +30,14 @@ Consequences, which override the task text further down where they conflict:
 - **No asset-server UI.** `ProjectSettingsPanel` keeps only the platform target, which is genuine
   design input because it gates which actions are offered.
 - **No `config.yml` in the export.** The ZIP contains `forms/*.yml` and nothing else.
-- **A post-export modal** lists the registry snippet for the exported forms.
+- **One Export control, not two.** It adapts: a project with exactly one form downloads that
+  form's `.yml` directly; more than one downloads the ZIP of `forms/`. The registry-snippet modal
+  follows in BOTH cases — a single form still needs its registry line. `exportYaml` and
+  `exportProjectZip` collapse into one `exportProject()`; the branch lives in one place. The two
+  buttons were accretion rather than a decision, and they behaved inconsistently once only one of
+  them showed the snippet.
+- **A post-export modal** lists the registry snippet for the exported forms, keyed by each form's
+  id and pointing at its own filename.
 - **`Project.assets` stays on the model** but is never edited in the UI. It costs nothing and
   preserves values if a config is ever read.
 - **Import still reads a `config.yml` when one is present in an archive, for form IDs only.** The
