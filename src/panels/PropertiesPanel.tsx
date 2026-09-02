@@ -7,6 +7,7 @@ import { VisualActionEditor } from "../actions/VisualActionEditor";
 import { CollapsibleSection } from "../components/CollapsibleSection";
 import { ConditionBuilder } from "../components/ConditionBuilder";
 import { PlaceholderPicker } from "../components/PlaceholderPicker";
+import { ImagePicker } from "../components/ImagePicker";
 import { FormChainVisualizer } from "../components/FormChainVisualizer";
 import { nextSequentialId } from "../core/ids";
 import { operatorsFor } from "../plugin/conditions";
@@ -187,16 +188,17 @@ export function PropertiesPanel() {
                       </button>
                     )}
                   </div>
-                  <BufferedInput
-                    className="ui-input text-xs mb-2"
-                    value={b.image ?? ""}
-                    placeholder='image (URL / "Notch" / %player_name% / base64)'
-                    onCommit={(v) => {
-                      const buttons = [...bedrock.buttons];
-                      buttons[idx] = { ...b, image: v ? v : undefined };
-                      setBedrock({ ...bedrock, buttons }, "Updated button image");
-                    }}
-                  />
+                  <div className="mb-2">
+                    <ImagePicker
+                      value={b.image ?? ""}
+                      ariaLabel={`Button ${idx + 1} image`}
+                      onChange={(v) => {
+                        const buttons = [...bedrock.buttons];
+                        buttons[idx] = { ...b, image: v ? v : undefined };
+                        setBedrock({ ...bedrock, buttons }, "Updated button image");
+                      }}
+                    />
+                  </div>
                   {bedrock.type === "SIMPLE" && (
                     <CollapsibleSection title="Conditions" icon="🔀" defaultExpanded={false}>
                       <div className="pt-2 space-y-2">
@@ -230,11 +232,11 @@ export function PropertiesPanel() {
                             </div>
                             <div>
                               <div className="text-[10px] text-brand-muted mb-1">Alternative Image</div>
-                              <BufferedInput
-                                className="ui-input text-xs"
-                                placeholder="Image when condition is false"
+                              <ImagePicker
                                 value={b.alternativeImage ?? ""}
-                                onCommit={(v) => {
+                                placeholder="Image when condition is false"
+                                ariaLabel={`Button ${idx + 1} alternative image`}
+                                onChange={(v) => {
                                   const buttons = [...bedrock.buttons];
                                   buttons[idx] = { ...b, alternativeImage: v || undefined };
                                   setBedrock({ ...bedrock, buttons }, "Updated alternative image");

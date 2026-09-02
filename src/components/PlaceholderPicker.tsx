@@ -1,78 +1,118 @@
 import React from "react";
+import { BUILTIN_PLACEHOLDERS, componentReference } from "../plugin/placeholders";
 
-export interface PlaceholderItem {
-  id: string;
-  label: string;
+/**
+ * Every entry offered here is either taken from the plugin contract
+ * (`src/plugin/placeholders.ts`) or belongs to a group the contract deliberately
+ * does not model — see the comments on each group below. There is no local copy
+ * of the built-in table.
+ */
+type Group = "builtin" | "paper" | "component" | "argument" | "papi";
+
+interface Entry {
+  token: string;
   description: string;
-  category: "player" | "position" | "time" | "component" | "command" | "external";
+  group: Group;
+  paperOnly: boolean;
 }
 
-export const PLACEHOLDERS: PlaceholderItem[] = [
-  { id: "{player}", label: "Player Name", description: "The player's username", category: "player" },
-  { id: "{uuid}", label: "Player UUID", description: "The player's unique identifier", category: "player" },
-  { id: "{x}", label: "X Coordinate", description: "Player's X position", category: "position" },
-  { id: "{y}", label: "Y Coordinate", description: "Player's Y position", category: "position" },
-  { id: "{z}", label: "Z Coordinate", description: "Player's Z position", category: "position" },
-  { id: "{world}", label: "World Name", description: "Player's current world", category: "position" },
-  { id: "{health}", label: "Health", description: "Player's current health", category: "player" },
-  { id: "{food}", label: "Food Level", description: "Player's current food level", category: "player" },
-  { id: "{hour}", label: "Hour", description: "Current hour (0-23)", category: "time" },
-  { id: "{minute}", label: "Minute", description: "Current minute (0-59)", category: "time" },
-  { id: "{time}", label: "Time (ticks)", description: "Minecraft time in ticks", category: "time" },
-  { id: "{timestamp}", label: "Timestamp", description: "System milliseconds", category: "time" },
-  { id: "$1", label: "Arg 1", description: "First command argument", category: "command" },
-  { id: "$2", label: "Arg 2", description: "Second command argument", category: "command" },
-  { id: "$3", label: "Arg 3", description: "Third command argument", category: "command" },
-  { id: "$value", label: "Component Value", description: "Value from a custom form component", category: "component" },
-  { id: "$componentKey", label: "Component by Key", description: "Value from component with matching key", category: "component" },
-  { id: "%player_name%", label: "PAPI: Player Name", description: "PlaceholderAPI player name", category: "external" },
-  { id: "%vault_eco_balance%", label: "PAPI: Balance", description: "PlaceholderAPI economy balance", category: "external" },
+const BUILTIN_ENTRIES: Entry[] = BUILTIN_PLACEHOLDERS.map((p) => ({
+  token: p.token,
+  description: p.description,
+  group: p.paperOnly ? "paper" : "builtin",
+  paperOnly: p.paperOnly
+}));
+
+/**
+ * Component references. The contract owns the syntax (`componentReference`); the
+ * key is whatever the author named the component in the CUSTOM form, so these are
+ * templates to edit, not fixed tokens.
+ */
+const COMPONENT_ENTRIES: Entry[] = [
+  {
+    token: componentReference("component_key"),
+    description: "In global_actions: the value submitted by the CUSTOM form component with that key",
+    group: "component",
+    paperOnly: false
+  }
 ];
 
-const CATEGORIES = [
-  { id: "player", label: "Player", color: "text-blue-400" },
-  { id: "position", label: "Position", color: "text-green-400" },
-  { id: "time", label: "Time", color: "text-yellow-400" },
-  { id: "command", label: "Command Args", color: "text-purple-400" },
+/**
+ * Positional arguments. These are NOT brace placeholders and are not part of
+ * BUILTIN_PLACEHOLDERS — the plugin substitutes them positionally: inside a
+ * component's own `action` block `$1` is that component's submitted value, and a
+ * command-opened form receives its command arguments the same way.
+ */
+const ARGUMENT_ENTRIES: Entry[] = [1, 2, 3].map((n) => ({
+  token: `$${n}`,
+  description:
+    n === 1
+      ? "First positional value — a component's own submitted value inside its action, or the first command argument"
+      : `${n === 2 ? "Second" : "Third"} positional value passed to the form`,
+  group: "argument",
+  paperOnly: false
+}));
+
+/**
+ * PlaceholderAPI examples. Anything that is not a built-in above has to go
+ * through PlaceholderAPI's %…% syntax; these two are illustrations of that
+ * syntax, not a table the plugin ships.
+ */
+const PAPI_ENTRIES: Entry[] = [
+  { token: "%player_name%", description: "Example: PlaceholderAPI player name", group: "papi", paperOnly: false },
+  { token: "%vault_eco_balance%", description: "Example: PlaceholderAPI Vault balance", group: "papi", paperOnly: false }
+];
+
+const ENTRIES: Entry[] = [...BUILTIN_ENTRIES, ...COMPONENT_ENTRIES, ...ARGUMENT_ENTRIES, ...PAPI_ENTRIES];
+
+const CATEGORIES: { id: Group; label: string; color: string }[] = [
+  { id: "builtin", label: "Built-in", color: "text-blue-400" },
+  { id: "paper", label: "Paper-only", color: "text-amber-400" },
   { id: "component", label: "Components", color: "text-cyan-400" },
-  { id: "external", label: "External (PAPI)", color: "text-pink-400" },
-] as const;
+  { id: "argument", label: "Arguments", color: "text-purple-400" },
+  { id: "papi", label: "PlaceholderAPI", color: "text-pink-400" }
+];
+
+const PAPI_NOTE = "Anything that is not built in must come from PlaceholderAPI, written as %placeholder%.";
 
 interface PlaceholderPickerProps {
   onSelect: (placeholder: string) => void;
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 export function PlaceholderPicker({ onSelect, onClose }: PlaceholderPickerProps) {
   const [search, setSearch] = React.useState("");
-  const [category, setCategory] = React.useState<string>("all");
+  const [category, setCategory] = React.useState<Group | "all">("all");
   const ref = React.useRef<HTMLDivElement>(null);
+
+  const close = React.useCallback(() => onClose?.(), [onClose]);
 
   React.useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      if (ref.current && !ref.current.contains(e.target as Node)) close();
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onClose]);
+  }, [close]);
 
   React.useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") close();
     };
     document.addEventListener("keydown", handleEsc);
     return () => document.removeEventListener("keydown", handleEsc);
-  }, [onClose]);
+  }, [close]);
 
-  const filtered = PLACEHOLDERS.filter((p) => {
+  const filtered = ENTRIES.filter((p) => {
     const q = search.toLowerCase();
-    const matchesSearch = !q || p.id.toLowerCase().includes(q) || p.label.toLowerCase().includes(q) || p.description.toLowerCase().includes(q);
-    const matchesCategory = category === "all" || p.category === category;
+    const matchesSearch = !q || p.token.toLowerCase().includes(q) || p.description.toLowerCase().includes(q);
+    const matchesCategory =
+      category === "all" || p.group === category || (category === "builtin" && p.group === "paper");
     return matchesSearch && matchesCategory;
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/40" onClick={close}>
       <div
         ref={ref}
         className="ui-panel w-full max-w-lg p-0 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
@@ -108,22 +148,31 @@ export function PlaceholderPicker({ onSelect, onClose }: PlaceholderPickerProps)
         <div className="max-h-72 overflow-y-auto custom-scrollbar p-1">
           {filtered.map((p) => (
             <button
-              key={p.id}
+              key={p.token}
+              data-placeholder={p.token}
+              data-paper-only={String(p.paperOnly)}
               className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-brand-surface-raised rounded transition-colors"
-              onClick={() => { onSelect(p.id); onClose(); }}
+              onClick={() => { onSelect(p.token); close(); }}
             >
               <code className="text-xs font-mono bg-brand-surface2 px-1.5 py-0.5 rounded text-brand-accent min-w-[80px] text-center">
-                {p.id}
+                {p.token}
               </code>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-brand-text">{p.label}</div>
-                <div className="text-[10px] text-brand-muted truncate">{p.description}</div>
+                <div className="text-[11px] leading-snug text-brand-muted">{p.description}</div>
               </div>
+              {p.paperOnly && (
+                <span className="shrink-0 text-[9px] uppercase tracking-wide text-amber-400 border border-amber-400/40 rounded px-1 py-0.5">
+                  Paper only
+                </span>
+              )}
             </button>
           ))}
           {filtered.length === 0 && (
             <div className="px-3 py-4 text-xs text-brand-muted text-center">No placeholders match</div>
           )}
+        </div>
+        <div className="px-3 py-2 border-t border-brand-border bg-brand-surface text-[10px] text-brand-muted">
+          {PAPI_NOTE}
         </div>
       </div>
     </div>
