@@ -14,6 +14,30 @@ function headUrl(name: string): string {
   return `${MC_HEADS}/${encodeURIComponent(name.trim())}/64`;
 }
 
+/** The plugin renders a Mojang texture hash as a head, not as the raw skin sheet. */
+function hashHeadUrl(hash: string): string {
+  return `https://mc-heads.net/head/${encodeURIComponent(hash.trim())}/64`;
+}
+
+const SKIN_URL_IN_JSON = /"url"\s*:\s*"https?:\/\/textures\.minecraft\.net\/texture\/([^"]+)"/;
+
+/**
+ * Decode a Minecraft-Heads.com base64 skin blob to its texture hash.
+ *
+ * Mirrors FormMenuUtil.mapImageSource, which decodes the blob, pulls
+ * textures.SKIN.url out of the JSON, and renders the hash as a head. Like the
+ * plugin, a blob that will not decode or carries no skin url is not an error —
+ * it simply does not resolve, and the caller falls back to a label.
+ */
+function skinHashFromBase64(blob: string): string | undefined {
+  try {
+    const json = atob(blob);
+    return json.match(SKIN_URL_IN_JSON)?.[1];
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Turn a button `image:` value into something the designer can actually draw.
  *
@@ -35,6 +59,15 @@ export function resolveImageForPreview(value: string, assets: AssetsConfig): Res
 
     case "implicitHead":
       return { src: headUrl(raw), label: `Player head: ${raw}` };
+
+    case "mojangTexture":
+      return { src: hashHeadUrl(detail ?? ""), label: `Player head from texture ${detail ?? ""}` };
+
+    case "base64Skin": {
+      const hash = skinHashFromBase64(raw);
+      if (hash) return { src: hashHeadUrl(hash), label: "Player head from an encoded skin" };
+      return { label: "Encoded skin — the plugin accepts this, but it carries no readable skin URL to preview" };
+    }
 
     case "assetFile": {
       const host = assets.host.trim();

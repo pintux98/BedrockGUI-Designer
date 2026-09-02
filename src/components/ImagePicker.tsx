@@ -11,6 +11,8 @@ const KIND_LABELS: Record<ImageKind, string> = {
   url: "Image URL",
   assetFile: "Asset file",
   none: "No icon",
+  mojangTexture: "Player head from a Mojang texture",
+  base64Skin: "Player head from an encoded skin",
   unknown: "Unrecognised image source"
 };
 
@@ -31,7 +33,17 @@ const SOURCE_GROUPS: { title: string; kinds: { kind: Exclude<ImageKind, "unknown
     title: "Player skin",
     kinds: [
       { kind: "head", template: "head:Notch", hint: "The skin of a named player" },
-      { kind: "implicitHead", template: "player.name", hint: "A bare name carrying a dot or dash is read as a head too" }
+      { kind: "implicitHead", template: "player.name", hint: "A bare name carrying a dot or dash is read as a head too" },
+      {
+        kind: "mojangTexture",
+        template: "https://textures.minecraft.net/texture/<hash>",
+        hint: "A Mojang texture URL — the plugin renders it as a head, not as the raw skin sheet"
+      },
+      {
+        kind: "base64Skin",
+        template: "<base64 skin blob>",
+        hint: "The encoded value the Minecraft-Heads.com API returns"
+      }
     ]
   },
   {

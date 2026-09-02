@@ -74,3 +74,24 @@ describe("resolveImageForPreview", () => {
     expect(r.label).toMatch(/unrecognised/i);
   });
 });
+
+describe("skin sources", () => {
+  const SKIN_BLOB =
+    "eyJ0aW1lc3RhbXAiOiAxNzAwMDAwMDAwMDAwLCAicHJvZmlsZUlkIjogIjA2OWE3OWY0NDRlOTQ3MjZhNWJlZmNhOTBlMzhhYWY1IiwgInByb2ZpbGVOYW1lIjogIk5vdGNoIiwgInRleHR1cmVzIjogeyJTS0lOIjogeyJ1cmwiOiAiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS8yOTIwMDlhNDkyNWI1OGYwMmM3N2RhZGMzZWNlZjA3ZWE0Yzc0NzJmNjRlMGZkYzMyY2U1NTIyNDg5MzYyNjgwIn19fQ==";
+  const HASH = "292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc32ce5522489362680";
+
+  it("renders a Mojang texture URL as a head, not the raw skin sheet", () => {
+    const r = resolveImageForPreview(`https://textures.minecraft.net/texture/${HASH}`, OFF);
+    expect(r.src).toBe(`https://mc-heads.net/head/${HASH}/64`);
+  });
+
+  it("decodes a base64 skin blob to its head, as mapImageSource does", () => {
+    expect(resolveImageForPreview(SKIN_BLOB, OFF).src).toBe(`https://mc-heads.net/head/${HASH}/64`);
+  });
+
+  it("does not call an undecodable blob broken — the plugin still accepts it", () => {
+    const r = resolveImageForPreview("A".repeat(60), OFF);
+    expect(r.src).toBeUndefined();
+    expect(r.label).not.toMatch(/unrecognis|unrecogniz|invalid|broken/i);
+  });
+});

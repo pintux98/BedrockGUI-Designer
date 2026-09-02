@@ -1,6 +1,7 @@
 export type ImageKind =
   | "material" | "potion" | "texturePath" | "head" | "implicitHead"
-  | "url" | "assetFile" | "none" | "unknown";
+  | "url" | "assetFile" | "none" | "unknown"
+  | "mojangTexture" | "base64Skin";
 
 export const NO_ICON_MATERIALS = [
   "AIR", "CAVE_AIR", "VOID_AIR", "STRUCTURE_VOID", "BARRIER", "LIGHT"
@@ -9,15 +10,38 @@ export const NO_ICON_MATERIALS = [
 export const ASSET_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp"] as const;
 
 const POTION_PREFIXES = ["POTION", "SPLASH_POTION", "LINGERING_POTION", "TIPPED_ARROW"];
+
+/**
+ * A raw Mojang skin texture URL. The plugin rewrites these to a mc-heads head
+ * render rather than serving the full skin sheet — see FormMenuUtil.mapImageSource.
+ */
+const MOJANG_TEXTURE = /^https?:\/\/textures\.minecraft\.net\/texture\/(.+)$/i;
+
+/**
+ * A base64 skin blob as the Minecraft-Heads.com API returns it: a JSON document
+ * carrying textures.SKIN.url, base64-encoded. The plugin accepts it on shape
+ * alone — `^[A-Za-z0-9+/=]+$` and longer than 40 — and only then tries to decode
+ * it (ValidationUtils.isValidImageSource vs FormMenuUtil.mapImageSource). This
+ * classifier mirrors that split: shape here, decoding in the resolver.
+ *
+ * Checked BEFORE the material branch for the same reason the plugin checks it
+ * early: an all-alphanumeric blob would otherwise read as a material name.
+ */
+const BASE64_SKIN = /^[A-Za-z0-9+/=]+$/;
+const BASE64_MIN_LENGTH = 40;
 const NO_ICON_SET = new Set<string>(NO_ICON_MATERIALS);
 
 export function classifyImage(value: string): { kind: ImageKind; detail?: string } {
   const raw = value.trim();
   if (!raw) return { kind: "unknown" };
 
+  const mojang = raw.match(MOJANG_TEXTURE);
+  if (mojang) return { kind: "mojangTexture", detail: mojang[1] };
   if (/^https?:\/\//i.test(raw)) return { kind: "url" };
   if (raw.startsWith("textures/")) return { kind: "texturePath" };
   if (raw.toLowerCase().startsWith("head:")) return { kind: "head", detail: raw.slice(5) };
+
+  if (raw.length > BASE64_MIN_LENGTH && BASE64_SKIN.test(raw)) return { kind: "base64Skin" };
 
   const upper = raw.toUpperCase();
   if (NO_ICON_SET.has(upper)) return { kind: "none" };

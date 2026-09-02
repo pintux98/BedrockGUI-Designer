@@ -101,3 +101,33 @@ function collectImages(node: unknown, out: string[]) {
     }
   }
 }
+
+describe("image sources the plugin maps but the classifier used to miss", () => {
+  const SKIN_BLOB =
+    "eyJ0aW1lc3RhbXAiOiAxNzAwMDAwMDAwMDAwLCAicHJvZmlsZUlkIjogIjA2OWE3OWY0NDRlOTQ3MjZhNWJlZmNhOTBlMzhhYWY1IiwgInByb2ZpbGVOYW1lIjogIk5vdGNoIiwgInRleHR1cmVzIjogeyJTS0lOIjogeyJ1cmwiOiAiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS8yOTIwMDlhNDkyNWI1OGYwMmM3N2RhZGMzZWNlZjA3ZWE0Yzc0NzJmNjRlMGZkYzMyY2U1NTIyNDg5MzYyNjgwIn19fQ==";
+
+  it("classifies a Mojang texture URL apart from a plain URL", () => {
+    const r = classifyImage("http://textures.minecraft.net/texture/abc123");
+    expect(r.kind).toBe("mojangTexture");
+    expect(r.detail).toBe("abc123");
+    expect(classifyImage("https://textures.minecraft.net/texture/abc123").kind).toBe("mojangTexture");
+  });
+
+  it("still classifies any other URL as a plain URL", () => {
+    expect(classifyImage("https://example.com/a.png").kind).toBe("url");
+  });
+
+  it("classifies a base64 skin blob", () => {
+    expect(classifyImage(SKIN_BLOB).kind).toBe("base64Skin");
+  });
+
+  it("does not mistake a material name for a base64 blob", () => {
+    expect(classifyImage("DIAMOND_SWORD").kind).toBe("material");
+    expect(classifyImage("A".repeat(30)).kind).toBe("material");
+  });
+
+  it("accepts a blob on shape alone, as the plugin's validator does", () => {
+    // ValidationUtils.isValidImageSource never decodes; only mapImageSource does.
+    expect(classifyImage("A".repeat(60)).kind).toBe("base64Skin");
+  });
+});
