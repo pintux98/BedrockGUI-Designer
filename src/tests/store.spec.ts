@@ -167,4 +167,63 @@ describe("designer store", () => {
     for (let i = 0; i < 30; i++) s().addForm(`form_${i}`);
     expect(s().projectHistory.undo.length).toBe(20);
   });
+
+  it("invalidates a stale structural redo when a new content edit follows an undo", () => {
+    const s = () => useDesignerStore.getState();
+    s().loadProject(createEmptyProject());
+    s().addForm("shop");
+    s().removeForm("shop");
+    s().undo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
+    expect(s().projectHistory.redo[0]?.description).toBe("Deleted form shop");
+
+    s().setActiveForm("shop");
+    s().setBedrock({ ...s().activeForm().bedrock, title: "UserEditedAfterUndo" });
+    expect(s().projectHistory.redo).toEqual([]);
+
+    s().redo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
+    expect(s().activeForm().bedrock.title).toBe("UserEditedAfterUndo");
+  });
+
+  it("invalidates a stale content redo when a new form is added after an undo", () => {
+    const s = () => useDesignerStore.getState();
+    s().loadProject(createEmptyProject());
+    const before = s().activeForm().bedrock.title;
+    s().setBedrock({ ...s().activeForm().bedrock, title: "ContentEdit" });
+    s().undo();
+    expect(s().activeForm().bedrock.title).toBe(before);
+    expect(s().history["main_menu"].redo[0]?.form.bedrock.title).toBe("ContentEdit");
+
+    s().addForm("shop");
+    expect(s().history["main_menu"].redo).toEqual([]);
+
+    s().redo();
+    expect(s().activeForm().bedrock.title).toBe(before);
+  });
+
+  it("clears every form's redo stack when any new action is pushed", () => {
+    const s = () => useDesignerStore.getState();
+    s().loadProject(createEmptyProject());
+    s().addForm("shop");
+    s().setBedrock({ ...s().activeForm().bedrock, title: "A1" });
+    s().setActiveForm("shop");
+    s().setBedrock({ ...s().activeForm().bedrock, title: "B1" });
+    s().undo();
+    s().setActiveForm("main_menu");
+    s().undo();
+    expect(s().history["main_menu"].redo[0]?.form.bedrock.title).toBe("A1");
+    expect(s().history["shop"].redo[0]?.form.bedrock.title).toBe("B1");
+
+    s().addForm("extra");
+    expect(s().history["main_menu"].redo).toEqual([]);
+    expect(s().history["shop"].redo).toEqual([]);
+
+    s().setActiveForm("main_menu");
+    s().redo();
+    expect(s().activeForm().bedrock.title).toBe("New Form");
+    s().setActiveForm("shop");
+    s().redo();
+    expect(s().activeForm().bedrock.title).toBe("New Form");
+  });
 });

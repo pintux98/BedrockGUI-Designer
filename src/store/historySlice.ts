@@ -58,35 +58,45 @@ export const createHistorySlice: StateCreator<
     if (!form) return;
     set((s) => {
       const current = s.history[formId] ?? EMPTY;
+      const history: Record<string, FormHistory> = {};
+      for (const [key, value] of Object.entries(s.history)) {
+        history[key] = { undo: value.undo, redo: [] };
+      }
+      history[formId] = {
+        undo: [...current.undo, { form: structuredClone(form), description, timestamp: nextTimestamp() }],
+        redo: []
+      };
       return {
-        history: {
-          ...s.history,
-          [formId]: {
-            undo: [...current.undo, { form: structuredClone(form), description, timestamp: nextTimestamp() }],
-            redo: []
-          }
-        }
+        history,
+        projectHistory: { ...s.projectHistory, redo: [] }
       };
     });
   },
 
   pushProjectHistory: (description) => {
     const project = get().project;
-    const history = get().history;
-    set((s) => ({
-      projectHistory: {
-        undo: [
-          ...s.projectHistory.undo,
-          {
-            project: structuredClone(project),
-            history: structuredClone(history),
-            description,
-            timestamp: nextTimestamp()
-          }
-        ].slice(-PROJECT_HISTORY_LIMIT),
-        redo: []
+    const historySnapshot = get().history;
+    set((s) => {
+      const history: Record<string, FormHistory> = {};
+      for (const [key, value] of Object.entries(s.history)) {
+        history[key] = { undo: value.undo, redo: [] };
       }
-    }));
+      return {
+        history,
+        projectHistory: {
+          undo: [
+            ...s.projectHistory.undo,
+            {
+              project: structuredClone(project),
+              history: structuredClone(historySnapshot),
+              description,
+              timestamp: nextTimestamp()
+            }
+          ].slice(-PROJECT_HISTORY_LIMIT),
+          redo: []
+        }
+      };
+    });
   },
 
   undo: () =>
