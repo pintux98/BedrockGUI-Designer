@@ -5,7 +5,6 @@ import path from "node:path";
 import * as yaml from "js-yaml";
 import { ActionEditor } from "../actions/editors";
 import { parseActionBlock, serializeActionBlock, ParsedAction } from "../plugin/grammar";
-import { validateCondition } from "../plugin/conditions";
 
 afterEach(() => cleanup());
 
@@ -122,13 +121,21 @@ describe("ConditionalEditor check field (symbol context)", () => {
     expect(optionValues.some((v) => v.startsWith("not:"))).toBe(false);
   });
 
-  it("editing through the builder produces a check that validateCondition(..., 'symbol') accepts", () => {
+  it("editing through the builder writes the check the plugin's check: parser expects", () => {
     const onChange = vi.fn();
     render(<ActionEditor action={conditionalAction("permission:a.b")} onChange={onChange} />);
     fireEvent.change(screen.getByRole("combobox", { name: /type/i }), { target: { value: "placeholder" } });
-    const next = onChange.mock.calls.at(-1)![0] as Extract<ParsedAction, { kind: "conditional" }>;
-    expect(next.kind).toBe("conditional");
-    expect(validateCondition(next.check, "symbol")).toEqual([]);
+    // A literal, not validateCondition(next.check): the builder chooses which kinds
+    // to offer by running that validator over the string it is about to emit, so
+    // re-running it here would pass even if the builder emitted the wrong kind.
+    // The value carries over from the permission node, and == is the default
+    // operator — ConditionalActionHandler only accepts symbol operators here.
+    expect(onChange.mock.calls.at(-1)![0]).toEqual({
+      kind: "conditional",
+      check: "placeholder:a.b == value",
+      whenTrue: [],
+      whenFalse: []
+    });
   });
 
   it("loads an existing compound check without mangling it, and it remains editable", () => {
@@ -150,18 +157,32 @@ describe("ConditionalEditor check field (symbol context)", () => {
     });
   });
 
-  it("round-trips the real nested_conditional action from advanced_flow.yml unchanged", () => {
+  it("edits the check of a conditional nested inside a branch, leaving every sibling alone", () => {
     const src = fs.readFileSync(FIXTURE("advanced_flow.yml"), "utf8");
     const doc = yaml.load(src) as any;
     const raw = doc.bedrock.buttons.nested_conditional.onClick[0] as string;
     const before = parseActionBlock(raw);
     if (before.kind !== "conditional") throw new Error("expected a conditional");
+    const nested = before.whenTrue[1];
+    if (nested?.kind !== "conditional") throw new Error("expected a nested conditional in the true branch");
 
     const onChange = vi.fn();
     render(<ActionEditor action={before} onChange={onChange} />);
 
+    // Compound checks open in the advanced field, verbatim, and change nothing on load.
     expect(screen.getByLabelText(/check/i)).toHaveValue(before.check);
     expect(onChange).not.toHaveBeenCalled();
-    expect(parseActionBlock(serializeActionBlock(before))).toEqual(before);
+
+    // Branch children render collapsed: If true = [message, conditional], If false = [message].
+    fireEvent.click(screen.getAllByRole("button", { name: "Expand action" })[1]);
+    const operator = screen.getByRole("combobox", { name: /operator/i });
+    expect(operator).toHaveValue(">=");
+    fireEvent.change(operator, { target: { value: ">" } });
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0]).toEqual({
+      ...before,
+      whenTrue: [before.whenTrue[0], { ...nested, check: "placeholder:%player_level% > 30" }]
+    });
   });
 });

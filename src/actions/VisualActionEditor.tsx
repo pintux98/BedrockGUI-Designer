@@ -9,17 +9,49 @@ interface VisualActionEditorProps {
   onChange: (v: string[]) => void;
 }
 
+const JOIN = "\n---\n";
+
+/**
+ * The blocks the model is allowed to hold.
+ *
+ * A block the user has only just added — a fresh Raw block waiting to be pasted
+ * into, say — serializes to "" and must never reach the model, because it would
+ * export as a blank action block. It still has to stay on screen, so the empty
+ * ones are dropped here and only here: `actions` keeps them.
+ */
+function committable(actions: ParsedAction[]): string[] {
+  return actions.map(serializeActionBlock).filter((s) => s.trim().length > 0);
+}
+
 export function VisualActionEditor({ value, onChange }: VisualActionEditorProps) {
+  /**
+   * Editing state and the committed value are two different things. `actions` is
+   * what the user is working on and may hold blocks that are still empty; `value`
+   * is what the model kept, which never does. `committedRef` remembers the last
+   * list this editor handed upwards, so the sync effect can tell its own echo
+   * (keep the in-progress blocks) from a real outside change such as an undo or a
+   * YAML edit (re-derive from the file). Without it, committing an edit to one
+   * action bounced back through `value` and silently deleted every empty sibling.
+   */
   const [actions, setActions] = React.useState<ParsedAction[]>(() => value.map(parseActionBlock));
   const [showPicker, setShowPicker] = React.useState(false);
+  const committedRef = React.useRef(value.join(JOIN));
 
+  const incoming = value.join(JOIN);
   React.useEffect(() => {
+    if (incoming === committedRef.current) return;
+    committedRef.current = incoming;
     setActions(value.map(parseActionBlock));
-  }, [value.join("\n---\n")]);
+  }, [incoming]);
 
   const updateActions = (next: ParsedAction[]) => {
     setActions(next);
-    onChange(next.map(serializeActionBlock).filter((s) => s.trim().length > 0));
+    const blocks = committable(next);
+    const joined = blocks.join(JOIN);
+    // Adding an empty block changes nothing the model can see; don't churn history.
+    if (joined === committedRef.current) return;
+    committedRef.current = joined;
+    onChange(blocks);
   };
 
   const addAction = (kind: ActionKind) => {

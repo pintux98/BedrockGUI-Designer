@@ -44,6 +44,16 @@ function defaultValueFor(kind: string): string {
   return kind === "plugin" ? "SomePlugin" : "my.permission";
 }
 
+/**
+ * `ConditionEvaluator.evaluateSingle` reads an operator for exactly one condition
+ * type: `placeholder`, which it splits as `placeholder:<value>:<operator>:<expected>`.
+ * `permission` and `plugin` take `parts[offset + 1]` and stop; `bedrock_player` and
+ * `java_player` take no value at all (they still need a segment to parse, hence the
+ * `:true`). So `opToken` deliberately has no effect outside the placeholder branch,
+ * and OPERATOR_KINDS keeps the UI from offering a control the plugin would ignore.
+ */
+const OPERATOR_KINDS: readonly string[] = ["placeholder"];
+
 function buildBody(kind: string, val: string, opToken: string, expected: string, context: ConditionContext): string {
   if (kind === "bedrock_player" || kind === "java_player") return `${kind}:true`;
   if (kind === "permission" || kind === "plugin") return `${kind}:${val.trim() || defaultValueFor(kind)}`;
@@ -66,12 +76,17 @@ export function ConditionBuilder({ value, context, onChange }: ConditionBuilderP
   const negationSupported = supports(`not:${buildBody(kinds[0], "", "", "", context)}`, context);
 
   const parsed = parseCondition(value);
-  const activeKind = parsed.kind && kinds.includes(parsed.kind) ? parsed.kind : kinds[0];
+  // Null while the value names no kind this context supports — an empty condition,
+  // or free text typed in the advanced box. The Type select then shows an unset
+  // option rather than displaying a kind the value does not hold, which used to
+  // make re-picking that very kind a no-op change event.
+  const selectedKind = parsed.kind && kinds.includes(parsed.kind) ? parsed.kind : null;
+  const activeKind = selectedKind ?? kinds[0];
 
   let currentVal = "";
   let currentOpToken = "";
   let currentExpected = "";
-  if (parsed.kind === activeKind) {
+  if (selectedKind) {
     if (activeKind === "placeholder") {
       if (context === "symbol") {
         const match = parsed.rest.match(/^(.*?)\s+(>=|<=|==|!=|>|<)\s+(.*)$/);
@@ -97,7 +112,7 @@ export function ConditionBuilder({ value, context, onChange }: ConditionBuilderP
     operators.find((op) => (currentOpToken && (op.word === currentOpToken || op.symbol === currentOpToken))) ??
     operators[0];
 
-  const typeValue = parsed.negate && parsed.kind ? `not:${parsed.kind}` : activeKind;
+  const typeValue = selectedKind ? (parsed.negate ? `not:${selectedKind}` : selectedKind) : "";
 
   const emit = (kind: string, negate: boolean, opToken: string, val: string, expected: string) => {
     const body = buildBody(kind, val, opToken, expected, context);
@@ -105,6 +120,7 @@ export function ConditionBuilder({ value, context, onChange }: ConditionBuilderP
   };
 
   const handleTypeChange = (next: string) => {
+    if (!next) return;
     if (next === "not") {
       emit(activeKind, true, currentOpToken, currentVal, currentExpected);
       return;
@@ -117,12 +133,13 @@ export function ConditionBuilder({ value, context, onChange }: ConditionBuilderP
   };
 
   const problems = value.trim() ? validateCondition(value, context) : [];
-  const showValue = activeKind === "permission" || activeKind === "plugin" || activeKind === "placeholder";
-  const showExpected = activeKind === "placeholder";
+  const showOperator = selectedKind !== null && OPERATOR_KINDS.includes(selectedKind);
+  const showValue = selectedKind === "permission" || selectedKind === "plugin" || selectedKind === "placeholder";
+  const showExpected = selectedKind === "placeholder";
 
   return (
     <div className="space-y-1">
-      <div className="grid grid-cols-2 gap-1">
+      <div className={showOperator ? "grid grid-cols-2 gap-1" : ""}>
         <div>
           <label htmlFor={`${uid}-type`} className="text-[10px] text-brand-muted block mb-0.5">
             Type
@@ -133,6 +150,7 @@ export function ConditionBuilder({ value, context, onChange }: ConditionBuilderP
             value={typeValue}
             onChange={(e) => handleTypeChange(e.target.value)}
           >
+            {!selectedKind && <option value="">— choose a type —</option>}
             {kinds.map((kind) => (
               <option key={kind} value={kind}>
                 {kind}
@@ -147,26 +165,28 @@ export function ConditionBuilder({ value, context, onChange }: ConditionBuilderP
               ))}
           </select>
         </div>
-        <div>
-          <label htmlFor={`${uid}-operator`} className="text-[10px] text-brand-muted block mb-0.5">
-            Operator
-          </label>
-          <select
-            id={`${uid}-operator`}
-            className="ui-input text-xs w-full"
-            value={operatorToken(matchedOperator)}
-            onChange={(e) => emit(activeKind, parsed.negate, e.target.value, currentVal, currentExpected)}
-          >
-            {operators.map((op) => {
-              const token = operatorToken(op);
-              return (
-                <option key={token} value={token}>
-                  {token}
-                </option>
-              );
-            })}
-          </select>
-        </div>
+        {showOperator && (
+          <div>
+            <label htmlFor={`${uid}-operator`} className="text-[10px] text-brand-muted block mb-0.5">
+              Operator
+            </label>
+            <select
+              id={`${uid}-operator`}
+              className="ui-input text-xs w-full"
+              value={operatorToken(matchedOperator)}
+              onChange={(e) => emit(activeKind, parsed.negate, e.target.value, currentVal, currentExpected)}
+            >
+              {operators.map((op) => {
+                const token = operatorToken(op);
+                return (
+                  <option key={token} value={token}>
+                    {token}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
       </div>
 
       {showValue && (
