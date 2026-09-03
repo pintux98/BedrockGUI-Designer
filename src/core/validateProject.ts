@@ -81,7 +81,11 @@ function targetIssue(formId: string, target: string, formIds: Set<string>): Proj
   const addon = findAddonForActionId(target);
   if (addon) {
     const base = baseActionId(target);
-    const usage = target.includes(":") ? `'${target}'` : `'${base} { }'`;
+    // Colon form only. ActionExecutor.parseNewFormat returns null for a `{ }`
+    // block with no `- "…"` entry, and the addons' own getUsageExamples() return
+    // e.g. "bw_shop_main:" — so advising the brace form would send the user to
+    // the one shape the executor refuses.
+    const usage = target.includes(":") ? `'${target}'` : `'${base}:'`;
     return {
       level: "error",
       formId,

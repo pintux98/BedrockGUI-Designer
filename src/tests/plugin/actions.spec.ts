@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { ACTION_IDS, ACTIONS, actionsForPlatform, type ActionId } from "../../plugin/actions";
+import {
+  ACTION_IDS,
+  ACTIONS,
+  actionPlatformNote,
+  actionsForPlatform,
+  type ActionId
+} from "../../plugin/actions";
+import { capabilityNote } from "../../plugin/platforms";
 import { parseActionBlock } from "../../plugin/grammar";
 import { validateCondition } from "../../plugin/conditions";
 
@@ -49,6 +56,46 @@ describe("action registry", () => {
       "title", "actionbar", "inventory", "delay", "random", "bungee", "conditional"];
     for (const id of legacy) expect(ACTION_IDS).toContain(id);
     expect(ACTION_IDS).not.toContain("raw");
+  });
+
+  /**
+   * The picker no longer filters by platform, so the capability gate is surfaced as a
+   * note instead. Which two actions carry it is checked against the plugin: Velocity
+   * and Bungee construct BedrockGUIApi with null sound and economy managers
+   * (velocity/…/BedrockGUI.java:135, bungeecord/…/BedrockGUI.java:91), and
+   * registerDefaultActionHandlers registers those two handlers only when their manager
+   * is non-null (FormMenuUtil.java:96-102). It passes a command executor and a title
+   * manager, so `server`, `broadcast`, `inventory`, `title` and `actionbar` are not
+   * Paper-only and must carry no note.
+   */
+  it("notes exactly sound and economy as Paper-only", () => {
+    const noted = ACTION_IDS.filter((id) => actionPlatformNote(id) !== undefined);
+    expect(noted).toEqual(["sound", "economy"]);
+  });
+
+  it("writes the Paper-only note naming the manager the proxy lacks", () => {
+    expect(actionPlatformNote("sound")).toBe(
+      "Paper only — a proxy registers no sound manager, so this action has no handler there."
+    );
+    expect(actionPlatformNote("economy")).toBe(
+      "Paper only — a proxy registers no economy manager, so this action has no handler there."
+    );
+  });
+
+  it("leaves every action a proxy does register unnoted", () => {
+    for (const id of ["command", "open", "message", "delay", "server", "broadcast",
+      "inventory", "title", "actionbar", "conditional", "random", "bungee"] as ActionId[]) {
+      expect(actionPlatformNote(id), id).toBeUndefined();
+    }
+  });
+
+  it("derives the note from the capability, not from the action id", () => {
+    // Two actions share the "title" capability and both must follow it, whatever it says.
+    expect(ACTIONS.title.capability).toBe("title");
+    expect(ACTIONS.actionbar.capability).toBe("title");
+    expect(actionPlatformNote("title")).toBe(capabilityNote("title"));
+    expect(actionPlatformNote("actionbar")).toBe(capabilityNote("title"));
+    expect(actionPlatformNote("sound")).toBe(capabilityNote("sound"));
   });
 
   it("every action's formatExample parses to a non-raw ParsedAction", () => {

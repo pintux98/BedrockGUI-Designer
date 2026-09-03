@@ -4,6 +4,7 @@ import path from "node:path";
 import {
   ADDONS,
   ADDON_ACTION_IDS,
+  addonActionSnippet,
   addonActionTakesArgument,
   findAddonForActionId
 } from "../../plugin/addons";
@@ -122,6 +123,40 @@ describe("addons", () => {
     expect(addonActionTakesArgument("hs_welcome")).toBe(false);
     expect(addonActionTakesArgument("pd_kits")).toBe(false);
     expect(addonActionTakesArgument("bw_stats")).toBe(false);
+  });
+
+  /**
+   * `ActionExecutor.parseAction` (ActionExecutor.java:212-239) offers three branches and
+   * only one of them reaches an addon handler:
+   *   `bw_shop_main { }`  → parseNewFormat, no `- "…"` value, returns null (:272-275)
+   *   `bw_shop_main`      → no colon, runs as a *command* (:236-238)
+   *   `bw_shop_main:`     → split(":", 2), type + empty payload (:225-235)  ✅
+   * The addons themselves write the third: OpenShopMainAction.java:26 and
+   * ShopMenuModel.java:41 both spell it `"bw_shop_main:"`.
+   */
+  describe("addonActionSnippet", () => {
+    it("writes an action that takes no value as the bare colon form", () => {
+      expect(addonActionSnippet("bw_shop_main")).toBe("bw_shop_main:");
+      expect(addonActionSnippet("hs_welcome")).toBe("hs_welcome:");
+      expect(addonActionSnippet("pd_kits")).toBe("pd_kits:");
+    });
+
+    it("leaves the payload of a parameterised action to be typed after the colon", () => {
+      expect(addonActionSnippet("bw_shop_cat")).toBe("bw_shop_cat:");
+      expect(addonActionSnippet("home_teleport")).toBe("home_teleport:");
+    });
+
+    it("never emits the brace form the executor refuses to parse", () => {
+      for (const id of ADDON_ACTION_IDS) {
+        const snippet = addonActionSnippet(id);
+        expect(snippet, id).toBe(`${id}:`);
+        expect(snippet, id).not.toContain("{");
+      }
+    });
+
+    it("does not double the colon on an id that already carries a payload", () => {
+      expect(addonActionSnippet("hs_region_menu:12345")).toBe("hs_region_menu:");
+    });
   });
 
   it("counts the parameterised subset per addon", () => {

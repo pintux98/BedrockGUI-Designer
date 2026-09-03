@@ -105,7 +105,9 @@ describe("validateProject — an addon id is never an open target", () => {
     expect(errors[0].message).toContain("BedrockGUI-BedwarsAddon.jar");
     expect(errors[0].message).toContain("is an action type");
     expect(errors[0].message).toContain("ACTION_FORM_NOT_FOUND");
-    expect(errors[0].message).toContain("'bw_arena_main { }'");
+    // Colon form: parseNewFormat rejects an empty `{ }` block, and the addon's own
+    // getUsageExamples() returns "bw_arena_main:".
+    expect(errors[0].message).toContain("'bw_arena_main:'");
   });
 
   it("never downgrades an addon target to a needs-that-addon warning", () => {
@@ -127,7 +129,7 @@ describe("validateProject — an addon id is never an open target", () => {
     const issues = validateProject(projectWith(withOnClick(createForm("main_menu"), openBlock("hs_region_menu"))));
     const errors = issues.filter((i) => i.level === "error");
     expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("Write it as its own action instead: 'hs_region_menu { }'.");
+    expect(errors[0].message).toContain("Write it as its own action instead: 'hs_region_menu:'.");
   });
 
   it("does not let an addon id complete a menu chain", () => {
