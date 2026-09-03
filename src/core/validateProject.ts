@@ -30,13 +30,21 @@ export function validateProject(project: Project): ProjectIssue[] {
   const reached = new Set<string>();
   for (const form of project.forms) {
     const seen = new Set<string>();
+    const seenArguments = new Set<string>();
     for (const group of collectOpenGroups(form)) {
+      const rejected = malformedArguments(group);
       for (const target of menuTargets(group, resolves)) {
-        if (target !== form.id && formIds.has(target)) reached.add(target);
+        // A block the plugin refuses to run opens nothing, so it reaches nothing either.
+        if (!rejected.length && target !== form.id && formIds.has(target)) reached.add(target);
         if (seen.has(target)) continue;
         seen.add(target);
         const issue = targetIssue(form.id, target, formIds);
         if (issue) out.push(issue);
+      }
+      for (const argument of rejected) {
+        if (seenArguments.has(argument)) continue;
+        seenArguments.add(argument);
+        out.push(argumentIssue(form.id, group[0], argument));
       }
     }
   }
@@ -171,6 +179,9 @@ function collectFrom(action: ParsedAction, out: string[][]): void {
  * not, `execute` falls back to `openMenu(menu, args)`: line[0] is the menu and the rest
  * are arguments. So the tail is only ever a menu target when all of it resolves —
  * flagging an argument as a missing menu would be a false error on a correct config.
+ *
+ * Whether an argument line is *well-formed* is a separate question, answered by
+ * `malformedArguments` below.
  */
 function menuTargets(group: string[], resolves: (target: string) => boolean): string[] {
   const head = group[0];
@@ -180,7 +191,43 @@ function menuTargets(group: string[], resolves: (target: string) => boolean): st
   return lines.filter(isStatic);
 }
 
-/** A target carrying a placeholder is only known at runtime, so it is never an issue. */
+/**
+ * The lines of one `open` block that the plugin would pass as arguments but refuses to
+ * accept at all.
+ *
+ * Being an argument rather than a menu buys a line nothing: `ActionExecutor
+ * .executeSingleAction` calls `handler.isValidAction(valueStr)` and returns
+ * `failure("Invalid action value for type: " + actionType)` *before* it ever reaches
+ * `handler.execute` (ActionExecutor.java:106-113), and
+ * `OpenFormActionHandler.isValidAction` (OpenFormActionHandler.java:271-303) runs
+ * `parseNewFormatValues` over the whole block and returns false the moment any one value
+ * fails `isValidMenuName`. Every line is checked, arguments included, so one malformed
+ * argument kills the action and the head menu never opens.
+ *
+ * A line that is a well-formed name yet matches no form is deliberately absent here: the
+ * plugin accepts it as an argument, so reporting it would be a false error.
+ */
+function malformedArguments(group: string[]): string[] {
+  return group.slice(1).filter((line) => isStatic(line) && !isValidMenuName(line));
+}
+
+function argumentIssue(formId: string, head: string, argument: string): ProjectIssue {
+  return {
+    level: "error",
+    formId,
+    message: `Form '${formId}' opens '${head}' and passes '${argument}' to it as an argument, but '${argument}' is not a usable menu name — only letters, digits, '_', '.' and '-' are allowed, up to 100 characters. The plugin checks every line of an 'open' block before running it, argument lines included, so the whole action is rejected and '${head}' never opens.`
+  };
+}
+
+/**
+ * A target carrying a placeholder is only known at runtime, so it is never an issue.
+ *
+ * `FormMenuUtil.handleOnClick` (FormMenuUtil.java:916-933) substitutes the block's
+ * placeholders — `{key}` and `$key` via `PlaceholderUtil.processDynamicPlaceholders`
+ * (PlaceholderUtil.java:59-75), `%…%` via `messageData.replaceVariables` — *before*
+ * `actionExecutor.executeAction` and therefore before `isValidAction` sees the string.
+ * What is validated is the expansion, which the designer cannot know.
+ */
 function isStatic(target: string): boolean {
   return target.length > 0 && !/[{}%$]/.test(target);
 }

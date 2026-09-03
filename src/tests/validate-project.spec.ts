@@ -175,6 +175,102 @@ describe("validateProject — open line[0] is a menu, the tail may be arguments"
   });
 });
 
+describe("validateProject — an argument line still has to be a well-formed name", () => {
+  // ActionExecutor.executeSingleAction calls handler.isValidAction(valueStr) at :106 and
+  // only reaches handler.execute at :113 if it passed. OpenFormActionHandler.isValidAction
+  // (:271-303) runs parseNewFormatValues over the whole block and returns false as soon as
+  // any one value fails isValidMenuName, so a malformed argument kills the whole action.
+
+  it("reports an argument line that is not a usable menu name and says the whole action dies", () => {
+    const main = withCommand(withOnClick(createForm("main_menu"), openBlock("shop", "diamond sword")), "/menu");
+    const errors = validateProject(projectWith(main, createForm("shop"))).filter((i) => i.level === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].formId).toBe("main_menu");
+    expect(errors[0].message).toBe(
+      "Form 'main_menu' opens 'shop' and passes 'diamond sword' to it as an argument, but 'diamond sword' is not a usable menu name — only letters, digits, '_', '.' and '-' are allowed, up to 100 characters. The plugin checks every line of an 'open' block before running it, argument lines included, so the whole action is rejected and 'shop' never opens."
+    );
+  });
+
+  it("stops counting the head as reached once a malformed argument kills the action", () => {
+    const main = withCommand(withOnClick(createForm("main_menu"), openBlock("shop", "diamond sword")), "/menu");
+    const warnings = validateProject(projectWith(main, createForm("shop"))).filter((i) => i.level === "warning");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].formId).toBe("shop");
+    expect(warnings[0].message).toBe(
+      "Form 'shop' is not opened by any other form and registers no command or command_intercept of its own. Only '/bedrockgui open shop' can reach it."
+    );
+  });
+
+  it("stays silent on a well-formed argument that matches no form, and reports only the malformed one", () => {
+    // This is the case the module exists to NOT report: 'diamond_sword' is a legal menu
+    // name, so isValidAction passes and the plugin hands it to shop as an argument.
+    const hub = withCommand(createForm("hub"), "/hub");
+    const ok = withCommand(withOnClick(createForm("ok"), openBlock("hub", "diamond_sword")), "/ok");
+    const bad = withCommand(withOnClick(createForm("bad"), openBlock("hub", "diamond sword")), "/bad");
+    const issues = validateProject(projectWith(hub, ok, bad));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].formId).toBe("bad");
+    expect(issues[0].message).toContain("passes 'diamond sword' to it as an argument");
+    expect(messages(issues)).not.toContain("diamond_sword");
+  });
+
+  it("says nothing about an argument line that is a runtime placeholder", () => {
+    // FormMenuUtil.handleOnClick substitutes {key}/$key (PlaceholderUtil
+    // .processDynamicPlaceholders) and %…% (messageData.replaceVariables) before
+    // actionExecutor.executeAction runs, so isValidAction only ever sees the expansion.
+    const main = withCommand(
+      withOnClick(createForm("main_menu"), openBlock("shop", "{selected}"), openBlock("shop", "%player_name%")),
+      "/menu"
+    );
+    expect(validateProject(projectWith(main, createForm("shop")))).toEqual([]);
+  });
+
+  it("checks every argument line, not just the first one after the head", () => {
+    const main = withCommand(withOnClick(createForm("main_menu"), openBlock("shop", "sword", "gold ingot")), "/menu");
+    const errors = validateProject(projectWith(main, createForm("shop"))).filter((i) => i.level === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("passes 'gold ingot' to it as an argument");
+    expect(messages(errors)).not.toContain("'sword'");
+  });
+
+  it("reports the same malformed argument once however many blocks carry it", () => {
+    const main = withCommand(
+      withOnClick(createForm("main_menu"), openBlock("shop", "diamond sword"), openBlock("shop", "diamond sword")),
+      "/menu"
+    );
+    expect(validateProject(projectWith(main, createForm("shop"))).filter((i) => i.level === "error")).toHaveLength(1);
+  });
+
+  it("reports an argument line past the plugin's 100-character limit", () => {
+    const main = withCommand(withOnClick(createForm("main_menu"), openBlock("shop", "a".repeat(101))), "/menu");
+    const errors = validateProject(projectWith(main, createForm("shop"))).filter((i) => i.level === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("up to 100 characters");
+  });
+
+  it("accepts an argument line of exactly 100 characters", () => {
+    const main = withCommand(withOnClick(createForm("main_menu"), openBlock("shop", "a".repeat(100))), "/menu");
+    expect(validateProject(projectWith(main, createForm("shop")))).toEqual([]);
+  });
+
+  it("still reports a broken head alongside the malformed argument", () => {
+    const main = withCommand(withOnClick(createForm("main_menu"), openBlock("ghost_menu", "diamond sword")), "/menu");
+    const errors = validateProject(projectWith(main)).filter((i) => i.level === "error");
+    expect(errors).toHaveLength(2);
+    expect(errors[0].message).toContain("'ghost_menu', which is not a form in this project");
+    expect(errors[1].message).toContain("passes 'diamond sword' to it as an argument");
+  });
+
+  it("leaves a malformed single-value open block on the head path, which already reads correctly", () => {
+    const main = withCommand(withOnClick(createForm("main_menu"), openBlock("diamond sword")), "/menu");
+    const errors = validateProject(projectWith(main)).filter((i) => i.level === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toBe(
+      "Form 'main_menu' opens 'diamond sword', which is not a usable menu name — only letters, digits, '_', '.' and '-' are allowed, up to 100 characters. The plugin rejects the action outright rather than looking for a menu."
+    );
+  });
+});
+
 describe("validateProject — the colon form carries exactly one menu name", () => {
   it("counts a colon-form open as reaching its target", () => {
     const main = withCommand(withOnClick(createForm("main_menu"), "open:shop"), "/menu");
