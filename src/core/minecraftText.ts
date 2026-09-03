@@ -89,14 +89,12 @@ function isHexDigit(c: string) {
   return /^[0-9a-fA-F]$/.test(c);
 }
 
-function tryReadHexColor(input: string, start: number) {
-  if (start + 7 > input.length) return null;
-  if (input[start] !== "#") return null;
-  const hex = input.slice(start + 1, start + 7);
-  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
-  return { color: `#${hex.toUpperCase()}`, next: start + 7 };
-}
-
+// A *bare* `#RRGGBB` is deliberately not a colour here. Every hex pattern in the
+// plugin requires a prefix — `LegacyColors` matches only `<#RRGGBB>` (HEX_ANGLE)
+// and `&#RRGGBB` (HEX_AMP), and the message path adds only `<color:#RRGGBB>`.
+// Treating a bare `#` as a colour was a designer invention that ate any six
+// characters after a `#`, so "Ticket #123456 confirmed" rendered as
+// "Ticket  confirmed". Do not reintroduce it.
 function tryReadAmpSectionHexColor(input: string, start: number) {
   const ch = input[start];
   if (ch !== "&" && ch !== "§") return null;
@@ -134,7 +132,6 @@ export function stripMinecraftCodes(input: string) {
 
 export function hasMinecraftCodes(input: string) {
   if (!input) return false;
-  if (/#([0-9a-fA-F]{6})/.test(input)) return true;
   if (/([&§])#([0-9a-fA-F]{6})/.test(input)) return true;
   if (/([&§])[0-9a-fA-FrRlLoOnNmM]/.test(input)) return true;
   if (/([&§])x((?:\1[0-9a-fA-F]){6})/.test(input)) return true;
@@ -184,12 +181,13 @@ export function parseMinecraftText(input: string): MinecraftTextSegment[] {
     const ch = input[i];
 
     if (ch === "&" || ch === "§") {
+      // `&&` is NOT an escape for a literal `&`. LegacyColors.translateAmpersands
+      // scans char by char and converts `&` only when the next char is in CODES,
+      // which does not contain `&`; the scan then re-examines that second `&`
+      // against the char after it. So "&&aTest" is a literal `&` followed by the
+      // colour code `&a`, and "a && b" passes through untouched. Falling through
+      // to the per-character handling below reproduces exactly that.
       const next = input[i + 1];
-      if (next === ch) {
-        buf += ch;
-        i += 2;
-        continue;
-      }
 
       const xSeq = tryReadXSequenceHexColor(input, i);
       if (xSeq) {
@@ -262,15 +260,6 @@ export function parseMinecraftText(input: string): MinecraftTextSegment[] {
           });
         }
         i = tag.next;
-        continue;
-      }
-    }
-
-    if (ch === "#") {
-      const hex = tryReadHexColor(input, i);
-      if (hex) {
-        setStyle({ color: hex.color });
-        i = hex.next;
         continue;
       }
     }

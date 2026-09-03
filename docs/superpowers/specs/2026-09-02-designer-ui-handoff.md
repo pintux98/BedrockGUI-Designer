@@ -110,6 +110,29 @@ Two rules came out of this and are worth keeping:
 wrong in both halves, and two more were "untested, not broken" — caught because the implementers
 checked the Java rather than complying. Same standard that caught the `$value` deletion earlier.
 
+## Follow-up round (branch `fix/post-review-followups`)
+
+All four deferred items closed, plus the GitBook corrections the user made independently.
+**503 unit tests across 39 files**, 13 chromium e2e, `npm run verify` green.
+
+One of the four was not a defect. I had filed `"R&D budget"` rendering as coloured text alongside
+two real bugs in a single handoff bullet. `LegacyColors.CODES` lists uppercase explicitly and
+lowercases *after* matching, and the plugin's own `LegacyColorsTest` asserts
+`translate("&AGreen") == "§aGreen"` — so the designer was already correct, and a test now pins it
+against a future "fix". The other two in that bullet were genuine designer inventions with no
+plugin counterpart: bare `#RRGGBB`, and `&&` as an escape. **Verify per claim, not per bullet.**
+
+The history clones turned out to be pure cost rather than protection: `undo` already installed
+stored snapshots directly as live state, so they were aliased on the way out no matter what
+happened on the way in. Immutability was already load-bearing. Removing six `structuredClone` calls
+took the first "Add form" from 13.3 ms to 0.006 ms and real retention from 61.7 MB to 57 KB — and
+the invariant is now guarded by tests that nothing else in the suite duplicated.
+
+A note on method, from getting it wrong: a mutation check needs its own check. Testing the envelope
+key, I mutated the first `"bedrock"` in `keys.ts` — which sits in a doc comment — got a green run,
+and briefly concluded the coverage was fake. The mutation had simply not landed. Print the changed
+line before believing a green mutation result.
+
 ## Open items
 
 ### Dead by design, not pending
@@ -120,23 +143,13 @@ Left in place and documented in `CLAUDE.md`; delete it if the asymmetry bothers 
 
 ### Genuinely open
 
-- **A malformed tail line in a curly `open` block is reported by nobody.** `open { - "shop" -
-  "diamond sword" }` is rejected wholesale by `isValidAction` before `execute`, but `menuTargets`
-  deliberately ignores a non-resolving tail, so the designer says nothing. Only tail lines that fail
-  `isValidMenuName` are affected — a `diamond_sword` payload is still a legitimate argument. The
-  check needs to distinguish "not a valid menu *name*" from "a valid name that does not resolve".
-- **`pushProjectHistory` snapshots `history` before clearing redo stacks**, so undoing a structural
-  change can resurrect a redo entry that change should have invalidated. Latent: the matching
-  project redo entry currently always sorts newer and restores the cleared history first.
-- **Project history is expensive.** Each structural change `structuredClone`s the whole per-form
-  history; measured at 8 ms per "Add form" click on a 40-button form with a full undo stack, and
-  ~36 MB retained across the 20-entry project stack. Scales with forms × depth.
-- **`minecraftText` eats plain text** (pre-existing, confirmed against `main`, widened here by the
-  routing change): `"Ticket #123456 confirmed"` renders as `"Ticket  confirmed"`, and `"R&D budget"`
-  loses the `&D`. Bare `#RRGGBB` and `&`+hex are treated as colours.
-- **`keys.ts` does not cover the document envelope.** `bedrock` and `java`, the two top-level keys
-  `parseFormDocument` reads and `serializeFormDocument` writes, are still hardcoded. The contract
-  covers everything inside a form and nothing about the file wrapping it.
+- **`parse/config.ts` still spells its keys inline.** `CONFIG_KEYS` now declares `config-version`,
+  `forms`/`file` and `assets` `enabled`/`host`/`port`, but nothing consumes it yet; a unit test is
+  the only thing holding those spellings.
+- **Two colour syntaxes the plugin accepts and the designer does not.** `<color:#RRGGBB>`
+  (`MessageActionHandler.java:213`) and the MiniMessage aliases `grey`, `dark_grey`, `obf`, `b`,
+  `st`, `u`, `i`, `em`, `reset` (`LegacyColors.java:15-45`). Both fail visibly as literal text in
+  the preview rather than corrupting anything, which is why they were left.
 - **`StyleGuidePanel.tsx` has no production importer** — only `src/tests/ui.spec.tsx` renders it.
   Dev-only by intent or an orphan; needs a human call, so it was left alone.
 - **Zod messages still reach users verbatim**, unchanged from the foundation handoff.

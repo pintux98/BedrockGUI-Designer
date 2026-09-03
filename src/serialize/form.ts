@@ -1,7 +1,7 @@
 import * as yaml from "js-yaml";
 import { FormDoc } from "../core/project";
 import { ActionInstance, BedrockButton, BedrockComponent } from "../core/types";
-import { BUTTON_KEYS, COMPONENT_KEYS, CONDITION_KEYS, FORM_KEYS } from "../plugin/keys";
+import { BUTTON_KEYS, COMPONENT_KEYS, CONDITION_KEYS, DOCUMENT_KEYS, FORM_KEYS } from "../plugin/keys";
 import { applyBlockScalars } from "./blockScalar";
 
 export function serializeFormDocument(doc: FormDoc): string {
@@ -27,8 +27,8 @@ export function serializeFormDocument(doc: FormDoc): string {
   const globalActions = actionsToList(form.globalActions);
   if (globalActions) bedrock[FORM_KEYS.globalActions] = globalActions;
 
-  const document: Record<string, unknown> = { bedrock };
-  if (doc.javaRaw !== undefined) document.java = doc.javaRaw;
+  const document: Record<string, unknown> = { [DOCUMENT_KEYS.bedrock]: bedrock };
+  if (doc.javaRaw !== undefined) document[DOCUMENT_KEYS.java] = doc.javaRaw;
 
   return applyBlockScalars(
     yaml.dump(document, { lineWidth: -1, noRefs: true, forceQuotes: true, quoteStyle: "double" })

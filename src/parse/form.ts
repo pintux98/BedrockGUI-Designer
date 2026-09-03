@@ -8,11 +8,11 @@ import {
   BedrockForm
 } from "../core/types";
 import { FormDoc } from "../core/project";
-import { BUTTON_KEYS, COMPONENT_KEYS, CONDITION_KEYS, FORM_KEYS } from "../plugin/keys";
+import { BUTTON_KEYS, COMPONENT_KEYS, CONDITION_KEYS, DOCUMENT_KEYS, FORM_KEYS } from "../plugin/keys";
 
 export function parseFormDocument(text: string, id: string): FormDoc {
   const doc = (yaml.load(text) ?? {}) as Record<string, any>;
-  const bedrock = (doc.bedrock ?? doc) as Record<string, any>;
+  const bedrock = (doc[DOCUMENT_KEYS.bedrock] ?? doc) as Record<string, any>;
   const type = String(bedrock[FORM_KEYS.type] ?? "SIMPLE").toUpperCase();
 
   const base = {
@@ -34,7 +34,7 @@ export function parseFormDocument(text: string, id: string): FormDoc {
         };
 
   const result: FormDoc = { id, fileName: `${id}.yml`, bedrock: form };
-  if (doc.java !== undefined) result.javaRaw = doc.java;
+  if (doc[DOCUMENT_KEYS.java] !== undefined) result.javaRaw = doc[DOCUMENT_KEYS.java];
   return result;
 }
 

@@ -14,10 +14,19 @@ describe("minecraftText", () => {
     expect(segs.some((s) => s.style.color === "#FF5555")).toBe(true);
   });
 
-  it("parses direct #RRGGBB hex colors", () => {
-    const segs = parseMinecraftText("#ff00ffHex");
-    expect(stripMinecraftCodes("#ff00ffHex")).toBe("Hex");
-    expect(segs.some((s) => s.style.color === "#FF00FF")).toBe(true);
+  // LegacyColors matches hex only via HEX_ANGLE (`<#RRGGBB>`) and HEX_AMP
+  // (`&#RRGGBB`); a bare `#RRGGBB` is not a colour anywhere in the plugin.
+  it("leaves a bare #RRGGBB as literal text", () => {
+    expect(parseMinecraftText("#ff00ffHex")).toEqual([{ text: "#ff00ffHex", style: {} }]);
+    expect(hasMinecraftCodes("#ff00ffHex")).toBe(false);
+  });
+
+  it("does not eat a six-digit number after a #", () => {
+    expect(stripMinecraftCodes("Ticket #123456 confirmed")).toBe("Ticket #123456 confirmed");
+    expect(parseMinecraftText("Ticket #123456 confirmed")).toEqual([
+      { text: "Ticket #123456 confirmed", style: {} }
+    ]);
+    expect(hasMinecraftCodes("Ticket #123456 confirmed")).toBe(false);
   });
 
   it("parses &#RRGGBB hex colors", () => {
@@ -33,9 +42,49 @@ describe("minecraftText", () => {
     expect(segs.some((s) => s.style.color === "#FF00FF")).toBe(true);
   });
 
-  it("treats double && and §§ as literal characters", () => {
-    expect(stripMinecraftCodes("&&aTest")).toBe("&aTest");
-    expect(stripMinecraftCodes("§§cTest")).toBe("§cTest");
+  // The plugin has no `&&` escape. translateAmpersands converts `&` only when the
+  // NEXT char is in CODES — `&` is not — and then re-examines that second `&`, so
+  // "&&aTest" becomes "&§aTest": a literal ampersand plus a live colour code.
+  it("treats the second of a doubled && as a live colour code", () => {
+    expect(parseMinecraftText("&&aTest")).toEqual([
+      { text: "&", style: {} },
+      { text: "Test", style: { color: "#55FF55" } }
+    ]);
+    expect(stripMinecraftCodes("&&aTest")).toBe("&Test");
+    expect(parseMinecraftText("§§cTest")).toEqual([
+      { text: "§", style: {} },
+      { text: "Test", style: { color: "#FF5555" } }
+    ]);
+    expect(stripMinecraftCodes("§§cTest")).toBe("§Test");
+  });
+
+  // LegacyColorsTest.leavesALiteralAmpersandAlone: "Tom & Jerry" and "trailing&"
+  // both survive untouched, because the char after `&` is not a code.
+  it("leaves an ampersand that no code follows alone", () => {
+    expect(parseMinecraftText("Tom & Jerry")).toEqual([{ text: "Tom & Jerry", style: {} }]);
+    expect(hasMinecraftCodes("Tom & Jerry")).toBe(false);
+    expect(parseMinecraftText("trailing&")).toEqual([{ text: "trailing&", style: {} }]);
+    expect(hasMinecraftCodes("trailing&")).toBe(false);
+  });
+
+  // The old escape rewrote this to "a & b" while hasMinecraftCodes returned false,
+  // so the preview's markdown branch silently lost a character.
+  it("passes a doubled ampersand between spaces through untouched", () => {
+    expect(parseMinecraftText("a && b")).toEqual([{ text: "a && b", style: {} }]);
+    expect(stripMinecraftCodes("a && b")).toBe("a && b");
+    expect(hasMinecraftCodes("a && b")).toBe(false);
+  });
+
+  // LegacyColorsTest.translatesColourCodesRegardlessOfCase asserts
+  // translate("&AGreen") == "§aGreen", and CODES lists "AaBbCcDdEeFf". Uppercase
+  // really is a colour code, so "R&D budget" colouring is the plugin's behaviour.
+  it("treats an uppercase code after & as a colour, as the plugin does", () => {
+    expect(parseMinecraftText("R&D budget")).toEqual([
+      { text: "R", style: {} },
+      { text: " budget", style: { color: "#FF55FF" } }
+    ]);
+    expect(hasMinecraftCodes("R&D budget")).toBe(true);
+    expect(parseMinecraftText("&AGreen")).toEqual([{ text: "Green", style: { color: "#55FF55" } }]);
   });
 
   it("renders a hex colour", () => {
@@ -75,6 +124,15 @@ describe("minecraftText", () => {
       style: { color: "#FF8800", bold: true }
     });
     expect(parseMinecraftText("&#FF8800&rplain")[0]).toEqual({ text: "plain", style: {} });
+  });
+
+  // Dropping the bare-`#` rule from hasMinecraftCodes must not take the two
+  // prefixed hex syntaxes with it — they were incidentally covered by it.
+  it("still detects both prefixed hex syntaxes", () => {
+    expect(hasMinecraftCodes("&#00ff00Green")).toBe(true);
+    expect(hasMinecraftCodes("§#00ff00Green")).toBe(true);
+    expect(hasMinecraftCodes("<#00FF00>go")).toBe(true);
+    expect(hasMinecraftCodes("§x§F§F§0§0§F§FHex")).toBe(true);
   });
 
   it("detects MiniMessage tags but not unknown ones", () => {
