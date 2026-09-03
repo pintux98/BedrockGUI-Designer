@@ -392,3 +392,92 @@ describe("undo spans every form, not just the active one", () => {
     expect(titleOf("main_menu")).toBe("Main edit");
   });
 });
+
+describe("history snapshots are isolated from later edits", () => {
+  const s = () => useDesignerStore.getState();
+
+  beforeEach(() => {
+    s().loadProject(createEmptyProject());
+  });
+
+  function setTitle(title: string) {
+    s().setBedrock({ ...s().activeForm().bedrock, title }, "Updated title");
+  }
+
+  // pushProjectHistory stores the live `project` and `history` by reference
+  // instead of deep-cloning them, which is only sound while every store write
+  // REPLACES objects rather than mutating them. Reintroduce a mutation anywhere
+  // in that chain — a `value.redo = []` in withClearedRedo, a `stack.undo.push`,
+  // a panel editing `bedrock.buttons[i].text` in place — and the snapshot drifts
+  // forward to match the live state, so the undo it exists to serve silently
+  // restores the value the user was trying to get away from.
+  //
+  // This asserts on the retained snapshot object directly, and then on what undo
+  // actually produces, because a snapshot that is merely *reachable* proves
+  // nothing if the entries inside it have been rewritten underneath.
+  it("keeps a project-history snapshot isolated from every later edit", () => {
+    setTitle("First");
+    setTitle("Second");
+    s().undo();
+    expect(s().activeForm().bedrock.title).toBe("First");
+
+    s().addForm("shop");
+    const snapshot = s().projectHistory.undo[s().projectHistory.undo.length - 1];
+    expect(snapshot.description).toBe("Added form shop");
+
+    // Churn the live project and the live per-form stacks well past the snapshot.
+    setTitle("Third");
+    s().addForm("bazaar");
+    s().setAssets({ enabled: true, port: 8123, host: "cdn.example.com" });
+    s().renameForm("shop", "market");
+
+    // The retained snapshot must still describe the world as it stood at "Added
+    // form shop" — one form titled "First", assets off, one undo step banked and
+    // one redo step still pending on main_menu.
+    expect(snapshot.project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+    expect(snapshot.project.forms[0].bedrock.title).toBe("First");
+    expect(snapshot.project.assets.enabled).toBe(false);
+    expect(snapshot.history["main_menu"].undo.map((e) => e.form.bedrock.title)).toEqual(["New Form"]);
+    expect(snapshot.history["main_menu"].redo.map((e) => e.form.bedrock.title)).toEqual(["Second"]);
+
+    // ...and walking undo back to it must restore exactly that, redo stack included.
+    s().undo(); // Renamed form shop to market
+    s().undo(); // Updated assets configuration
+    s().undo(); // Added form bazaar
+    s().undo(); // Updated title -> "Third"
+    s().undo(); // Added form shop -> restores the snapshot
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+    expect(s().activeForm().bedrock.title).toBe("First");
+    expect(s().project.assets.enabled).toBe(false);
+    expect(s().history["main_menu"].undo.map((e) => e.form.bedrock.title)).toEqual(["New Form"]);
+    expect(s().history["main_menu"].redo.map((e) => e.form.bedrock.title)).toEqual(["Second"]);
+  });
+
+  // The same invariant one level down: a per-form undo entry holds the FormDoc
+  // as it was before the edit, and setBedrock must not reach into it.
+  it("keeps a per-form undo entry isolated from every later edit", () => {
+    setTitle("First");
+    const entry = s().history["main_menu"].undo[0];
+    expect(entry.form.bedrock.title).toBe("New Form");
+
+    setTitle("Second");
+    setTitle("Third");
+    expect(entry.form.bedrock.title).toBe("New Form");
+
+    s().undo();
+    s().undo();
+    s().undo();
+    expect(s().activeForm().bedrock.title).toBe("New Form");
+
+    // Walk it back up. Each redo entry banks the live FormDoc on its way past,
+    // so if undo restored by assigning onto that FormDoc rather than replacing
+    // it, all three entries end up aliasing one object and redo replays the
+    // same value three times.
+    s().redo();
+    expect(s().activeForm().bedrock.title).toBe("First");
+    s().redo();
+    expect(s().activeForm().bedrock.title).toBe("Second");
+    s().redo();
+    expect(s().activeForm().bedrock.title).toBe("Third");
+  });
+});

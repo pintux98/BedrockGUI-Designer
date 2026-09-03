@@ -40,6 +40,34 @@ export interface HistorySlice {
   redo: () => void;
 }
 
+/**
+ * History snapshots are stored **by reference, never cloned.**
+ *
+ * That is safe because the whole store is replace-only: every write path builds
+ * a new object at each level it touches and leaves the old one alone. Nothing
+ * anywhere mutates a `Project`, a `FormDoc`, a `BedrockForm`, a button, a
+ * component, a `FormHistory` or a history array in place — the panels all edit
+ * through `{ ...x, field }` / `[...arr]` / `.map` / `.filter`, and the store
+ * actions do the same. So an object handed to a snapshot is frozen in practice
+ * the moment the action that captured it returns: the next edit replaces it
+ * rather than changing it, and the snapshot keeps pointing at the old value.
+ *
+ * The code already depended on this before the clones were dropped — the project
+ * branch of `undo` installs `projectEntry.project`/`projectEntry.history`
+ * *directly* as live state, and the form branch aliases `entry.form.bedrock`
+ * into the live project. Deep-cloning on the way in never protected those.
+ *
+ * The clones were not merely wasted work, they were the cost: `structuredClone`
+ * denies every entry any structural sharing, so a 20-entry project stack
+ * carrying a 100-entry form stack retained 20 x 100 independent deep copies of
+ * the form. Storing references lets the 99 unchanged buttons of consecutive
+ * entries be one set of objects.
+ *
+ * **If you ever make some path mutate stored state in place, this breaks** —
+ * and it breaks history correctness generally, not just here. Keep the store
+ * replace-only. `store.spec.ts` -> "keeps a project-history snapshot isolated
+ * from every later edit" is the regression guard.
+ */
 const EMPTY: FormHistory = { undo: [], redo: [] };
 const EMPTY_PROJECT_HISTORY: ProjectHistory = { undo: [], redo: [] };
 const PROJECT_HISTORY_LIMIT = 20;
@@ -111,7 +139,14 @@ export function allHistoryRows(
   return rows.sort((a, b) => a.timestamp - b.timestamp);
 }
 
-/** Every form's stack with its redo cleared — a new action invalidates all redos. */
+/**
+ * Every form's stack with its redo cleared — a new action invalidates all redos.
+ *
+ * This builds a new record and new `FormHistory` values and never writes into
+ * the ones it was given. That is required, not stylistic: `pushProjectHistory`
+ * snapshots the record it is replacing by reference, so clearing the redos in
+ * place would empty the snapshot's redo stacks too.
+ */
 function withClearedRedo(history: Record<string, FormHistory>): Record<string, FormHistory> {
   const next: Record<string, FormHistory> = {};
   for (const [key, value] of Object.entries(history)) {
@@ -139,9 +174,13 @@ export const createHistorySlice: StateCreator<
       // through to "Updated form" — so collapsing on it silently threw away
       // steps the user still needed. Editors that fire per keystroke buffer
       // their own writes instead of being retro-merged here.
+      //
+      // `form` is the live FormDoc as it stands *before* the edit. setBedrock's
+      // own set() is about to swap it for a fresh `{ ...f, bedrock }`, so this
+      // reference is orphaned from live state the moment we return.
       const undo = [
         ...current.undo,
-        { form: structuredClone(form), description, timestamp: nextTimestamp() }
+        { form, description, timestamp: nextTimestamp() }
       ];
 
       history[formId] = { undo: undo.slice(-FORM_HISTORY_LIMIT), redo: [] };
@@ -153,6 +192,11 @@ export const createHistorySlice: StateCreator<
   },
 
   pushProjectHistory: (description) => {
+    // Both are read before the structural action's own set() runs, and both are
+    // replaced by it — `project` by `{ ...s.project, ... }` in projectSlice, and
+    // `history` by the withClearedRedo() below, which builds a whole new record
+    // rather than clearing the redos in place. So neither reference is reachable
+    // from live state afterwards, and neither can drift.
     const project = get().project;
     const historySnapshot = get().history;
     set((s) => ({
@@ -160,12 +204,7 @@ export const createHistorySlice: StateCreator<
       projectHistory: {
         undo: [
           ...s.projectHistory.undo,
-          {
-            project: structuredClone(project),
-            history: structuredClone(historySnapshot),
-            description,
-            timestamp: nextTimestamp()
-          }
+          { project, history: historySnapshot, description, timestamp: nextTimestamp() }
         ].slice(-PROJECT_HISTORY_LIMIT),
         redo: []
       }
@@ -187,8 +226,10 @@ export const createHistorySlice: StateCreator<
             redo: [
               ...s.projectHistory.redo,
               {
-                project: structuredClone(s.project),
-                history: structuredClone(s.history),
+                // This same set() replaces `project` and `history` wholesale
+                // with the snapshot's, so the outgoing pair is orphaned.
+                project: s.project,
+                history: s.history,
                 description: projectEntry.description,
                 timestamp: nextTimestamp()
               }
@@ -217,9 +258,11 @@ export const createHistorySlice: StateCreator<
           ...s.history,
           [formId]: {
             undo: stack.undo.slice(0, -1),
+            // The project above replaces this FormDoc with a fresh
+            // `{ ...f, bedrock }`, so `live` leaves the project as we store it.
             redo: [
               ...stack.redo,
-              { form: structuredClone(live), description: entry.description, timestamp: nextTimestamp() }
+              { form: live, description: entry.description, timestamp: nextTimestamp() }
             ]
           }
         },
@@ -242,8 +285,9 @@ export const createHistorySlice: StateCreator<
             undo: [
               ...s.projectHistory.undo,
               {
-                project: structuredClone(s.project),
-                history: structuredClone(s.history),
+                // Replaced by the snapshot in this same set() — see undo().
+                project: s.project,
+                history: s.history,
                 description: projectEntry.description,
                 timestamp: nextTimestamp()
               }
@@ -270,9 +314,10 @@ export const createHistorySlice: StateCreator<
         history: {
           ...s.history,
           [formId]: {
+            // `live` is orphaned by the project rebuild above — see undo().
             undo: [
               ...stack.undo,
-              { form: structuredClone(live), description: entry.description, timestamp: nextTimestamp() }
+              { form: live, description: entry.description, timestamp: nextTimestamp() }
             ],
             redo: stack.redo.slice(0, -1)
           }
