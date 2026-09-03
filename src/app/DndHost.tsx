@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  CollisionDetection,
   DndContext,
   DragEndEvent,
   DragOverlay,
@@ -17,6 +18,91 @@ import { nextSequentialId } from "../core/ids";
 import { IconTile } from "../components/IconTile";
 import { arrayMove } from "@dnd-kit/sortable";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+
+/**
+ * A button row can be dragged from two surfaces now: the PropertiesPanel list
+ * (`bedrock-button-<id>`) and the preview itself (`bedrock-preview-button-<id>`). The two
+ * prefixes have to differ because dnd-kit keys every draggable by id inside a single
+ * DndContext, and both surfaces are on screen at the same time. The literals are spelled
+ * out here and again at each call site on purpose — that is what lets a test pin them.
+ */
+const BUTTON_SORTABLE_PREFIXES = ["bedrock-preview-button-", "bedrock-button-"];
+const COMPONENT_SORTABLE_PREFIXES = ["bedrock-preview-component-", "bedrock-component-"];
+
+function sortableTargetId(raw: string, prefixes: string[]): string | null {
+  for (const prefix of prefixes) {
+    if (raw.startsWith(prefix)) return raw.slice(prefix.length);
+  }
+  return null;
+}
+
+/**
+ * Resolves a sortable drag into the reordered form plus the history description to record.
+ * Returns null when the drag is not a reorder (a palette drop, a no-op, an unknown id), so
+ * the caller can fall through to the palette-drop path.
+ */
+export function computeReorderResult(
+  bedrock: BedrockForm,
+  activeId: string,
+  overId: string
+): { next: BedrockForm; description: string } | null {
+  const fromButton = sortableTargetId(activeId, BUTTON_SORTABLE_PREFIXES);
+  const toButton = sortableTargetId(overId, BUTTON_SORTABLE_PREFIXES);
+  if (fromButton !== null && toButton !== null && bedrock.type === "SIMPLE") {
+    const buttons = bedrock.buttons ?? [];
+    const from = buttons.findIndex((b) => b.id === fromButton);
+    const to = buttons.findIndex((b) => b.id === toButton);
+    if (from === -1 || to === -1 || from === to) return null;
+    return {
+      next: { ...bedrock, buttons: arrayMove(buttons, from, to) },
+      description: "Reordered buttons"
+    };
+  }
+
+  const fromComponent = sortableTargetId(activeId, COMPONENT_SORTABLE_PREFIXES);
+  const toComponent = sortableTargetId(overId, COMPONENT_SORTABLE_PREFIXES);
+  if (fromComponent !== null && toComponent !== null && bedrock.type === "CUSTOM") {
+    const components = bedrock.components ?? [];
+    const from = components.findIndex((c) => c.id === fromComponent);
+    const to = components.findIndex((c) => c.id === toComponent);
+    if (from === -1 || to === -1 || from === to) return null;
+    return {
+      next: { ...bedrock, components: arrayMove(components, from, to) },
+      description: "Reordered components"
+    };
+  }
+
+  return null;
+}
+
+/**
+ * closestCenter stays the algorithm — unsetting it broke drag entirely for a release. The
+ * only change is the candidate set, and it is forced by the preview now holding its own
+ * SortableContext *inside* the big `bedrock-buttons` / `bedrock-components` canvas
+ * droppable. Unfiltered, the two kinds of drag steal each other's targets:
+ *
+ * - a row dragged in the preview keeps resolving to the canvas container, whose centre sits
+ *   right in the middle of the row list, so the reorder silently does nothing;
+ * - a palette tile can now resolve to a preview row instead of the container, and
+ *   `computeDropResult` only ever accepts `bedrock-buttons` / `bedrock-components`, so the
+ *   drop silently adds nothing.
+ *
+ * So: a sortable drag scores only droppables from its own SortableContext, and a palette
+ * drag scores only the container droppables. Each is still ranked by plain closestCenter.
+ */
+function sortableContainerId(container: { data: { current?: any } }): string | undefined {
+  return container.data.current?.sortable?.containerId;
+}
+
+export const sortableAwareClosestCenter: CollisionDetection = (args) => {
+  const activeContainerId = (args.active.data.current as any)?.sortable?.containerId;
+  const candidates =
+    activeContainerId != null
+      ? args.droppableContainers.filter((c) => sortableContainerId(c) === activeContainerId)
+      : args.droppableContainers.filter((c) => sortableContainerId(c) === undefined);
+  if (!candidates.length) return closestCenter(args);
+  return closestCenter({ ...args, droppableContainers: candidates });
+};
 
 export function DndHost({ children }: { children: React.ReactNode }) {
   const { activeForm, setBedrock } = useDesignerStore();
@@ -58,31 +144,16 @@ export function DndHost({ children }: { children: React.ReactNode }) {
     if (!active) return;
 
     if (bedrock) {
-      if (active.startsWith("bedrock-button-") && over.startsWith("bedrock-button-") && bedrock.type === "SIMPLE") {
-        const activeKey = active.replace("bedrock-button-", "");
-        const overKey = over.replace("bedrock-button-", "");
-        const from = (bedrock.buttons ?? []).findIndex((b: any) => b.id === activeKey);
-        const to = (bedrock.buttons ?? []).findIndex((b: any) => b.id === overKey);
-        if (from !== -1 && to !== -1 && from !== to) {
-          const buttons = arrayMove(bedrock.buttons ?? [], from, to);
-          setBedrock({ ...(bedrock as any), buttons } as BedrockForm);
-        }
-        return;
-      }
-      if (active.startsWith("bedrock-component-") && over.startsWith("bedrock-component-") && bedrock.type === "CUSTOM") {
-        const activeKey = active.replace("bedrock-component-", "");
-        const overKey = over.replace("bedrock-component-", "");
-        const from = (bedrock.components ?? []).findIndex((c: any) => c.id === activeKey);
-        const to = (bedrock.components ?? []).findIndex((c: any) => c.id === overKey);
-        if (from !== -1 && to !== -1 && from !== to) {
-          const components = arrayMove(bedrock.components ?? [], from, to);
-          setBedrock({ ...(bedrock as any), components } as BedrockForm);
-        }
+      const reorder = computeReorderResult(bedrock, active, over);
+      if (reorder) {
+        setBedrock(reorder.next, reorder.description);
         return;
       }
     }
 
     if (bedrock) {
+      // A sortable row carries only dnd-kit's own `sortable` data, never a `type`, so a
+      // reorder that resolved to a no-op can never fall through into a palette insert.
       const t = data?.type as string | undefined;
       if (!t) return;
       const next = computeDropResult(bedrock, over, t);
@@ -93,7 +164,7 @@ export function DndHost({ children }: { children: React.ReactNode }) {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={sortableAwareClosestCenter}
       onDragStart={(e) => {
         setActiveId(e.active.id.toString());
         const d = e.active.data.current as any;

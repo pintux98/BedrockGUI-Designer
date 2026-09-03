@@ -2,7 +2,7 @@ import React from "react";
 import { afterEach, describe, it, expect } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { BedrockPreview } from "../canvas/previews/BedrockPreview";
-import { DndContext } from "@dnd-kit/core";
+import { DndContext, useDndContext } from "@dnd-kit/core";
 
 afterEach(() => cleanup());
 
@@ -134,5 +134,171 @@ describe("Preview Components", () => {
       // MinecraftText would have left the asterisks and underscores on screen.
       expect(screen.queryByText("**bold** and _italic_")).toBeNull();
     });
+  });
+});
+
+/**
+ * Request: reorder buttons by dragging them in the preview itself.
+ *
+ * The reorder is resolved by DndHost from dnd-kit ids, so the only thing that can silently
+ * break the feature is the preview registering ids that DndHost does not recognise. These
+ * tests read the ids straight out of the live DndContext registry and compare them against
+ * literals — the same literals `computeReorderResult` is tested against in dnd-host.spec.ts.
+ */
+describe("BedrockPreview reordering", () => {
+  let registered: string[] = [];
+  let sortOrder: string[] = [];
+
+  function DraggableIdProbe() {
+    const { draggableNodes } = useDndContext();
+    registered = Array.from(draggableNodes.keys(), String);
+    // What SortableContext was handed as `items` — the order the strategy shifts rows in.
+    const first = draggableNodes.values().next().value;
+    sortOrder = (first?.data.current as any)?.sortable?.items?.map(String) ?? [];
+    return null;
+  }
+
+  function wrapWithProbe(ui: React.ReactElement) {
+    registered = [];
+    sortOrder = [];
+    return render(
+      <DndContext>
+        {ui}
+        <DraggableIdProbe />
+      </DndContext>
+    );
+  }
+
+  it("registers one draggable per SIMPLE button, named the way DndHost reorders them", () => {
+    const form: any = {
+      type: "SIMPLE",
+      title: "Menu",
+      content: "",
+      buttons: [
+        { id: "button_1", text: "One" },
+        { id: "button_2", text: "Two" },
+        { id: "button_3", text: "Three" }
+      ]
+    };
+    wrapWithProbe(<BedrockPreview form={form} />);
+    expect(registered).toEqual([
+      "bedrock-preview-button-button_1",
+      "bedrock-preview-button-button_2",
+      "bedrock-preview-button-button_3"
+    ]);
+  });
+
+  it("registers one draggable per CUSTOM component", () => {
+    const form: any = {
+      type: "CUSTOM",
+      title: "Menu",
+      components: [
+        { id: "component_1", type: "input", props: {} },
+        { id: "component_2", type: "toggle", props: {} }
+      ]
+    };
+    wrapWithProbe(<BedrockPreview form={form} />);
+    expect(registered).toEqual([
+      "bedrock-preview-component-component_1",
+      "bedrock-preview-component-component_2"
+    ]);
+  });
+
+  it("does not register a draggable for a button hidden by its show_condition", () => {
+    // A row that is not on screen must not be in the sort order either, or dropping onto
+    // index 1 would land somewhere the user cannot see.
+    const form: any = {
+      type: "SIMPLE",
+      title: "Menu",
+      content: "",
+      buttons: [
+        { id: "shown", text: "Shown" },
+        { id: "gated", text: "Gated", showCondition: "permission:some.perm" }
+      ]
+    };
+    wrapWithProbe(<BedrockPreview form={form} />);
+    expect(registered).toEqual(["bedrock-preview-button-shown"]);
+    // And the sort order SortableContext works from holds the same single row: a list that
+    // still counted the hidden one would shift the visible rows by the wrong index.
+    expect(sortOrder).toEqual(["bedrock-preview-button-shown"]);
+  });
+
+  it("gives each SIMPLE row a grab handle that is invisible until hover or focus", () => {
+    const form: any = {
+      type: "SIMPLE",
+      title: "Menu",
+      content: "",
+      buttons: [{ id: "button_1", text: "One" }]
+    };
+    const { container } = wrap(<BedrockPreview form={form} />);
+    const handle = container.querySelector('[aria-label="Reorder button_1"]')!;
+    expect(handle).toHaveAttribute("aria-roledescription", "sortable");
+    // Resting state is a plain Bedrock button: the affordance only appears on hover/focus.
+    expect(handle.className).toContain("opacity-0");
+    expect(handle.className).toContain("group-hover:opacity-100");
+  });
+
+  it("keeps the drag handle out of the button, so clicking the row still selects it", () => {
+    const form: any = {
+      type: "SIMPLE",
+      title: "Menu",
+      content: "",
+      buttons: [{ id: "button_1", text: "One" }]
+    };
+    const { container } = wrap(<BedrockPreview form={form} />);
+    const handle = container.querySelector('[aria-label="Reorder button_1"]')!;
+    expect(handle.closest("button")).toBeNull();
+  });
+
+  it("puts no drag handle on MODAL buttons, which DndHost refuses to reorder", () => {
+    const form: any = {
+      type: "MODAL",
+      title: "Confirm",
+      content: "Sure?",
+      buttons: [
+        { id: "yes", text: "Yes" },
+        { id: "no", text: "No" }
+      ]
+    };
+    wrapWithProbe(<BedrockPreview form={form} />);
+    expect(registered).toEqual([]);
+  });
+});
+
+/**
+ * The "Detailed Mode" checkbox is gone; the id captions it used to gate are now always on.
+ */
+describe("BedrockPreview id captions", () => {
+  it("captions every SIMPLE row with its button id, with no checkbox to turn on", () => {
+    const form: any = {
+      type: "SIMPLE",
+      title: "Menu",
+      content: "",
+      buttons: [{ id: "button_1", text: "One" }]
+    };
+    wrap(<BedrockPreview form={form} />);
+    expect(screen.getByText("button_1")).toBeInTheDocument();
+  });
+
+  it("captions every CUSTOM row with its id and type", () => {
+    const form: any = {
+      type: "CUSTOM",
+      title: "Menu",
+      components: [{ id: "component_1", type: "slider", props: {} }]
+    };
+    wrap(<BedrockPreview form={form} />);
+    expect(screen.getByText("component_1 (slider)")).toBeInTheDocument();
+  });
+
+  it("captions MODAL buttons without polluting the button's own text", () => {
+    const form: any = {
+      type: "MODAL",
+      title: "Confirm",
+      content: "Sure?",
+      buttons: [{ id: "yes", text: "Yes" }]
+    };
+    wrap(<BedrockPreview form={form} />);
+    expect(screen.getByText("yes")).toBeInTheDocument();
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["✕", "Yes"]);
   });
 });
