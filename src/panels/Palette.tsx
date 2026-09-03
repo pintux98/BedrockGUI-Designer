@@ -13,7 +13,17 @@ const items = [
 export function Palette() {
   const { activeForm } = useDesignerStore();
   const bedrock = activeForm().bedrock;
-  const disabled = bedrock?.type === "MODAL";
+  // A Modal is a fixed two-button dialog: nothing in the palette can be dropped
+  // onto it, so the palette is hidden rather than shown greyed out. The note
+  // takes its place so the panel does not just silently go blank.
+  if (bedrock?.type === "MODAL") {
+    return (
+      <div className="text-[11px] text-brand-muted px-1 py-2 leading-relaxed">
+        A Modal form is a fixed two-button dialog — there is nothing to drag onto it. Edit its two buttons
+        under Properties.
+      </div>
+    );
+  }
   const visibleItems =
     bedrock?.type === "SIMPLE"
       ? items.filter((i) => i.id === "btn")
@@ -23,7 +33,7 @@ export function Palette() {
       <div className="ui-panel-title">Palette</div>
       <div className="grid grid-cols-2 gap-2">
         {visibleItems.map((i) => (
-          <Draggable key={i.id} id={i.id} label={i.label} data={i.data} disabled={disabled} />
+          <Draggable key={i.id} id={i.id} label={i.label} data={i.data} />
         ))}
       </div>
     </div>
@@ -33,13 +43,11 @@ export function Palette() {
 function Draggable({
   id,
   label,
-  data,
-  disabled
+  data
 }: {
   id: string;
   label: string;
   data: Record<string, unknown>;
-  disabled?: boolean;
 }) {
   const { attributes, listeners, setNodeRef } = useDraggable({
     id,
@@ -49,10 +57,10 @@ function Draggable({
     <button
       ref={setNodeRef as any}
       {...attributes}
-      {...(disabled ? {} : listeners)}
+      {...listeners}
       type="button"
       aria-label={label}
-      className={`ui-btn-secondary w-full ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-move"}`}
+      className="ui-btn-secondary w-full cursor-move"
       style={{ touchAction: "none" }}
     >
       {label}

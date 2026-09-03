@@ -6,10 +6,7 @@ export function FormTypePanel() {
   const bedrock = activeForm().bedrock;
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-brand-text uppercase tracking-wider">Form Type</span>
-        <span className="text-[10px] text-brand-accent bg-brand-accent/10 px-2 py-0.5 rounded font-medium">Bedrock</span>
-      </div>
+      <div className="text-xs font-semibold text-brand-text uppercase tracking-wider">Form Type</div>
       {bedrock && (
         <select
           className="ui-input w-full text-sm"

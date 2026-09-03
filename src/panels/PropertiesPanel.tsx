@@ -58,7 +58,6 @@ export function PropertiesPanel() {
       <div className="p-2">
       {bedrock && (
         <div className="space-y-2">
-          <div className="ui-chip">Bedrock</div>
           <CollapsibleSection title="Form Settings" icon="⚙️">
             <div className="space-y-2 pt-2">
               <BufferedInput
@@ -139,6 +138,7 @@ export function PropertiesPanel() {
                 {bedrock.buttons.map((b, idx) => (
                   <SortableCard
                     key={b.id}
+                    sortable={bedrock.type === "SIMPLE"}
                     id={`bedrock-button-${b.id}`}
                     selected={selectedBedrockButtonId === b.id}
                     onSelect={() => {
@@ -299,6 +299,7 @@ export function PropertiesPanel() {
               {bedrock.components.map((c, ci) => (
                 <SortableCard
                   key={c.id}
+                  sortable
                   id={`bedrock-component-${c.id}`}
                   selected={selectedBedrockComponentId === c.id}
                   onSelect={() => {
@@ -498,12 +499,19 @@ function SortableCard({
   selected,
   onSelect,
   registerRef,
+  sortable,
   children
 }: {
   id: string;
   selected?: boolean;
   onSelect?: () => void;
   registerRef?: (el: HTMLDivElement | null) => void;
+  /**
+   * MODAL buttons are not reorderable: DndHost gates reorder on
+   * `bedrock.type === "SIMPLE"`, so a handle here would be inert. Offering a
+   * drag affordance the app refuses to act on is a lie, so it is not rendered.
+   */
+  sortable?: boolean;
   children: React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -523,12 +531,14 @@ function SortableCard({
       onClick={onSelect}
       className={`mb-2 bg-brand-surface2 p-2 border ${selected ? "border-brand.accent" : "border-brand-border"}`}
     >
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs text-brand-muted">Drag</div>
-        <div className="px-2 py-1 bg-brand-surface text-xs cursor-move select-none border border-brand-border" {...attributes} {...listeners}>
-          ⋮⋮
+      {sortable && (
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs text-brand-muted">Drag</div>
+          <div className="px-2 py-1 bg-brand-surface text-xs cursor-move select-none border border-brand-border" {...attributes} {...listeners}>
+            ⋮⋮
+          </div>
         </div>
-      </div>
+      )}
       {children}
     </div>
   );
