@@ -21,6 +21,18 @@ export function ToastHost() {
         >
           <div className="flex items-start justify-between gap-3">
             <div className="leading-snug break-words">{t.message}</div>
+            {t.action && (
+              <button
+                type="button"
+                className="ui-btn ui-btn-secondary px-2 py-1 text-xs shrink-0"
+                onClick={() => {
+                  t.action?.onClick();
+                  dismiss(t.id);
+                }}
+              >
+                {t.action.label}
+              </button>
+            )}
             <button
               type="button"
               className="ui-btn ui-btn-ghost px-2 py-1 text-xs"

@@ -1,5 +1,6 @@
 import { StateCreator } from "zustand";
 import { FormDoc, Project, findForm } from "../core/project";
+import { toast } from "../core/toast";
 import { ProjectSlice } from "./projectSlice";
 import { SelectionSlice } from "./selectionSlice";
 import { UiSlice } from "./uiSlice";
@@ -8,8 +9,11 @@ export interface HistoryEntry {
   form: FormDoc;
   description: string;
   /**
-   * Strictly monotonic counter used to order this entry against every other
-   * history entry — the other forms' stacks as well as project history.
+   * Strictly monotonic counter, unique across every stack.
+   *
+   * Nothing compares it *across* stacks any more — undo is per form — but it
+   * still orders a single stack for display, and `undoProject` uses it to tell
+   * a live structural toast from a stale one.
    */
   timestamp: number;
 }
@@ -35,9 +39,26 @@ export interface HistorySlice {
   history: Record<string, FormHistory>;
   projectHistory: ProjectHistory;
   pushHistory: (formId: string, description: string) => void;
-  pushProjectHistory: (description: string) => void;
+  /**
+   * Record a structural change. `undoToast` raises a toast carrying an Undo
+   * button — reserved for changes a user cannot trivially reverse by hand.
+   * Deleting a form takes it; adding, renaming and duplicating one do not,
+   * because a toast per structural action is noise and they are all reachable
+   * from the History panel's Project section anyway.
+   */
+  pushProjectHistory: (description: string, options?: { undoToast?: boolean }) => void;
+  /** Undo one edit **on the form currently on screen**, or nothing at all. */
   undo: () => void;
+  /** Redo one edit on the form currently on screen, or nothing at all. */
   redo: () => void;
+  /**
+   * Undo one structural change. Reached only from the toast raised when the
+   * change happened and from the History panel's Project section — never from
+   * ctrl+z. `timestamp`, when given, pins the entry the caller means: a stale
+   * toast is a no-op rather than an undo of something newer.
+   */
+  undoProject: (timestamp?: number) => void;
+  redoProject: () => void;
 }
 
 /**
@@ -73,6 +94,15 @@ const EMPTY_PROJECT_HISTORY: ProjectHistory = { undo: [], redo: [] };
 const PROJECT_HISTORY_LIMIT = 20;
 const FORM_HISTORY_LIMIT = 100;
 
+/**
+ * How long a structural change's undo toast stays up.
+ *
+ * Longer than the 2.5s default because this toast is not a notification — it is
+ * the only immediate way back from a form delete, and the user has to read it
+ * and aim at a button.
+ */
+const STRUCTURAL_UNDO_TOAST_MS = 8000;
+
 let lastTimestamp = 0;
 function nextTimestamp(): number {
   const now = Date.now();
@@ -81,62 +111,25 @@ function nextTimestamp(): number {
 }
 
 /**
- * The newest entry on any form's `stack`, not just the active form's.
+ * The one stack `undo()`/`redo()` act on: the active form's, oldest entry first.
  *
- * Ctrl+Z has to undo the last thing the USER did, wherever it happened. Reading
- * only the active form's stack meant an empty active stack fell through to
- * project history unconditionally and deleted the form on screen, and it meant
- * an edit made on another form could be stepped over entirely.
+ * Anything that reports on what ctrl+z will do has to read exactly this, or it
+ * describes a different button than the one the user presses. The TopBar's
+ * Undo/Redo gates and the History panel's "This form" section both call it.
  *
- * Stacks whose form is no longer in the project are ignored: there is nothing to
- * restore the snapshot onto, and undoing the structural change that removed the
- * form brings its stack back with it.
+ * It replaces `allHistoryRows`, which merged every form's stack with project
+ * history. That was the honest answer while undo chose across all of them; it
+ * is the wrong answer now, and there is no caller left that wants the union —
+ * the panel's Project section reads `projectHistory` directly, because
+ * `ProjectHistoryEntry` already carries the description and timestamp a row
+ * needs.
  */
-function newestFormEntry(
+export function activeFormStack(
   history: Record<string, FormHistory>,
   project: Project,
   stack: "undo" | "redo"
-): { formId: string; entry: HistoryEntry } | undefined {
-  let best: { formId: string; entry: HistoryEntry } | undefined;
-  for (const [formId, value] of Object.entries(history)) {
-    const entry = value[stack][value[stack].length - 1];
-    if (!entry) continue;
-    if (!findForm(project, formId)) continue;
-    if (!best || entry.timestamp > best.entry.timestamp) best = { formId, entry };
-  }
-  return best;
-}
-
-/** One row of the user-visible history timeline, from either stack. */
-export interface HistoryRow {
-  description: string;
-  timestamp: number;
-}
-
-/**
- * Every entry on one side of the timeline, across all forms plus project history,
- * oldest first.
- *
- * undo()/redo() choose across every form's stack, not just the active form's, so
- * anything that reports on "what can be undone" has to scan the same set or it
- * disagrees with the button it is describing. TopBar and HistoryPanel both use
- * this rather than keeping their own idea of the timeline.
- */
-export function allHistoryRows(
-  history: Record<string, FormHistory>,
-  project: Project,
-  projectHistory: ProjectHistory,
-  stack: "undo" | "redo"
-): HistoryRow[] {
-  const rows: HistoryRow[] = [];
-  for (const [formId, value] of Object.entries(history)) {
-    if (!findForm(project, formId)) continue;
-    for (const entry of value[stack]) rows.push({ description: entry.description, timestamp: entry.timestamp });
-  }
-  for (const entry of projectHistory[stack]) {
-    rows.push({ description: entry.description, timestamp: entry.timestamp });
-  }
-  return rows.sort((a, b) => a.timestamp - b.timestamp);
+): HistoryEntry[] {
+  return history[project.activeFormId]?.[stack] ?? [];
 }
 
 /**
@@ -191,7 +184,7 @@ export const createHistorySlice: StateCreator<
     });
   },
 
-  pushProjectHistory: (description) => {
+  pushProjectHistory: (description, options) => {
     // Both are read before the structural action's own set() runs, and both are
     // replaced by it — `project` by `{ ...s.project, ... }` in projectSlice, and
     // `history` by the withClearedRedo() below, which builds a whole new record
@@ -199,59 +192,59 @@ export const createHistorySlice: StateCreator<
     // from live state afterwards, and neither can drift.
     const project = get().project;
     const historySnapshot = get().history;
+    const timestamp = nextTimestamp();
     set((s) => ({
       history: withClearedRedo(s.history),
       projectHistory: {
         undo: [
           ...s.projectHistory.undo,
-          { project, history: historySnapshot, description, timestamp: nextTimestamp() }
+          { project, history: historySnapshot, description, timestamp }
         ].slice(-PROJECT_HISTORY_LIMIT),
         redo: []
       }
     }));
+
+    // Ctrl+Z is scoped to the form on screen and deliberately never reaches
+    // project history, so this toast and the History panel's Project section
+    // are the whole recovery story for a structural change. Raising it here
+    // rather than in each caller is what makes that true for *every* structural
+    // action, `setAssets` included — some of their panels have
+    // never known anything about undo, and a toast they have to opt into is a
+    // toast that goes missing.
+    if (options?.undoToast) {
+      toast.info(description, STRUCTURAL_UNDO_TOAST_MS, {
+        label: "Undo",
+        onClick: () => get().undoProject(timestamp)
+      });
+    }
   },
 
+  /**
+   * Undo the last edit to the form on screen. Nothing else, ever.
+   *
+   * The bug this shape has to keep avoiding was structural, not a missing
+   * check: the old per-form undo read the active form's entry, and when that
+   * entry was `undefined` it *fell through* to a project branch that ran
+   * unconditionally — so ctrl+z on a form the user had never edited deleted a
+   * different form, and the button's own tooltip lied about it.
+   *
+   * There is no branch to fall through to here. `undoProject` is a separate
+   * action with its own callers (the structural toast, the History panel's
+   * Project section), so the only thing an empty stack can do is return `s`
+   * unchanged. It also never reassigns `activeFormId`: the entry belongs to the
+   * form already on screen, so there is nothing to follow.
+   */
   undo: () =>
     set((s) => {
-      const projectEntry = s.projectHistory.undo[s.projectHistory.undo.length - 1];
-      const newest = newestFormEntry(s.history, s.project, "undo");
-
-      // nextTimestamp() is strictly monotonic, so no two entries can tie.
-      if (projectEntry && (!newest || projectEntry.timestamp > newest.entry.timestamp)) {
-        return {
-          project: projectEntry.project,
-          history: projectEntry.history,
-          projectHistory: {
-            undo: s.projectHistory.undo.slice(0, -1),
-            redo: [
-              ...s.projectHistory.redo,
-              {
-                // This same set() replaces `project` and `history` wholesale
-                // with the snapshot's, so the outgoing pair is orphaned.
-                project: s.project,
-                history: s.history,
-                description: projectEntry.description,
-                timestamp: nextTimestamp()
-              }
-            ]
-          },
-          dirty: true,
-          selectedBedrockButtonId: null,
-          selectedBedrockComponentId: null
-        };
-      }
-
-      if (!newest) return s;
-      const { formId, entry } = newest;
+      const formId = s.project.activeFormId;
+      const stack = s.history[formId] ?? EMPTY;
+      const entry = stack.undo[stack.undo.length - 1];
+      if (!entry) return s;
       const live = findForm(s.project, formId);
       if (!live) return s;
-      const stack = s.history[formId] ?? EMPTY;
       return {
-        // Follow the change: reverting a form the user cannot see reads as
-        // nothing having happened, or as the wrong thing having changed.
         project: {
           ...s.project,
-          activeFormId: formId,
           forms: s.project.forms.map((f) => (f.id === formId ? { ...f, bedrock: entry.form.bedrock } : f))
         },
         history: {
@@ -274,41 +267,15 @@ export const createHistorySlice: StateCreator<
 
   redo: () =>
     set((s) => {
-      const projectEntry = s.projectHistory.redo[s.projectHistory.redo.length - 1];
-      const newest = newestFormEntry(s.history, s.project, "redo");
-
-      if (projectEntry && (!newest || projectEntry.timestamp > newest.entry.timestamp)) {
-        return {
-          project: projectEntry.project,
-          history: projectEntry.history,
-          projectHistory: {
-            undo: [
-              ...s.projectHistory.undo,
-              {
-                // Replaced by the snapshot in this same set() — see undo().
-                project: s.project,
-                history: s.history,
-                description: projectEntry.description,
-                timestamp: nextTimestamp()
-              }
-            ],
-            redo: s.projectHistory.redo.slice(0, -1)
-          },
-          dirty: true,
-          selectedBedrockButtonId: null,
-          selectedBedrockComponentId: null
-        };
-      }
-
-      if (!newest) return s;
-      const { formId, entry } = newest;
+      const formId = s.project.activeFormId;
+      const stack = s.history[formId] ?? EMPTY;
+      const entry = stack.redo[stack.redo.length - 1];
+      if (!entry) return s;
       const live = findForm(s.project, formId);
       if (!live) return s;
-      const stack = s.history[formId] ?? EMPTY;
       return {
         project: {
           ...s.project,
-          activeFormId: formId,
           forms: s.project.forms.map((f) => (f.id === formId ? { ...f, bedrock: entry.form.bedrock } : f))
         },
         history: {
@@ -321,6 +288,69 @@ export const createHistorySlice: StateCreator<
             ],
             redo: stack.redo.slice(0, -1)
           }
+        },
+        dirty: true,
+        selectedBedrockButtonId: null,
+        selectedBedrockComponentId: null
+      };
+    }),
+
+  undoProject: (timestamp) =>
+    set((s) => {
+      const entry = s.projectHistory.undo[s.projectHistory.undo.length - 1];
+      if (!entry) return s;
+      // A structural toast carries the timestamp of the change it was raised
+      // for. Once a newer structural change lands, that toast is stale, and
+      // popping the stack for it would undo something the user never pointed
+      // at — the same "it undid the wrong thing" complaint that made undo
+      // per-form. The newer change has a toast of its own.
+      if (timestamp !== undefined && entry.timestamp !== timestamp) return s;
+      return {
+        // Restoring a whole-project snapshot also rewinds form content edited
+        // since. That is what project history has always been — the History
+        // panel's Project section has the same reach — and the timestamp guard
+        // is what keeps the toast from doing it behind the user's back.
+        project: entry.project,
+        history: entry.history,
+        projectHistory: {
+          undo: s.projectHistory.undo.slice(0, -1),
+          redo: [
+            ...s.projectHistory.redo,
+            {
+              // This same set() replaces `project` and `history` wholesale
+              // with the snapshot's, so the outgoing pair is orphaned.
+              project: s.project,
+              history: s.history,
+              description: entry.description,
+              timestamp: nextTimestamp()
+            }
+          ]
+        },
+        dirty: true,
+        selectedBedrockButtonId: null,
+        selectedBedrockComponentId: null
+      };
+    }),
+
+  redoProject: () =>
+    set((s) => {
+      const entry = s.projectHistory.redo[s.projectHistory.redo.length - 1];
+      if (!entry) return s;
+      return {
+        project: entry.project,
+        history: entry.history,
+        projectHistory: {
+          undo: [
+            ...s.projectHistory.undo,
+            {
+              // Replaced by the snapshot in this same set() — see undoProject().
+              project: s.project,
+              history: s.history,
+              description: entry.description,
+              timestamp: nextTimestamp()
+            }
+          ],
+          redo: s.projectHistory.redo.slice(0, -1)
         },
         dirty: true,
         selectedBedrockButtonId: null,

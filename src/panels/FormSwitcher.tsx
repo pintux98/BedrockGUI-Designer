@@ -35,10 +35,14 @@ export function FormSwitcher() {
     renameForm(from, to);
   };
 
+  // Ctrl+Z undoes edits *inside* the form on screen and never reaches project
+  // history, so the old "You can undo this with Ctrl+Z" was a promise the app
+  // stopped keeping. What actually brings the form back is the Undo button on
+  // the toast this raises, or the History panel's Project section.
   const handleDelete = async (id: string) => {
     const ok = await confirmDialog({
       title: "Delete form",
-      message: `Delete form '${id}'? You can undo this with Ctrl+Z.`,
+      message: `Delete form '${id}'? Ctrl+Z will not bring it back — use the Undo button on the toast that appears, or the Project section of the History panel.`,
       confirmText: "Delete",
       cancelText: "Cancel"
     });

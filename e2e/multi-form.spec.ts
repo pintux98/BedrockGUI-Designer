@@ -136,7 +136,7 @@ test("deletes a form through the app's own confirm dialog", async ({ page }) => 
   await expect(page.getByRole("button", { name: /^Delete form / })).toHaveCount(0);
 });
 
-test("brings a deleted form back with Ctrl+Z", async ({ page }) => {
+test("brings a deleted form back from the toast, and not from Ctrl+Z", async ({ page }) => {
   await openApp(page);
   await page.getByRole("button", { name: "Add form" }).click();
   await expect(formRows(page)).toHaveText(["main_menu", "form_2"]);
@@ -149,24 +149,31 @@ test("brings a deleted form back with Ctrl+Z", async ({ page }) => {
 
   await page.getByRole("button", { name: "Delete form form_2" }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("You can undo this with Ctrl+Z.");
+  await expect(dialog).toContainText("Ctrl+Z will not bring it back");
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(formRows(page)).toHaveText(["main_menu"]);
   await expect(page.locator(CANVAS_TITLE)).toHaveText("New Form");
 
-  // The undo shortcut deliberately ignores chords aimed at a text field, so
-  // move focus somewhere neutral before sending it — otherwise the test would
-  // fail for a reason that is not a bug.
+  // Ctrl+Z is per-form now. On main_menu, which has no edits of its own, it must
+  // do nothing at all — this is the shape of the bug that used to delete the
+  // form on screen, so the negative assertion is the point of the test.
   await page.locator("body").click({ position: { x: 4, y: 4 } });
   expect(await page.evaluate(() => document.activeElement?.tagName ?? "NONE")).not.toMatch(
     /^(INPUT|TEXTAREA|SELECT)$/
   );
   await page.keyboard.press("Control+z");
+  await expect(formRows(page)).toHaveText(["main_menu"]);
+
+  // The toast raised by the delete is the way back.
+  // Name the delete toast exactly: only a destructive change raises one, and
+  // matching loosely on "form_2" would also accept an unrelated toast.
+  const toast = page.getByRole("status").filter({ hasText: "Deleted form form_2" });
+  await toast.getByRole("button", { name: /undo/i }).click();
 
   await expect(formRows(page)).toHaveText(["main_menu", "form_2"]);
-  // The restored form is selected again and still carries its own title.
-  await expectActiveForm(page, "form_2", ["main_menu"]);
+  // The restored form still carries its own title, so the whole FormDoc came back.
+  await formRow(page, "form_2").click();
   await expect(page.locator(CANVAS_TITLE)).toHaveText("Doomed");
   await expect(page.locator(TITLE_INPUT)).toHaveValue("Doomed");
 });
