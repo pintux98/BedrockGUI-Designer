@@ -2,6 +2,8 @@ import React from "react";
 import { BedrockForm } from "../../core/types";
 import ReactMarkdown from "react-markdown";
 import { useDroppable } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useDesignerStore } from "../../core/store";
 import { MinecraftText } from "../../components/MinecraftText";
 import { hasMinecraftCodes } from "../../core/minecraftText";
@@ -12,7 +14,7 @@ function contentToString(content?: string | string[]): string {
   return Array.isArray(content) ? content.join("\n") : content ?? "";
 }
 
-export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed?: boolean }) {
+export function BedrockPreview({ form }: { form: BedrockForm }) {
   const { selectedBedrockButtonId, setSelectedBedrockButtonId, selectedBedrockComponentId, setSelectedBedrockComponentId, setBedrock } =
     useDesignerStore();
   const buttonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
@@ -56,6 +58,14 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
           !!b?.alternativeOnClick ||
           (Array.isArray(b?.conditions) && !!b.conditions.length)
       );
+    // One list, shared by the rendering and by SortableContext: the sortable ids must be
+    // exactly the rows that are on screen, in the order they are on screen.
+    const visibleButtons =
+      "buttons" in form && Array.isArray(form.buttons)
+        ? form.buttons
+            .map((b: any) => ({ base: b, display: getBedrockButtonDisplay(b, assumeConditionsTrue) }))
+            .filter((x) => !x.display.hidden)
+        : [];
     return (
       <div
         ref={setNodeRef}
@@ -121,55 +131,60 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
               className="max-h-80 overflow-y-auto pr-1 custom-scrollbar"
               style={{ scrollbarGutter: "stable" as any }}
             >
-              <div className="space-y-1">
-                {"buttons" in form &&
-                  Array.isArray(form.buttons) &&
-                  form.buttons
-                    .map((b: any) => ({ base: b, display: getBedrockButtonDisplay(b, assumeConditionsTrue) }))
-                    .filter((x) => !x.display.hidden)
-                    .map(({ base: b, display }) => (
-                    <button
+              <SortableContext
+                items={visibleButtons.map((x) => `bedrock-preview-button-${x.base.id}`)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-1">
+                  {visibleButtons.map(({ base: b, display }) => (
+                    <PreviewSortableRow
                       key={b.id}
-                      ref={(el) => {
-                        buttonRefs.current[b.id] = el;
-                      }}
-                      type="button"
-                      onClick={() => {
-                        setSelectedBedrockButtonId(b.id);
-                        setSelectedBedrockComponentId(null);
-                      }}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        setEditingButtonText(b.id);
-                      }}
-                      className={`w-full flex items-center gap-3 bg-[#3a3b3c] border-2 px-3 py-2 text-white text-base font-smooth-none active:bg-[#2a2b2c] transition-colors relative group ${
-                        selectedBedrockButtonId === b.id ? "border-brand-accent bg-[#4a4b4c]" : "border-[#1e1e1f]"
-                      }`}
+                      sortableId={`bedrock-preview-button-${b.id}`}
+                      handleLabel={`Reorder ${b.id}`}
+                      badge={b.id}
                     >
-                      {detailed && <div className="absolute top-0 right-0 bg-black/50 text-[8px] px-1 text-gray-300 font-mono">{b.id}</div>}
-                      <div className="w-8 flex items-center justify-center">
-                        {display.image ? <BedrockButtonImage image={display.image} /> : <div className="w-6 h-6" />}
-                      </div>
-                      <div className="flex-1 text-left whitespace-pre-wrap">
-                        {editingButtonText === b.id ? (
-                          <InlineTextEditor
-                            value={display.text}
-                            onSubmit={(v) => {
-                              const buttons = form.buttons.map((btn) =>
-                                btn.id === b.id ? { ...btn, text: v } : btn
-                              );
-                              setBedrock({ ...form, buttons }, "Updated button text inline");
-                              setEditingButtonText(null);
-                            }}
-                            onCancel={() => setEditingButtonText(null)}
-                          />
-                        ) : (
-                          <MinecraftText text={display.text} />
-                        )}
-                      </div>
-                    </button>
+                      <button
+                        ref={(el) => {
+                          buttonRefs.current[b.id] = el;
+                        }}
+                        type="button"
+                        onClick={() => {
+                          setSelectedBedrockButtonId(b.id);
+                          setSelectedBedrockComponentId(null);
+                        }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          setEditingButtonText(b.id);
+                        }}
+                        className={`w-full flex items-center gap-3 bg-[#3a3b3c] border-2 px-3 py-2 text-white text-base font-smooth-none active:bg-[#2a2b2c] transition-colors ${
+                          selectedBedrockButtonId === b.id ? "border-brand-accent bg-[#4a4b4c]" : "border-[#1e1e1f]"
+                        }`}
+                      >
+                        <div className="w-8 flex items-center justify-center">
+                          {display.image ? <BedrockButtonImage image={display.image} /> : <div className="w-6 h-6" />}
+                        </div>
+                        <div className="flex-1 text-left whitespace-pre-wrap">
+                          {editingButtonText === b.id ? (
+                            <InlineTextEditor
+                              value={display.text}
+                              onSubmit={(v) => {
+                                const buttons = form.buttons.map((btn) =>
+                                  btn.id === b.id ? { ...btn, text: v } : btn
+                                );
+                                setBedrock({ ...form, buttons }, "Updated button text inline");
+                                setEditingButtonText(null);
+                              }}
+                              onCancel={() => setEditingButtonText(null)}
+                            />
+                          ) : (
+                            <MinecraftText text={display.text} />
+                          )}
+                        </div>
+                      </button>
+                    </PreviewSortableRow>
                   ))}
-              </div>
+                </div>
+              </SortableContext>
             </div>
           )}
 
@@ -187,14 +202,10 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
                 )}
               </div>
               <div className="grid grid-cols-2 gap-2 mt-2">
-              {"buttons" in form &&
-                Array.isArray(form.buttons) &&
-                form.buttons
-                  .map((b: any) => ({ base: b, display: getBedrockButtonDisplay(b, assumeConditionsTrue) }))
-                  .filter((x) => !x.display.hidden)
-                  .map(({ base: b, display }) => (
+              {visibleButtons.map(({ base: b, display }) => (
+                <div key={b.id} className="relative">
+                  <PreviewIdBadge>{b.id}</PreviewIdBadge>
                   <button
-                    key={b.id}
                     ref={(el) => {
                       buttonRefs.current[b.id] = el;
                     }}
@@ -207,11 +218,10 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
                       e.stopPropagation();
                       setEditingButtonText(b.id);
                     }}
-                    className={`w-full bg-[#3a3b3c] border-2 px-3 py-2 text-white text-base font-smooth-none active:bg-[#2a2b2c] relative ${
+                    className={`w-full bg-[#3a3b3c] border-2 px-3 py-2 text-white text-base font-smooth-none active:bg-[#2a2b2c] ${
                       selectedBedrockButtonId === b.id ? "border-brand-accent bg-[#4a4b4c]" : "border-[#1e1e1f]"
                     }`}
                   >
-                    {detailed && <div className="absolute top-0 right-0 bg-black/50 text-[8px] px-1 text-gray-300 font-mono">{b.id}</div>}
                     {editingButtonText === b.id ? (
                       <InlineTextEditor
                         value={display.text}
@@ -230,7 +240,8 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
                       </span>
                     )}
                   </button>
-                ))}
+                </div>
+              ))}
               </div>
             </div>
           )}
@@ -282,31 +293,103 @@ export function BedrockPreview({ form, detailed }: { form: BedrockForm; detailed
           className="max-h-96 overflow-y-auto pr-1 custom-scrollbar"
           style={{ scrollbarGutter: "stable" as any }}
         >
-          <div className="space-y-3">
-            {Array.isArray(form.components) && form.components.map((c) => (
-              <div
-                key={c.id}
-                ref={(el) => {
-                  componentRefs.current[c.id] = el;
-                }}
-                onClick={() => {
-                  setSelectedBedrockComponentId(c.id);
-                  setSelectedBedrockButtonId(null);
-                }}
-                className={`bg-[#3a3b3c] border-2 p-3 cursor-pointer relative ${
-                  selectedBedrockComponentId === c.id ? "border-brand-accent" : "border-[#1e1e1f]"
-                }`}
-              >
-                {detailed && <div className="absolute top-0 right-0 bg-black/50 text-[8px] px-1 text-gray-300 font-mono">{c.id} ({c.type})</div>}
-                <BedrockComponentView type={c.type} props={c.props as any} />
-              </div>
-            ))}
-            {!form.components?.length && (
-              <div className="text-sm text-gray-400 text-center py-8 border-2 border-dashed border-gray-600">Drag components here</div>
+          <SortableContext
+            items={(Array.isArray(form.components) ? form.components : []).map(
+              (c) => `bedrock-preview-component-${c.id}`
             )}
-          </div>
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-3">
+              {Array.isArray(form.components) && form.components.map((c) => (
+                <PreviewSortableRow
+                  key={c.id}
+                  sortableId={`bedrock-preview-component-${c.id}`}
+                  handleLabel={`Reorder ${c.id}`}
+                  badge={`${c.id} (${c.type})`}
+                >
+                  <div
+                    ref={(el) => {
+                      componentRefs.current[c.id] = el;
+                    }}
+                    onClick={() => {
+                      setSelectedBedrockComponentId(c.id);
+                      setSelectedBedrockButtonId(null);
+                    }}
+                    className={`bg-[#3a3b3c] border-2 p-3 cursor-pointer ${
+                      selectedBedrockComponentId === c.id ? "border-brand-accent" : "border-[#1e1e1f]"
+                    }`}
+                  >
+                    <BedrockComponentView type={c.type} props={c.props as any} />
+                  </div>
+                </PreviewSortableRow>
+              ))}
+              {!form.components?.length && (
+                <div className="text-sm text-gray-400 text-center py-8 border-2 border-dashed border-gray-600">Drag components here</div>
+              )}
+            </div>
+          </SortableContext>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The id caption that used to be gated behind the Canvas "Detailed Mode" checkbox.
+ * It lives on the row wrapper rather than inside the <button> so it stays editor chrome
+ * and never leaks into the button's text content or accessible name.
+ */
+function PreviewIdBadge({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="absolute top-0 right-0 bg-black/50 text-[8px] px-1 text-gray-300 font-mono pointer-events-none z-10">
+      {children}
+    </div>
+  );
+}
+
+/**
+ * A preview row that can be dragged to reorder. The preview is a fidelity mock, so the
+ * grab handle is invisible at rest and only fades in on hover, keyboard focus or while
+ * dragging; the row itself keeps its own click/double-click handlers, and the drag is
+ * activated from the handle only, so selecting a button never turns into a drag.
+ */
+function PreviewSortableRow({
+  sortableId,
+  handleLabel,
+  badge,
+  children
+}: {
+  sortableId: string;
+  handleLabel: string;
+  badge: string;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: sortableId
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.6 : 1
+      }}
+      className="relative group"
+    >
+      {children}
+      <PreviewIdBadge>{badge}</PreviewIdBadge>
+      <span
+        {...attributes}
+        {...listeners}
+        aria-label={handleLabel}
+        title={handleLabel}
+        className={`absolute top-0 left-0 z-20 px-1 leading-none text-[10px] select-none bg-black/70 text-gray-200 cursor-grab active:cursor-grabbing outline-none transition-opacity ${
+          isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus:opacity-100"
+        }`}
+      >
+        ⋮⋮
+      </span>
     </div>
   );
 }

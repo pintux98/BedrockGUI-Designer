@@ -54,8 +54,8 @@ function isTextEntry(target: EventTarget | null): boolean {
  *
  * Without this, `Dialog` focusing its first button meant `isTextEntry` was false
  * and ctrl+z reverted an unrelated earlier edit behind the open dialog — worst
- * of all behind `FormSwitcher`'s delete confirmation, whose text is
- * "You can undo this with Ctrl+Z".
+ * of all behind `FormSwitcher`'s delete confirmation, where the keystroke would
+ * have silently rolled back an edit the user was not even looking at.
  */
 function isModalOpen(): boolean {
   return document.querySelector('[role="dialog"]') !== null;
@@ -64,9 +64,15 @@ function isModalOpen(): boolean {
 /**
  * Global undo/redo keyboard shortcuts.
  *
- * `FormSwitcher` tells the user "You can undo this with Ctrl+Z" and the TopBar
- * buttons are titled "Undo (Ctrl+Z)" / "Redo (Ctrl+Y)". Until this existed both
- * were false: nothing in the app listened for either chord.
+ * The TopBar buttons are titled "Undo (Ctrl+Z)" / "Redo (Ctrl+Y)"; until this
+ * existed that was false, because nothing in the app listened for either chord.
+ *
+ * These dispatch `undo`/`redo`, which act on the form currently on screen and
+ * on nothing else — on a form with no edits the chord does nothing at all. That
+ * is the whole point: structural changes (add / rename / duplicate / delete a
+ * form, assets, platform target) are reverted from the toast raised when they
+ * happen or from the History panel's Project section, never from here, so the
+ * keystroke can never rewind a form the user is not looking at.
  */
 export function useUndoShortcuts(): void {
   useEffect(() => {

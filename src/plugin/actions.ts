@@ -1,4 +1,4 @@
-import { ActionCapability, PlatformTarget, hasCapability } from "./platforms";
+import { ActionCapability, PlatformTarget, capabilityNote, hasCapability } from "./platforms";
 
 export type ActionId =
   | "command" | "open" | "message" | "delay"
@@ -204,6 +204,20 @@ export const ACTION_IDS = Object.keys(ACTIONS) as ActionId[];
 
 export function actionsForPlatform(platform: PlatformTarget): ActionDef[] {
   return ACTION_IDS.map((id) => ACTIONS[id]).filter((a) => hasCapability(a.capability, platform));
+}
+
+/**
+ * The platform warning to show beside an action, or `undefined` when it runs anywhere.
+ *
+ * The picker offers all 14 actions whatever the project targets — filtering them was
+ * silently hiding two real actions from anyone whose project carried a proxy target,
+ * and a form file is the same file on every platform. The capability gate is still
+ * true, so it is surfaced as a note instead of a gate; `capabilityNote` derives it
+ * from `PLATFORM_CAPABILITIES`, so this stays honest if the plugin's registration
+ * conditions ever change.
+ */
+export function actionPlatformNote(id: ActionId): string | undefined {
+  return capabilityNote(ACTIONS[id].capability);
 }
 
 export function isActionId(value: string): value is ActionId {

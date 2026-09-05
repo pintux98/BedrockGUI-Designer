@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { Dialog } from "./Dialog";
+import { addonRequirements } from "../serialize/configSnippet";
+import { useDesignerStore } from "../core/store";
 
 export function ConfigSnippetDialog({
   open,
@@ -13,6 +15,13 @@ export function ConfigSnippetDialog({
   const titleId = React.useId();
   const descriptionId = React.useId();
   const [copied, setCopied] = useState(false);
+  /**
+   * Read from the store rather than taken as a prop: the caller hands over the
+   * pasteable snippet, and which addon jars the server also needs is separate
+   * information that never belongs in `config.yml`.
+   */
+  const forms = useDesignerStore((s) => s.project.forms);
+  const requirements = React.useMemo(() => addonRequirements(forms), [forms]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(snippet).then(() => {
@@ -55,6 +64,29 @@ export function ConfigSnippetDialog({
         readOnly
         spellCheck={false}
       />
+      {requirements.length > 0 && (
+        <div className="mt-4 border border-brand-border rounded p-3" data-addon-requirements>
+          <div className="text-sm font-medium text-brand-text mb-1">
+            {requirements.length === 1 ? "This project also needs an addon" : "This project also needs addons"}
+          </div>
+          <div className="text-xs text-brand-muted mb-2">
+            These action types are registered by an addon, not by BedrockGUI itself. Drop the jar
+            into <code>plugins/</code> alongside BedrockGUI, or the action fails at runtime with
+            "Unknown action type". Nothing here goes into <code>config.yml</code> — an addon
+            registers action handlers, never forms.
+          </div>
+          <ul className="space-y-1">
+            {requirements.map(({ addon, actionIds }) => (
+              <li key={addon.id} className="text-xs" data-addon-required={addon.id}>
+                <span className="text-brand-text font-medium">{addon.name}</span>
+                <span className="text-brand-muted"> — </span>
+                <code className="font-mono text-brand-accent">{addon.jar}</code>
+                <div className="text-[11px] text-brand-muted font-mono">{actionIds.join(", ")}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="mt-4 flex justify-end gap-2">
         <button type="button" className="ui-btn ui-btn-secondary" onClick={onClose}>
           Close

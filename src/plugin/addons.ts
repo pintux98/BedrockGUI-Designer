@@ -11,8 +11,8 @@
  *   bedwars-addon/.../action/OpenShopMainAction.java:14
  *     @Override public String getActionType() { return "bw_shop_main"; }
  *
- * So an id here is written as its own action block — `bw_shop_main { }`, or with a
- * payload as `bw_shop_main:<args>` — and **never as an `open` target**. `open`
+ * So an id here is written as its own action — `bw_shop_main:` with no payload, or
+ * `bw_shop_main:<args>` with one — and **never as an `open` target**. `open`
  * resolves against `FormMenuUtil.hasMenu` (FormMenuUtil.java:1156-1161), which only
  * looks in `formMenus`; `formMenus` is populated exclusively from
  * `config.getKeys("forms")` in `loadFormMenus` (FormMenuUtil.java:116-132). An addon
@@ -23,6 +23,20 @@
  *    Bedwars screens / run Bedwars actions."   (bedwars-addon/src/main/resources/config.yml:11-12)
  *   "register-actions: register the action handlers so any form can drive Essentials."
  *                                              (essentials-addon/src/main/resources/config.yml:79)
+ *
+ * **The trailing colon is not optional, and the empty brace form does not work.** An
+ * onClick string reaches `ActionExecutor.parseAction` (ActionExecutor.java:212-239),
+ * which tries the brace form first: `bw_shop_main { }` matches NEW_FORMAT_PATTERN, so
+ * `parseNewFormat` runs, finds no `- "…"` entry, and **returns null**
+ * (ActionExecutor.java:272-275) — `handleSingleAction` then logs "Failed to parse
+ * onClick action" and tells the player the format is invalid
+ * (FormMenuUtil.java:939-944). Written bare as `bw_shop_main`, with neither colon nor
+ * braces, the same method falls through to its last branch and runs it as a *command*
+ * (ActionExecutor.java:236-238). What every addon actually writes, in its own menus and
+ * its own `getUsageExamples()`, is the colon form with a possibly-empty payload:
+ * `"bw_shop_main:"` (OpenShopMainAction.java:26, ShopMenuModel.java:41) and
+ * `"bw_shop_cat:" + payload` (ShopMenuModel.java:24). `addonActionSnippet` below is
+ * what the designer inserts, and it writes exactly that.
  *
  * `actionIds` is the complete registered set per addon, verified by reading every
  * `getActionType()` return value in the addon source. `parameterised` is the subset
@@ -164,6 +178,21 @@ export function findAddonForActionId(id: string): AddonDef | undefined {
 export function addonActionTakesArgument(id: string): boolean {
   const base = baseId(id);
   return ADDONS.some((a) => (a.parameterised ?? []).includes(base));
+}
+
+/**
+ * The action text to insert for an addon action id: the colon form, payload empty.
+ *
+ * One shape for both kinds, because the plugin accepts only one. For an id that reads
+ * no payload this is complete as written and runs — it is character-for-character what
+ * the addon's own menus emit. For a parameterised id it is deliberately unfinished: the
+ * value goes straight after the colon, and the six bedwars handlers that require one
+ * reject a blank payload outright (`actionValue != null && !actionValue.isBlank()`), so
+ * an unfinished block fails loudly instead of doing something surprising. Inserting a
+ * literal stand-in value would look finished and be wrong.
+ */
+export function addonActionSnippet(id: string): string {
+  return `${baseId(id)}:`;
 }
 
 function baseId(id: string): string {

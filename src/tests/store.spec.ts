@@ -46,7 +46,7 @@ describe("designer store", () => {
     expect(useDesignerStore.getState().activeForm().bedrock.title).toBe("Changed");
   });
 
-  it("keeps undo history across a rename", () => {
+  it("carries a form's own undo stack across a rename, and still undoes only that form's edits", () => {
     const active = useDesignerStore.getState().activeForm();
     useDesignerStore.getState().setBedrock({ ...active.bedrock, title: "Changed" });
     useDesignerStore.getState().renameForm("main_menu", "hub");
@@ -55,12 +55,19 @@ describe("designer store", () => {
     expect(beforeUndo.history["hub"]?.undo).toHaveLength(1);
     expect(beforeUndo.history["main_menu"]).toBeUndefined();
 
+    // undo() takes the form's own edit, not the rename that moved the stack.
     useDesignerStore.getState().undo();
     const after = useDesignerStore.getState();
-    expect(after.project.activeFormId).toBe("main_menu");
-    expect(after.activeForm().id).toBe("main_menu");
-    expect(after.activeForm().bedrock.title).toBe("Changed");
-    expect(after.project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+    expect(after.project.activeFormId).toBe("hub");
+    expect(after.project.forms.map((f) => f.id)).toEqual(["hub"]);
+    expect(after.activeForm().bedrock.title).toBe("New Form");
+
+    // The rename is structural, so only undoProject reaches it — and it restores
+    // the whole snapshot, title edit included.
+    useDesignerStore.getState().undoProject();
+    const undone = useDesignerStore.getState();
+    expect(undone.project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+    expect(undone.activeForm().bedrock.title).toBe("Changed");
   });
 
   it("marks the project dirty on mutation", () => {
@@ -87,41 +94,54 @@ describe("designer store", () => {
     expect(useDesignerStore.getState().selectedBedrockComponentId).toBeNull();
   });
 
-  it("undoes a form deletion", () => {
+  it("undoes a form deletion through undoProject, and never through undo", () => {
     const s = () => useDesignerStore.getState();
     s().loadProject(createEmptyProject());
     s().addForm("shop");
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
     s().removeForm("shop");
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+
+    // ctrl+z is the form on screen and nothing else.
     s().undo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+
+    s().undoProject();
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
   });
 
-  it("undoes an add, a rename and a duplicate", () => {
+  it("undoes an add, a rename and a duplicate through undoProject", () => {
     const s = () => useDesignerStore.getState();
     s().loadProject(createEmptyProject());
     s().addForm("shop");
-    s().undo();
+    s().undoProject();
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
     s().renameForm("main_menu", "hub");
-    s().undo();
+    s().undoProject();
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
     s().duplicateForm("main_menu");
-    s().undo();
+    s().undoProject();
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
   });
 
-  it("keeps content undo working alongside structural undo", () => {
+  it("keeps the two undos independent: content on undo, structure on undoProject", () => {
     const s = () => useDesignerStore.getState();
     s().loadProject(createEmptyProject());
     const before = s().activeForm().bedrock.title;
     s().setBedrock({ ...s().activeForm().bedrock, title: "Changed" });
     s().addForm("shop");
+
+    // The newer change is structural, but undo() still takes the form's edit —
+    // it has no view of project history at all.
     s().undo();
-    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
-    s().undo();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
     expect(s().activeForm().bedrock.title).toBe(before);
+
+    // undoProject restores the whole snapshot taken when the form was added,
+    // which is the world as it stood *with* the title edit applied.
+    s().undoProject();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+    expect(s().activeForm().bedrock.title).toBe("Changed");
   });
 
   it("caps the project history at 20 entries", () => {
@@ -137,7 +157,7 @@ describe("designer store", () => {
     const before = s().activeForm().bedrock.title;
     s().setBedrock({ ...s().activeForm().bedrock, title: "Changed" });
     s().renameForm("main_menu", "hub");
-    s().undo();
+    s().undoProject();
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
     expect(s().activeForm().bedrock.title).toBe("Changed");
     s().undo();
@@ -152,7 +172,7 @@ describe("designer store", () => {
     const before = s().activeForm().bedrock.title;
     s().setBedrock({ ...s().activeForm().bedrock, title: "Changed" });
     s().removeForm("shop");
-    s().undo();
+    s().undoProject();
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
     expect(s().activeForm().id).toBe("shop");
     expect(s().activeForm().bedrock.title).toBe("Changed");
@@ -173,7 +193,7 @@ describe("designer store", () => {
     s().loadProject(createEmptyProject());
     s().addForm("shop");
     s().removeForm("shop");
-    s().undo();
+    s().undoProject();
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
     expect(s().projectHistory.redo[0]?.description).toBe("Deleted form shop");
 
@@ -181,7 +201,7 @@ describe("designer store", () => {
     s().setBedrock({ ...s().activeForm().bedrock, title: "UserEditedAfterUndo" });
     expect(s().projectHistory.redo).toEqual([]);
 
-    s().redo();
+    s().redoProject();
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
     expect(s().activeForm().bedrock.title).toBe("UserEditedAfterUndo");
   });
@@ -316,10 +336,11 @@ describe("history granularity", () => {
     expect(undoStack()).toHaveLength(100);
   });
 
-  // The 1a scenario: a form edit, a structural change, then another form edit.
-  // Refreshing a merged entry's timestamp sorted it past the project entry, so
-  // the second undo restored a project snapshot holding the value just undone.
-  it("undoes a form edit and a structural change in strict reverse order", () => {
+  // A form edit, a structural change, then another form edit. undo() walks the
+  // form's own stack straight past the structural change and, once that stack is
+  // empty, stops — it does not spill into project history the way the old
+  // fall-through branch did.
+  it("walks the form's own stack to the bottom and then stops", () => {
     setTitle("A");
     s().addForm("shop");
     setTitle("B");
@@ -330,16 +351,23 @@ describe("history granularity", () => {
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
 
     s().undo();
-    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
-    expect(s().activeForm().bedrock.title).toBe("A");
+    expect(s().activeForm().bedrock.title).toBe("New Form");
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
+    expect(undoStack()).toEqual([]);
 
+    // The stack is empty. One more ctrl+z must be inert, not a form delete.
     s().undo();
     expect(s().activeForm().bedrock.title).toBe("New Form");
-    expect(undoStack()).toEqual([]);
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
+
+    // Only undoProject reaches the structural change.
+    s().undoProject();
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
+    expect(s().activeForm().bedrock.title).toBe("A");
   });
 });
 
-describe("undo spans every form, not just the active one", () => {
+describe("undo is scoped to the form on screen", () => {
   const s = () => useDesignerStore.getState();
 
   beforeEach(() => {
@@ -354,20 +382,35 @@ describe("undo spans every form, not just the active one", () => {
     return s().project.forms.find((f) => f.id === id)?.bedrock.title;
   }
 
-  // Finding 2. With the active form's stack empty, undo used to fall through to
-  // project history unconditionally and delete the form on screen, while the
-  // newer edit it should have reverted survived.
-  it("does not delete the form on screen when that form has no history", () => {
+  // THE original bug, pinned hard. undo() read the active form's entry and, when
+  // there was none, fell through to a project branch that ran unconditionally —
+  // so ctrl+z on a form the user had never edited deleted a *different* form.
+  // The fix is structural: there is no project branch left to fall into, so an
+  // empty stack can only return the state untouched.
+  it("does nothing whatsoever on a form with no history", () => {
     s().addForm("shop");
-    setTitle("Edited");
+    setTitle("Edited"); // on main_menu
     s().setActiveForm("shop");
+    s().setSelectedBedrockButtonId("button_1");
 
     s().undo();
+
+    // No form deleted, no project history consumed, no active-form switch, and
+    // the other form's edit still standing.
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
-    expect(titleOf("main_menu")).toBe("New Form");
+    expect(s().projectHistory.undo.map((e) => e.description)).toEqual(["Added form shop"]);
+    expect(s().projectHistory.redo).toEqual([]);
+    expect(s().project.activeFormId).toBe("shop");
+    expect(titleOf("main_menu")).toBe("Edited");
+    expect(titleOf("shop")).toBe("New Form");
+    // It returned the state object untouched, so it did not even clear selection.
+    expect(s().selectedBedrockButtonId).toBe("button_1");
   });
 
-  it("undoes the newest edit even when it belongs to another form, and switches to it", () => {
+  // "I might have changed something in a form and now to undo, it will undo
+  // everything I have done globally." A newer edit on another form is not this
+  // form's business.
+  it("does not revert another form's newer edit", () => {
     s().addForm("shop");
     s().setActiveForm("shop");
     setTitle("Shop edit");
@@ -376,20 +419,42 @@ describe("undo spans every form, not just the active one", () => {
     s().setActiveForm("shop");
 
     s().undo();
-    expect(s().project.activeFormId).toBe("main_menu");
-    expect(titleOf("main_menu")).toBe("New Form");
-    expect(titleOf("shop")).toBe("Shop edit");
+    expect(s().project.activeFormId).toBe("shop");
+    expect(titleOf("shop")).toBe("New Form");
+    expect(titleOf("main_menu")).toBe("Main edit");
   });
 
-  it("redoes on the form the change belongs to, switching to it", () => {
+  it("redoes on the form on screen and never switches away from it", () => {
     s().addForm("shop");
-    setTitle("Main edit");
+    setTitle("Main edit"); // on main_menu
     s().undo();
     s().setActiveForm("shop");
 
+    // shop has no redo of its own, so this is inert — it must not replay
+    // main_menu's edit, and must not jump the user back to main_menu.
     s().redo();
-    expect(s().project.activeFormId).toBe("main_menu");
+    expect(s().project.activeFormId).toBe("shop");
+    expect(titleOf("main_menu")).toBe("New Form");
+    expect(titleOf("shop")).toBe("New Form");
+
+    s().setActiveForm("main_menu");
+    s().redo();
     expect(titleOf("main_menu")).toBe("Main edit");
+  });
+
+  // The structural toast pins the entry it was raised for. Without that, a toast
+  // left on screen after a newer structural change would undo the newer one.
+  it("ignores a stale structural toast and honours a live one", () => {
+    s().addForm("shop");
+    const stale = s().projectHistory.undo[0].timestamp;
+    s().addForm("bazaar");
+
+    s().undoProject(stale);
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop", "bazaar"]);
+
+    const live = s().projectHistory.undo[s().projectHistory.undo.length - 1].timestamp;
+    s().undoProject(live);
+    expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu", "shop"]);
   });
 });
 
@@ -441,11 +506,11 @@ describe("history snapshots are isolated from later edits", () => {
     expect(snapshot.history["main_menu"].redo.map((e) => e.form.bedrock.title)).toEqual(["Second"]);
 
     // ...and walking undo back to it must restore exactly that, redo stack included.
-    s().undo(); // Renamed form shop to market
-    s().undo(); // Updated assets configuration
-    s().undo(); // Added form bazaar
+    s().undoProject(); // Renamed form shop to market
+    s().undoProject(); // Updated assets configuration
+    s().undoProject(); // Added form bazaar
     s().undo(); // Updated title -> "Third"
-    s().undo(); // Added form shop -> restores the snapshot
+    s().undoProject(); // Added form shop -> restores the snapshot
     expect(s().project.forms.map((f) => f.id)).toEqual(["main_menu"]);
     expect(s().activeForm().bedrock.title).toBe("First");
     expect(s().project.assets.enabled).toBe(false);

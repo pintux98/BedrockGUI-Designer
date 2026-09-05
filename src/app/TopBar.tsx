@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useExporter } from "../exporters/useExporter";
 import { useImporter } from "../importers/useImporter";
 import { useDesignerStore } from "../core/store";
-import { allHistoryRows } from "../store/historySlice";
+import { activeFormStack } from "../store/historySlice";
 import { toast } from "../core/toast";
 import { confirmDialog } from "../core/confirm";
 import { isLegacyDesign, migrateLegacyDesign } from "../core/migrate";
@@ -13,15 +13,18 @@ import { ConfigSnippetDialog } from "../components/ConfigSnippetDialog";
 export function TopBar() {
   const { exportProject } = useExporter();
   const { importYaml } = useImporter();
-  const { undo, redo, history, projectHistory, activeForm, renameForm, loadProject: loadProjectIntoStore, project } = useDesignerStore();
+  const { undo, redo, history, activeForm, renameForm, loadProject: loadProjectIntoStore, project } = useDesignerStore();
   const active = activeForm();
   const menuName = active.id;
-  // Undo spans every form's stack plus project history, so the buttons have to ask
-  // the same question undo() answers. Gating on the active form alone greyed Undo
-  // out right after a form delete; gating on active-plus-project still missed an
-  // edit made on a form the user has since switched away from.
-  const canUndo = allHistoryRows(history, project, projectHistory, "undo").length > 0;
-  const canRedo = allHistoryRows(history, project, projectHistory, "redo").length > 0;
+  // These buttons ARE ctrl+z, so they must answer exactly the question undo()
+  // answers: is there anything to undo **on the form on screen**? Gating on
+  // anything wider — every form's stack plus project history, as this used to —
+  // offers an Undo that reverts something the user is not looking at, which is
+  // the defect the per-form rewrite exists to remove. A structural change leaves
+  // these disabled on purpose; its own toast and the History panel's Project
+  // section are what undo it.
+  const canUndo = activeFormStack(history, project, "undo").length > 0;
+  const canRedo = activeFormStack(history, project, "redo").length > 0;
   const setMenuName = (name: string) => renameForm(active.id, name);
 
   const [showProjects, setShowProjects] = useState(false);
@@ -263,7 +266,7 @@ export function TopBar() {
         {/* External Links - Desktop */}
         <div className="hidden xl:flex items-center gap-2 mx-2">
           <a
-            href="https://pintux.gitbook.io/pintux-support/bedrockgui/bedrockgui-v2"
+            href="https://pintux.gitbook.io/pintux-support"
             target="_blank"
             rel="noreferrer"
             className="ui-btn ui-btn-secondary px-3 py-1.5 text-brand-muted hover:text-white relative group"
@@ -392,7 +395,7 @@ export function TopBar() {
 
            <div className="flex flex-col gap-2">
               <div className="text-xs text-brand-muted font-medium px-2">Links</div>
-              <a href="https://pintux.gitbook.io/pintux-support/bedrockgui/bedrockgui-v2" target="_blank" rel="noreferrer" className="flex items-center gap-3 px-2 py-2 text-brand-text hover:bg-brand-surface-raised/20 rounded">
+              <a href="https://pintux.gitbook.io/pintux-support" target="_blank" rel="noreferrer" className="flex items-center gap-3 px-2 py-2 text-brand-text hover:bg-brand-surface-raised/20 rounded">
                 <span>📚</span> Documentation
               </a>
               <a href="https://github.com/pintux98/BedrockGUI" target="_blank" rel="noreferrer" className="flex items-center gap-3 px-2 py-2 text-brand-text hover:bg-brand-surface-raised/20 rounded">

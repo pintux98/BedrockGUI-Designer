@@ -39,6 +39,13 @@ beforeEach(() => {
 describe("FormTypePanel type conversion", () => {
   afterEach(() => cleanup());
 
+  it("shows no redundant Bedrock badge beside the form type heading", () => {
+    render(<FormTypePanel />);
+    expect(screen.getByText("Form Type")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.queryByText("Bedrock")).toBeNull();
+  });
+
   it("preserves shared fields across SIMPLE -> CUSTOM -> SIMPLE", () => {
     render(<FormTypePanel />);
     const select = screen.getByRole("combobox") as HTMLSelectElement;

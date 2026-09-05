@@ -4,8 +4,10 @@ import { render, fireEvent, screen, cleanup, waitFor } from "@testing-library/re
 import { DndContext } from "@dnd-kit/core";
 import { unzipSync } from "fflate";
 import { useDesignerStore } from "../core/store";
+import { createEmptyProject } from "../core/project";
 import { useToastStore } from "../core/toast";
 import { PropertiesPanel } from "../panels/PropertiesPanel";
+import { Palette } from "../panels/Palette";
 import { StyleGuidePanel } from "../panels/StyleGuidePanel";
 import { TopBar } from "../app/TopBar";
 
@@ -390,6 +392,12 @@ describe("ui panels", () => {
     expect(actions[0].raw).toContain('"lobby"');
   });
 
+  it("renders no redundant Bedrock chip above the properties sections", () => {
+    wrap(<PropertiesPanel />);
+    expect(screen.getByText("Form Settings")).toBeInTheDocument();
+    expect(screen.queryByText("Bedrock")).toBeNull();
+  });
+
   it("labels each conditional-override property select so multiple rules stay distinguishable", () => {
     wrap(<PropertiesPanel />);
     fireEvent.click(screen.getByText("Conditions"));
@@ -401,3 +409,83 @@ describe("ui panels", () => {
   });
 });
 
+describe("palette visibility by form type", () => {
+  afterEach(() => cleanup());
+
+  function setBedrock(bedrock: unknown) {
+    useDesignerStore.setState((s: any) => ({
+      project: { ...s.project, forms: [{ ...s.project.forms[0], bedrock }] }
+    }));
+  }
+
+  it("offers only Button on a SIMPLE form", () => {
+    wrap(<Palette />);
+    expect(screen.getByText("Palette")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Button" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Input" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dropdown" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Toggle" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Slider" })).toBeNull();
+  });
+
+  it("offers the four component items on a CUSTOM form", () => {
+    setBedrock({ type: "CUSTOM", title: "Example Form", components: [] });
+    wrap(<Palette />);
+    expect(screen.getByText("Palette")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Input" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dropdown" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Slider" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Button" })).toBeNull();
+  });
+
+  it("renders no palette at all on a MODAL form, only a note explaining why", () => {
+    setBedrock({
+      type: "MODAL",
+      title: "Example Form",
+      content: "Content",
+      buttons: [
+        { id: "yes", text: "Yes" },
+        { id: "no", text: "No" }
+      ]
+    });
+    const { container } = wrap(<Palette />);
+    expect(screen.queryByText("Palette")).toBeNull();
+    expect(container.querySelectorAll("button")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Button" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Input" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dropdown" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Toggle" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Slider" })).toBeNull();
+    expect(screen.getByText(/fixed two-button dialog/i)).toBeInTheDocument();
+  });
+});
+
+describe("reorder affordances tell the truth about what can be reordered", () => {
+  beforeEach(() => {
+    useDesignerStore.getState().loadProject(createEmptyProject());
+  });
+  afterEach(() => cleanup());
+
+  // DndHost gates reorder on bedrock.type === "SIMPLE", so a MODAL handle would
+  // be inert. A drag affordance the app refuses to act on is a lie.
+  it("offers a drag handle for SIMPLE buttons", () => {
+    const s = useDesignerStore.getState();
+    s.setBedrock(
+      { type: "SIMPLE", title: "t", content: "", buttons: [{ id: "a", text: "A" }, { id: "b", text: "B" }] },
+      "setup"
+    );
+    wrap(<PropertiesPanel />);
+    expect(screen.getAllByText("⋮⋮").length).toBe(2);
+  });
+
+  it("offers no drag handle for MODAL buttons, which cannot be reordered", () => {
+    const s = useDesignerStore.getState();
+    s.setBedrock(
+      { type: "MODAL", title: "t", content: "", buttons: [{ id: "yes", text: "Yes" }, { id: "no", text: "No" }] },
+      "setup"
+    );
+    wrap(<PropertiesPanel />);
+    expect(screen.queryByText("⋮⋮")).toBeNull();
+  });
+});

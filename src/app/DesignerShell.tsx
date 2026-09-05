@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Palette } from "../panels/Palette";
 import { PropertiesPanel } from "../panels/PropertiesPanel";
-import { ProjectSettingsPanel } from "../panels/ProjectSettingsPanel";
 import { FormTypePanel } from "../panels/FormTypePanel";
 import { FormSwitcher } from "../panels/FormSwitcher";
 import { Canvas } from "../canvas/Canvas";
@@ -200,9 +199,6 @@ export function DesignerShell() {
                     <div className="flex-1 overflow-hidden min-h-0">
                       {rightTab === "properties" && (
                         <div className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar">
-                          <div className="p-2">
-                            <ProjectSettingsPanel />
-                          </div>
                           <PropertiesPanel />
                         </div>
                       )}
@@ -232,9 +228,6 @@ export function DesignerShell() {
                   <div className="flex-1 overflow-hidden min-h-0">
                     {rightTab === "properties" && (
                       <div className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar">
-                        <div className="p-2">
-                          <ProjectSettingsPanel />
-                        </div>
                         <PropertiesPanel />
                       </div>
                     )}

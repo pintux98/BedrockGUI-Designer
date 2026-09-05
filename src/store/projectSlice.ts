@@ -17,7 +17,6 @@ export interface ProjectSlice {
   setBedrock: (form: BedrockForm, description?: string) => void;
   setGlobalActions: (actions: ActionInstance[] | undefined, description?: string) => void;
   setAssets: (assets: AssetsConfig) => void;
-  setPlatformTarget: (target: PlatformTarget) => void;
 }
 
 export const createProjectSlice: StateCreator<
@@ -74,7 +73,7 @@ export const createProjectSlice: StateCreator<
 
   removeForm: (id) => {
     if (get().project.forms.length <= 1) return;
-    get().pushProjectHistory(`Deleted form ${id}`);
+    get().pushProjectHistory(`Deleted form ${id}`, { undoToast: true });
     set((s) => {
       const forms = s.project.forms.filter((f) => f.id !== id);
       const { [id]: _removedHistory, ...restHistory } = s.history;
@@ -112,8 +111,4 @@ export const createProjectSlice: StateCreator<
     set((s) => ({ project: { ...s.project, assets }, dirty: true }));
   },
 
-  setPlatformTarget: (platformTarget) => {
-    get().pushProjectHistory(`Set platform target to ${platformTarget}`);
-    set((s) => ({ project: { ...s.project, platformTarget }, dirty: true }));
-  }
 });
