@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 import fs from "node:fs";
 import path from "node:path";
 import * as yaml from "js-yaml";
@@ -10,6 +10,17 @@ afterEach(() => cleanup());
 
 function FIXTURE(name: string): string {
   return path.resolve(__dirname, "fixtures/plugin-forms", name);
+}
+
+function setCheck(text: string, index = 0) {
+  fireEvent.click(screen.getAllByRole("button", { name: "Change" })[index]);
+  const back = screen.queryByRole("button", { name: "Back to condition types" });
+  if (back) fireEvent.click(back);
+  const custom = screen.queryByRole("button", { name: "Write a custom condition" });
+  if (custom) fireEvent.click(custom);
+  const dialog = screen.getByRole("dialog");
+  fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: text } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save condition" }));
 }
 
 function findNestedConditional(src: string): string {
@@ -33,8 +44,7 @@ describe("ActionEditor", () => {
     const parsed = parseActionBlock(nested);
     const onChange = vi.fn();
     render(<ActionEditor action={parsed} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText(/check/i), { target: { value: "permission:a.b" } });
-    fireEvent.blur(screen.getByLabelText(/check/i));
+    setCheck("permission:a.b");
     const next = onChange.mock.calls[0][0];
     expect(next.kind).toBe("conditional");
     expect(next.check).toBe("permission:a.b");
@@ -71,8 +81,7 @@ describe("real advanced_flow.yml actions survive an edit through the editor", ()
 
     const onChange = vi.fn();
     render(<ActionEditor action={before} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText(/check/i), { target: { value: "permission:edited" } });
-    fireEvent.blur(screen.getByLabelText(/check/i));
+    setCheck("permission:edited");
 
     const next = onChange.mock.calls[0][0];
     const roundTripped = parseActionBlock(serializeActionBlock(next));
@@ -105,34 +114,28 @@ describe("ConditionalEditor check field (symbol context)", () => {
     return { kind: "conditional", check, whenTrue: [], whenFalse: [] };
   }
 
-  it("offers only placeholder and permission as atom kinds", () => {
-    const onChange = vi.fn();
-    render(<ActionEditor action={conditionalAction("permission:a.b")} onChange={onChange} />);
-    const typeSelect = screen.getByRole("combobox", { name: /type/i });
-    const optionValues = Array.from(typeSelect.querySelectorAll("option")).map(
-      (o) => (o as HTMLOptionElement).value
-    );
-    expect(optionValues).toContain("permission");
-    expect(optionValues).toContain("placeholder");
-    expect(optionValues).not.toContain("plugin");
-    expect(optionValues).not.toContain("bedrock_player");
-    expect(optionValues).not.toContain("java_player");
-    expect(optionValues).not.toContain("not");
-    expect(optionValues.some((v) => v.startsWith("not:"))).toBe(false);
+  it("offers only placeholder and permission as condition kinds", () => {
+    render(<ActionEditor action={conditionalAction("permission:a.b")} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to condition types" }));
+    const kinds = Array.from(document.querySelectorAll("[data-condition-kind]")).map((e) => e.getAttribute("data-condition-kind"));
+    expect(kinds).toEqual(["permission", "placeholder"]);
+    expect(screen.queryByLabelText(/Reverse it/)).toBeNull();
   });
 
-  it("editing through the builder writes the check the plugin's check: parser expects", () => {
+  it("editing through the wizard writes the check the plugin's check: parser expects", () => {
     const onChange = vi.fn();
     render(<ActionEditor action={conditionalAction("permission:a.b")} onChange={onChange} />);
-    fireEvent.change(screen.getByRole("combobox", { name: /type/i }), { target: { value: "placeholder" } });
-    // A literal, not validateCondition(next.check): the builder chooses which kinds
-    // to offer by running that validator over the string it is about to emit, so
-    // re-running it here would pass even if the builder emitted the wrong kind.
-    // The value carries over from the permission node, and == is the default
-    // operator — ConditionalActionHandler only accepts symbol operators here.
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to condition types" }));
+    fireEvent.click(document.querySelector('[data-condition-kind="placeholder"]')!);
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByPlaceholderText("%vault_eco_balance%"), { target: { value: "%x%" } });
+    fireEvent.change(within(dialog).getByPlaceholderText("100"), { target: { value: "5" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save condition" }));
     expect(onChange.mock.calls.at(-1)![0]).toEqual({
       kind: "conditional",
-      check: "placeholder:a.b == value",
+      check: "placeholder:%x% == 5",
       whenTrue: [],
       whenFalse: []
     });
@@ -142,13 +145,10 @@ describe("ConditionalEditor check field (symbol context)", () => {
     const compound = "permission:a.b && placeholder:%x% >= 5";
     const onChange = vi.fn();
     render(<ActionEditor action={conditionalAction(compound)} onChange={onChange} />);
-
-    const field = screen.getByLabelText(/check/i);
-    expect(field).toHaveValue(compound);
+    expect(screen.getByText(`Custom: ${compound}`)).toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
 
-    fireEvent.change(field, { target: { value: compound + " && permission:c.d" } });
-    fireEvent.blur(field);
+    setCheck(compound + " && permission:c.d");
     expect(onChange).toHaveBeenCalledWith({
       kind: "conditional",
       check: compound + " && permission:c.d",
@@ -168,16 +168,15 @@ describe("ConditionalEditor check field (symbol context)", () => {
 
     const onChange = vi.fn();
     render(<ActionEditor action={before} onChange={onChange} />);
-
-    // Compound checks open in the advanced field, verbatim, and change nothing on load.
-    expect(screen.getByLabelText(/check/i)).toHaveValue(before.check);
     expect(onChange).not.toHaveBeenCalled();
 
-    // Branch children render collapsed: If true = [message, conditional], If false = [message].
     fireEvent.click(screen.getAllByRole("button", { name: "Expand action" })[1]);
-    const operator = screen.getByRole("combobox", { name: /operator/i });
+    fireEvent.click(screen.getAllByRole("button", { name: "Change" })[1]);
+    const dialog = screen.getByRole("dialog");
+    const operator = within(dialog).getByLabelText("Is");
     expect(operator).toHaveValue(">=");
     fireEvent.change(operator, { target: { value: ">" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save condition" }));
 
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange.mock.calls[0][0]).toEqual({

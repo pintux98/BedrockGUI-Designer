@@ -1,7 +1,7 @@
 import React from "react";
 import { ActionBlock } from "./ActionBlock";
-import { ActionPicker } from "./ActionPicker";
-import { ActionKind, createDefaultAction } from "./actionInfo";
+import { Icon } from "../components/Icon";
+import { AddActionFlow } from "./ActionSetup";
 import { parseActionBlock, serializeActionBlock, ParsedAction } from "../plugin/grammar";
 
 interface VisualActionEditorProps {
@@ -54,10 +54,7 @@ export function VisualActionEditor({ value, onChange }: VisualActionEditorProps)
     onChange(blocks);
   };
 
-  const addAction = (kind: ActionKind) => {
-    updateActions([...actions, createDefaultAction(kind)]);
-    setShowPicker(false);
-  };
+
 
   const updateAction = (index: number, next: ParsedAction) => {
     const copy = [...actions];
@@ -84,17 +81,7 @@ export function VisualActionEditor({ value, onChange }: VisualActionEditorProps)
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs text-brand-muted">Actions</div>
-        <button
-          className="ui-btn-primary px-3 py-1 text-xs"
-          onClick={() => setShowPicker(true)}
-        >
-          + Add Action
-        </button>
-      </div>
-
+    <div className="space-y-2">
       <div className="space-y-2">
         {actions.map((action, idx) => (
           <ActionBlock
@@ -109,19 +96,12 @@ export function VisualActionEditor({ value, onChange }: VisualActionEditorProps)
             onDuplicate={() => duplicateAction(idx)}
           />
         ))}
-        {actions.length === 0 && (
-          <div className="text-xs text-brand-muted text-center py-4 border border-dashed border-brand-border rounded">
-            No actions yet. Click "Add Action" to get started.
-          </div>
-        )}
       </div>
+      <button type="button" className="ui-btn-secondary w-full border-dashed" onClick={() => setShowPicker(true)}>
+        <Icon name="plus" size={14} /> Add action
+      </button>
 
-      {showPicker && (
-        <ActionPicker
-          onSelect={addAction}
-          onClose={() => setShowPicker(false)}
-        />
-      )}
+      {showPicker && <AddActionFlow onClose={() => setShowPicker(false)} onAdd={(action) => updateActions([...actions, action])} />}
     </div>
   );
 }

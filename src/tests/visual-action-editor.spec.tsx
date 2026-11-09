@@ -30,12 +30,11 @@ function Harness({ initial, spy }: { initial: string[]; spy?: (v: string[]) => v
 }
 
 function addViaPicker(description: RegExp) {
-  fireEvent.click(screen.getByRole("button", { name: "+ Add Action" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add action" }));
   fireEvent.click(screen.getByRole("button", { name: description }));
 }
 
-const RAW_ENTRY = /Write raw action block YAML/;
-const MESSAGE_ENTRY = /Send a chat message to the player/;
+const RAW_ENTRY = /Write it by hand/;
 
 function commit(field: HTMLElement, value: string) {
   fireEvent.change(field, { target: { value } });
@@ -50,12 +49,12 @@ describe("VisualActionEditor", () => {
 
     // lines → LinesEditor
     expect(screen.getByRole("textbox", { name: "Line 1" })).toHaveValue("a");
-    // conditional → ConditionalEditor (its check builder plus the two branches)
-    expect(screen.getByRole("combobox", { name: /type/i })).toHaveValue("permission");
+    // conditional → ConditionalEditor (its check as a sentence plus the two branches)
+    expect(screen.getByText("Player has the permission a.b")).toBeInTheDocument();
     expect(screen.getByText("If true")).toBeInTheDocument();
     expect(screen.getByText("If false")).toBeInTheDocument();
     // random → RandomEditor
-    expect(screen.getByRole("textbox", { name: "Entry 1 text" })).toHaveValue("message:x");
+    expect(screen.getByRole("textbox", { name: "Entry 1 text" })).toHaveValue("x");
     expect(screen.getByRole("spinbutton", { name: "Entry 1 weight" })).toHaveValue(2);
     // bungee → BungeeEditor
     expect(screen.getByLabelText("Subchannel")).toHaveValue("Connect");
@@ -90,7 +89,7 @@ describe("VisualActionEditor", () => {
 
     rerender(<VisualActionEditor value={[RANDOM]} onChange={vi.fn()} />);
     expect(screen.queryByRole("textbox", { name: "Line 1" })).toBeNull();
-    expect(screen.getByRole("textbox", { name: "Entry 1 text" })).toHaveValue("message:x");
+    expect(screen.getByRole("textbox", { name: "Entry 1 text" })).toHaveValue("x");
   });
 
   // ─── Finding 1 ────────────────────────────────────────────────────────────
@@ -111,9 +110,8 @@ describe("VisualActionEditor", () => {
 
   it("keeps an empty in-progress block on screen while a sibling is edited", () => {
     const spy = vi.fn();
-    render(<Harness initial={[]} spy={spy} />);
+    render(<Harness initial={[MESSAGE]} spy={spy} />);
 
-    addViaPicker(MESSAGE_ENTRY);
     addViaPicker(RAW_ENTRY);
     expect(screen.getByRole("textbox", { name: "Raw action block" })).toBeInTheDocument();
 

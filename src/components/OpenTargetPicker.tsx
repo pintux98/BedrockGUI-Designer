@@ -80,7 +80,7 @@ export function OpenTargetPicker({ value, onChange, label = "Menu to open" }: Op
 
   return (
     <div className="space-y-1">
-      <label htmlFor={inputId} className="text-[10px] text-brand-muted block mb-0.5">
+      <label htmlFor={inputId} className="text-[11.5px] text-brand-muted block mb-0.5">
         {label}
       </label>
       <input
@@ -112,7 +112,7 @@ export function OpenTargetPicker({ value, onChange, label = "Menu to open" }: Op
           className="max-h-40 overflow-y-auto custom-scrollbar border border-brand-border rounded bg-brand-surface2"
         >
           <div role="group" aria-label="This project">
-            <div className="flex items-center gap-1 px-2 py-0.5 text-[9px] uppercase tracking-wide text-brand-muted bg-brand-surface/60 sticky top-0">
+            <div className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-brand-muted bg-brand-surface/60 sticky top-0">
               <span>This project</span>
             </div>
             {ids.map((id) => (
@@ -137,7 +137,7 @@ export function OpenTargetPicker({ value, onChange, label = "Menu to open" }: Op
       )}
 
       {addon && (
-        <p className="text-[10px] text-brand-muted">
+        <p className="text-[11.5px] text-brand-muted">
           <span className="text-brand-accent font-mono">{baseId}</span> is an action type registered by the{" "}
           <strong className="text-brand-text font-medium">{addon.name}</strong> ({addon.jar}) — not a menu. An{" "}
           <code>open</code> target only ever resolves to a form declared under <code>forms:</code>, so this fails at
@@ -150,7 +150,7 @@ export function OpenTargetPicker({ value, onChange, label = "Menu to open" }: Op
       )}
 
       {unknown && (
-        <p className="text-[10px] text-brand-muted">
+        <p className="text-[11.5px] text-brand-muted">
           <span className="text-brand-accent">{trimmed}</span> is not a known target — it must be a form of your own,
           registered under that id.
         </p>

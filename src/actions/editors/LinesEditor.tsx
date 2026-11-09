@@ -4,92 +4,95 @@ import { ParsedAction } from "../../plugin/grammar";
 import { BufferedInput } from "../../components/BufferedInput";
 import { PlaceholderPicker } from "../../components/PlaceholderPicker";
 import { OpenTargetPicker } from "../../components/OpenTargetPicker";
+import { Icon } from "../../components/Icon";
+import { DEFAULT_LINES, LineFields, LineProblems, STRUCTURED_LINES } from "../LineFields";
 
 interface LinesEditorProps {
   action: Extract<ParsedAction, { kind: "lines" }>;
   onChange: (next: ParsedAction) => void;
 }
 
-/**
- * `OpenFormActionHandler.shouldTreatValuesAsMenuChain` only opens the values as a
- * chain of menus when every one of them is a syntactically valid *and registered*
- * menu name. Otherwise the first value is the menu and the rest are arguments
- * passed to it. So only line 1 of an `open` block is reliably a menu target — the
- * later lines are shown as plain text, labelled for what they may actually be.
- */
 const OPEN_CHAIN_NOTE =
-  "Only the first value is always a menu. The rest open as a chain only when every one of them is a registered menu; otherwise they are passed to the first menu as arguments.";
+  "Only the first value is always a form. The rest open as a chain only when every one of them is a registered form; otherwise they are passed to the first form as arguments.";
 
 export function LinesEditor({ action, onChange }: LinesEditorProps) {
   const info = ACTIONS[action.id];
   const [placeholderTarget, setPlaceholderTarget] = React.useState<number | null>(null);
+  const [asText, setAsText] = React.useState<Record<number, boolean>>({});
   const isOpen = action.id === "open";
+  const structured = STRUCTURED_LINES.includes(action.id);
 
   const updateLine = (i: number, value: string) => {
     const lines = [...action.lines];
     lines[i] = value;
     onChange({ kind: "lines", id: action.id, lines });
   };
+  const addLine = () => onChange({ kind: "lines", id: action.id, lines: [...action.lines, DEFAULT_LINES[action.id] ?? ""] });
+  const removeLine = (i: number) => onChange({ kind: "lines", id: action.id, lines: action.lines.filter((_, idx) => idx !== i) });
 
-  const addLine = () => onChange({ kind: "lines", id: action.id, lines: [...action.lines, ""] });
-
-  const removeLine = (i: number) =>
-    onChange({ kind: "lines", id: action.id, lines: action.lines.filter((_, idx) => idx !== i) });
-
-  const lineLabel = (i: number) => (isOpen && i > 0 ? `Line ${i + 1} (chained menu or argument)` : `Line ${i + 1}`);
+  const removeButton = (i: number) => (
+    <button type="button" className="ui-icon-btn size-7 hover:!text-brand-danger" aria-label={`Remove line ${i + 1}`} title="Remove" onClick={() => removeLine(i)}>
+      <Icon name="x" size={14} />
+    </button>
+  );
 
   return (
-    <div className="space-y-1">
-      {action.lines.map((line, i) =>
-        isOpen && i === 0 ? (
-          <div key={i} className="flex items-start gap-1">
-            <div className="flex-1">
-              <OpenTargetPicker value={line} onChange={(v) => updateLine(0, v)} />
+    <div className="space-y-2">
+      {action.lines.map((line, i) => {
+        if (isOpen && i === 0) {
+          return (
+            <div key={i} className="flex items-start gap-1">
+              <div className="flex-1">
+                <OpenTargetPicker value={line} onChange={(v) => updateLine(0, v)} />
+                <LineProblems id={action.id} line={line} />
+              </div>
+              {action.lines.length > 1 && removeButton(i)}
             </div>
-            <button
-              type="button"
-              className="ui-btn-ghost px-1.5 py-0.5 text-xs text-brand-danger hover:text-red-400 mt-4"
-              aria-label={`Remove line ${i + 1}`}
-              onClick={() => removeLine(i)}
-            >
-              ✕
-            </button>
+          );
+        }
+        if (structured && !asText[i]) {
+          return (
+            <div key={i} className="rounded-md border border-brand-border bg-brand-surface p-2.5">
+              <LineFields id={action.id} value={line} onChange={(v) => updateLine(i, v)} />
+              <LineProblems id={action.id} line={line} />
+              <div className="mt-2 flex items-center justify-between">
+                <button type="button" className="ui-btn-ghost min-h-6 px-1 text-[12px]" onClick={() => setAsText((s) => ({ ...s, [i]: true }))}>
+                  Edit as text
+                </button>
+                {action.lines.length > 1 && removeButton(i)}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div key={i}>
+            <div className="flex items-center gap-1">
+              <BufferedInput
+                aria-label={isOpen ? `Line ${i + 1} (chained form or argument)` : `Line ${i + 1}`}
+                className="ui-input flex-1"
+                placeholder={info.placeholder}
+                value={line}
+                onCommit={(v) => updateLine(i, v)}
+              />
+              {structured ? (
+                <button type="button" className="ui-btn-ghost min-h-7 px-1.5 text-[12px]" onClick={() => setAsText((s) => ({ ...s, [i]: false }))}>
+                  Fields
+                </button>
+              ) : (
+                <button type="button" className="ui-icon-btn size-7" aria-label={`Insert placeholder into line ${i + 1}`} title="Insert placeholder" onClick={() => setPlaceholderTarget(i)}>
+                  {"{}"}
+                </button>
+              )}
+              {removeButton(i)}
+            </div>
+            <LineProblems id={action.id} line={line} />
           </div>
-        ) : (
-          <div key={i} className="flex items-center gap-1">
-            <BufferedInput
-              aria-label={lineLabel(i)}
-              className="ui-input text-xs flex-1"
-              placeholder={info.placeholder}
-              value={line}
-              onCommit={(v) => updateLine(i, v)}
-            />
-            <button
-              type="button"
-              className="ui-btn-ghost px-1.5 py-0.5 text-xs"
-              aria-label={`Insert placeholder into line ${i + 1}`}
-              onClick={() => setPlaceholderTarget(i)}
-            >
-              @
-            </button>
-            <button
-              type="button"
-              className="ui-btn-ghost px-1.5 py-0.5 text-xs text-brand-danger hover:text-red-400"
-              aria-label={`Remove line ${i + 1}`}
-              onClick={() => removeLine(i)}
-            >
-              ✕
-            </button>
-          </div>
-        )
-      )}
-      <button type="button" className="ui-btn-ghost px-2 py-1 text-xs" onClick={addLine}>
-        + Add line
+        );
+      })}
+      <button type="button" className="ui-btn-ghost min-h-7 px-1.5 text-[12.5px]" onClick={addLine}>
+        <Icon name="plus" size={13} /> {isOpen ? "Add another form or argument" : "Add line"}
       </button>
-      {isOpen && action.lines.length > 1 && (
-        <p className="text-[10px] text-brand-muted">{OPEN_CHAIN_NOTE}</p>
-      )}
-      <pre className="text-[9px] text-brand-accent/70 font-mono whitespace-pre-wrap">{info.formatExample}</pre>
+      {isOpen && action.lines.length > 1 && <p className="ui-hint">{OPEN_CHAIN_NOTE}</p>}
 
       {placeholderTarget !== null && (
         <PlaceholderPicker

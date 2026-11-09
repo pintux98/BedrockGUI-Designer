@@ -500,7 +500,7 @@ describe("ValidationPanel — project section", () => {
       selectedBedrockComponentId: null
     } as never);
     const result = render(React.createElement(ValidationPanel));
-    const summary = result.container.querySelector(".cursor-pointer");
+    const summary = result.container.querySelector("button[aria-expanded]");
     if (summary) fireEvent.click(summary);
     return result;
   }
@@ -515,6 +515,6 @@ describe("ValidationPanel — project section", () => {
 
   it("stays quiet on a clean single-form project", () => {
     const { container } = renderExpandedFor(projectWith(createForm("main_menu")));
-    expect(container.textContent).toContain("No validation issues");
+    expect(container.textContent).toContain("No problems found");
   });
 });

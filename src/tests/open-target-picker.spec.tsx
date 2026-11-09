@@ -180,8 +180,8 @@ describe("LinesEditor wiring", () => {
 
   it("labels the later lines of an open block as chained menus or arguments", () => {
     render(<ActionEditor action={linesAction("open", ["shop", "3"])} onChange={vi.fn()} />);
-    expect(screen.getByRole("textbox", { name: /line 2 \(chained menu or argument\)/i })).toBeInTheDocument();
-    expect(screen.getByText(/only the first value is always a menu/i)).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /line 2 \(chained form or argument\)/i })).toBeInTheDocument();
+    expect(screen.getByText(/only the first value is always a form/i)).toBeInTheDocument();
   });
 
   it("writes the committed target back into the first line and leaves the rest alone", () => {

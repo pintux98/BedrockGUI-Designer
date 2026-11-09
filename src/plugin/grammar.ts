@@ -56,15 +56,14 @@ function parseRandom(body: string, raw: ParsedAction): ParsedAction {
   return {
     kind: "random",
     entries: (loaded as string[]).map((entry) => {
-      const at = entry.lastIndexOf("@");
-      if (at === -1) return { text: entry };
-      const weight = Number(entry.slice(at + 1));
-      if (!Number.isFinite(weight)) return { text: entry };
-      return { text: entry.slice(0, at), weight };
+      const m = entry.match(RANDOM_WEIGHT);
+      const weight = m ? Number(m[2]) : NaN;
+      return weight > 0 ? { text: m![1], weight } : { text: entry };
     })
   };
 }
 
+const RANDOM_WEIGHT = /^(.*\S)@(\d+(?:\.\d+)?)$/;
 const SUBCHANNEL_LINE = /^subchannel:\s*(.*)$/;
 const LIST_ITEM = /^-\s+(.*)$/;
 

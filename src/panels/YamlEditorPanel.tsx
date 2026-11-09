@@ -50,7 +50,7 @@ export function YamlEditorPanel({ onCollapseChange, defaultExpanded }: YamlEdito
       >
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-brand-text">YAML Preview</span>
-          {collapsed && <span className="text-[10px] text-brand-muted px-2 py-0.5 rounded bg-brand-bg border border-brand-border">Collapsed</span>}
+          {collapsed && <span className="text-[11.5px] text-brand-muted px-2 py-0.5 rounded bg-brand-bg border border-brand-border">Collapsed</span>}
         </div>
         {!defaultExpanded && <span className="text-xs text-brand-muted transition-transform duration-300" style={{ transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>}
       </button>

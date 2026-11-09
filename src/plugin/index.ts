@@ -1,4 +1,4 @@
-export const PLUGIN_TARGET = "2.0.11" as const;
+export const PLUGIN_TARGET = "2.0.12" as const;
 
 export * from "./actions";
 export * from "./addons";

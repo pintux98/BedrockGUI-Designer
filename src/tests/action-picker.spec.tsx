@@ -1,6 +1,6 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { ActionPicker } from "../actions/ActionPicker";
 import { VisualActionEditor } from "../actions/VisualActionEditor";
 import { ConfigSnippetDialog } from "../components/ConfigSnippetDialog";
@@ -56,7 +56,7 @@ describe("ActionPicker", () => {
     for (const platform of ["paper", "velocity", "bungee"] as PlatformTarget[]) {
       setPlatform(platform);
       render(<ActionPicker onSelect={vi.fn()} onClose={vi.fn()} />);
-      expect(offeredIds(), platform).toEqual([...CORE_IDS, "raw"]);
+      expect([...offeredIds()].sort(), platform).toEqual([...CORE_IDS, "raw"].sort());
       cleanup();
     }
   });
@@ -64,8 +64,8 @@ describe("ActionPicker", () => {
   it("still offers sound and economy on a proxy target", () => {
     setPlatform("velocity");
     render(<ActionPicker onSelect={vi.fn()} onClose={vi.fn()} />);
-    expect(screen.getByText("Sound")).toBeInTheDocument();
-    expect(screen.getByText("Economy")).toBeInTheDocument();
+    expect(screen.getByText("Play a sound")).toBeInTheDocument();
+    expect(screen.getByText("Give or take money")).toBeInTheDocument();
   });
 
   it("marks exactly sound and economy as Paper-only, on every platform target", () => {
@@ -114,7 +114,7 @@ describe("ActionPicker addon sections", () => {
       expect(sectionToggle(id)).toHaveAttribute("aria-expanded", "false");
       expect(sectionToggle(id)).toHaveTextContent(name);
     }
-    expect(offeredIds()).toEqual([...CORE_IDS, "raw"]);
+    expect([...offeredIds()].sort()).toEqual([...CORE_IDS, "raw"].sort());
   });
 
   it("names each addon and how many actions it registers", () => {
@@ -201,7 +201,7 @@ describe("inserting an addon action", () => {
   }
 
   function pick(addonId: string, id: string) {
-    fireEvent.click(screen.getByRole("button", { name: "+ Add Action" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add action" }));
     fireEvent.click(sectionToggle(addonId));
     fireEvent.click(rowFor(id));
   }
@@ -220,15 +220,39 @@ describe("inserting an addon action", () => {
     const spy = vi.fn();
     render(<Harness spy={spy} />);
     pick("bedwars", "bw_shop_cat");
-    expect(spy).toHaveBeenCalledWith(["bw_shop_cat:"]);
+    const dialog = screen.getByRole("dialog", { name: "bw_shop_cat" });
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "blocks" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add action" }));
+    expect(spy).toHaveBeenCalledWith(["bw_shop_cat:blocks"]);
   });
 
-  it("leaves a core action's block untouched", () => {
+  it("builds a core action from the setup step's plain questions", () => {
     const spy = vi.fn();
     render(<Harness spy={spy} />);
-    fireEvent.click(screen.getByRole("button", { name: "+ Add Action" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add action" }));
     fireEvent.click(rowFor("message"));
-    expect(spy).toHaveBeenCalledWith(['message {\n  - ""\n}']);
+    const dialog = screen.getByRole("dialog", { name: "Send a chat message" });
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "Hi" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add action" }));
+    expect(spy).toHaveBeenCalledWith(['message {\n  - "Hi"\n}']);
+  });
+
+  it("encodes item, amount and timing so nobody types colons by hand", () => {
+    const spy = vi.fn();
+    render(<Harness spy={spy} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add action" }));
+    fireEvent.click(rowFor("inventory"));
+    let dialog = screen.getByRole("dialog", { name: "Give or take items" });
+    fireEvent.change(within(dialog).getByLabelText(/How many/), { target: { value: "3" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add action" }));
+    expect(spy).toHaveBeenLastCalledWith(['inventory {\n  - "give:diamond:3"\n}']);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add action" }));
+    fireEvent.click(rowFor("delay"));
+    dialog = screen.getByRole("dialog", { name: "Wait a moment" });
+    fireEvent.change(within(dialog).getByLabelText(/How many seconds/), { target: { value: "2.5" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add action" }));
+    expect(spy.mock.lastCall?.[0][1]).toBe('delay {\n  - "2500"\n}');
   });
 });
 

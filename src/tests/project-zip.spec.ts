@@ -147,3 +147,28 @@ describe("parseProjectFromZip", () => {
     expect(notes.join(" ")).not.toContain("Skipped archive entry");
   });
 });
+
+describe("forgiving archive layouts", () => {
+  it("imports form files at the archive root and inside a wrapping folder, skipping server files quietly", async () => {
+    const files: Record<string, Uint8Array> = {
+      "a.yml": strToU8(serializeFormDocument(createForm("a"))),
+      "BedrockGUI/forms/b.yml": strToU8(serializeFormDocument(createForm("b"))),
+      "messages.yml": strToU8("menu: {}"),
+      "readme.txt": strToU8("hi")
+    };
+    const { project, notes } = await parseProjectFromZip(zipSync(files));
+    expect(project.forms.map((f) => f.id).sort()).toEqual(["a", "b"]);
+    expect(notes.filter((n) => n.startsWith("Skipped"))).toHaveLength(1);
+    expect(notes.join(" ")).toContain("readme.txt");
+    expect(notes.join(" ")).not.toContain("messages.yml");
+  });
+
+  it("finds registered forms next to a config.yml inside a wrapping folder", async () => {
+    const files: Record<string, Uint8Array> = {
+      "BedrockGUI/config.yml": strToU8('config-version: 1\nforms:\n  shop:\n    file: "store.yml"\n'),
+      "BedrockGUI/forms/store.yml": strToU8(serializeFormDocument(createForm("store")))
+    };
+    const { project } = await parseProjectFromZip(zipSync(files));
+    expect(project.forms.map((f) => f.id)).toEqual(["shop"]);
+  });
+});

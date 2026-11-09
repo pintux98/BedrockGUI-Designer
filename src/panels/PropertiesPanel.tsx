@@ -1,22 +1,25 @@
 import React from "react";
 import { useDesignerStore } from "../core/store";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { BufferedInput, BufferedTextArea } from "../components/BufferedInput";
 import { VisualActionEditor } from "../actions/VisualActionEditor";
-import { CollapsibleSection } from "../components/CollapsibleSection";
-import { ConditionBuilder } from "../components/ConditionBuilder";
+import { ConditionField } from "../components/ConditionWizard";
 import { PlaceholderPicker } from "../components/PlaceholderPicker";
 import { ImagePicker } from "../components/ImagePicker";
-import { FormChainVisualizer } from "../components/FormChainVisualizer";
+import { Field, Section } from "../components/Field";
+import { Icon, IconName } from "../components/Icon";
+import { FormTypePanel, FORM_TYPE_INFO } from "./FormTypePanel";
+import { COMPONENT_META, choiceList } from "../core/componentMeta";
 import { nextSequentialId } from "../core/ids";
-import { operatorsFor } from "../plugin/conditions";
-import type { BedrockButtonConditionRule } from "../core/types";
+import { componentReference, ONLINE_PLAYERS_TOKEN } from "../plugin/placeholders";
+import type {
+  ActionInstance,
+  BedrockButton,
+  BedrockButtonConditionRule,
+  BedrockComponent,
+  BedrockForm
+} from "../core/types";
 
-const SHOW_CONDITION_HINT = (() => {
-  const op = operatorsFor("colon").find((o) => o.word === "greater_than") ?? operatorsFor("colon")[0];
-  return `e.g. permission:my.perm or placeholder:{vault_eco_balance}:${op.word}:100`;
-})();
+const COOLDOWN_HINT = "Seconds, or a number with s, m or h, like 30s or 2m. Leave empty for none.";
 
 const PROPERTY_OPTIONS: { value: BedrockButtonConditionRule["property"]; label: string }[] = [
   { value: "text", label: "Text" },
@@ -24,522 +27,370 @@ const PROPERTY_OPTIONS: { value: BedrockButtonConditionRule["property"]; label: 
   { value: "onClick", label: "Actions" }
 ];
 
+function toBlocks(actions?: ActionInstance[]): string[] {
+  return (actions ?? []).map((a) => a.raw ?? "").filter(Boolean);
+}
+
+function fromBlocks(blocks: string[]): ActionInstance[] | undefined {
+  const list = blocks.filter(Boolean).map((raw) => ({ id: "raw", params: raw, raw }));
+  return list.length ? list : undefined;
+}
+
+function optional(v: string): string | undefined {
+  return v.trim() ? v : undefined;
+}
+
 export function PropertiesPanel() {
-  const {
-    activeForm,
-    setBedrock,
-    setGlobalActions,
-    selectedBedrockButtonId,
-    setSelectedBedrockButtonId,
-    selectedBedrockComponentId,
-    setSelectedBedrockComponentId
-  } = useDesignerStore();
-  const bedrock = activeForm().bedrock;
-  const globalActions = bedrock.globalActions;
+  const { activeForm, selectedBedrockButtonId, selectedBedrockComponentId } = useDesignerStore();
+  const doc = activeForm();
+  const form = doc.bedrock;
+  const button = form.type !== "CUSTOM" ? form.buttons.find((b) => b.id === selectedBedrockButtonId) : undefined;
+  const component = form.type === "CUSTOM" ? form.components.find((c) => c.id === selectedBedrockComponentId) : undefined;
 
-  const buttonRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
-  const componentRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
-
-  React.useEffect(() => {
-    if (!selectedBedrockButtonId) return;
-    const el = buttonRefs.current[selectedBedrockButtonId];
-    el?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [selectedBedrockButtonId]);
-
-  React.useEffect(() => {
-    if (!selectedBedrockComponentId) return;
-    const el = componentRefs.current[selectedBedrockComponentId];
-    el?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [selectedBedrockComponentId]);
-
-  return (
-    <div className="ui-panel flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col">
-      <div className="ui-panel-title shrink-0">Properties</div>
-      <div className="p-2">
-      {bedrock && (
-        <div className="space-y-2">
-          <CollapsibleSection title="Form Settings" icon="⚙️">
-            <div className="space-y-2 pt-2">
-              <BufferedInput
-                className="ui-input"
-                value={bedrock.command ?? ""}
-                placeholder="command (optional)"
-                onCommit={(v) => setBedrock({ ...bedrock, command: v }, "Updated command")}
-              />
-              <BufferedInput
-                className="ui-input"
-                value={bedrock.commandIntercept ?? ""}
-                placeholder="command_intercept (optional)"
-                onCommit={(v) => setBedrock({ ...bedrock, commandIntercept: v }, "Updated command intercept")}
-              />
-              <BufferedInput
-                className="ui-input"
-                value={bedrock.permission ?? ""}
-                placeholder="permission (optional)"
-                onCommit={(v) => setBedrock({ ...bedrock, permission: v }, "Updated permission")}
-              />
-              <BufferedInput
-                className="ui-input"
-                aria-label="Form title"
-                value={bedrock.title}
-                maxLength={64}
-                onCommit={(v) => setBedrock({ ...bedrock, title: v }, "Updated title")}
-              />
-              {"content" in bedrock && (
-                <BufferedTextArea
-                  className="ui-textarea"
-                  value={Array.isArray(bedrock.content) ? bedrock.content.join("\n") : bedrock.content ?? ""}
-                  onCommit={(v) => setBedrock({ ...bedrock, content: v }, "Updated content")}
-                />
-              )}
-              {bedrock.type === "MODAL" && (
-                <div className="text-xs text-yellow-300">
-                  Layout locked; content areas are editable.
-                </div>
-              )}
-            </div>
-          </CollapsibleSection>
-          {(bedrock.type === "SIMPLE" || bedrock.type === "MODAL") && "buttons" in bedrock && (
-            <CollapsibleSection title="Buttons" icon="🔘" headerRight={
-              bedrock.type === "SIMPLE" && (
-                <button
-                  className="ui-btn-secondary px-2 py-1 text-xs"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const id = nextSequentialId("button", bedrock.buttons.map((b) => b.id));
-                    const buttons = [...bedrock.buttons, { id, text: `Button ${id.split("_")[1]}` }];
-                    setBedrock({ ...bedrock, buttons }, "Added button");
-                  }}
-                >
-                  Add
-                </button>
-              )
-            }>
-              <div className="pt-2">
-              {selectedBedrockButtonId && (
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-xs text-brand.accent">Editing button: {selectedBedrockButtonId}</div>
-                  <button
-                    className="ui-btn-ghost px-2 py-1 text-xs"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setSelectedBedrockButtonId(null);
-                    }}
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-              <SortableContext
-                items={bedrock.buttons.map((b) => `bedrock-button-${b.id}`)}
-                strategy={verticalListSortingStrategy}
-              >
-                {bedrock.buttons.map((b, idx) => (
-                  <SortableCard
-                    key={b.id}
-                    sortable={bedrock.type === "SIMPLE"}
-                    id={`bedrock-button-${b.id}`}
-                    selected={selectedBedrockButtonId === b.id}
-                    onSelect={() => {
-                      setSelectedBedrockButtonId(b.id);
-                      setSelectedBedrockComponentId(null);
-                    }}
-                    registerRef={(el) => {
-                      buttonRefs.current[b.id] = el;
-                    }}
-                  >
-                  <BufferedInput
-                    className="ui-input text-xs mb-2"
-                    value={b.id}
-                    disabled={bedrock.type === "MODAL"}
-                    onCommit={(v) => {
-                      const trimmed = v.trim();
-                      if (!trimmed) return;
-                      if (bedrock.buttons.some((other, i) => i !== idx && other.id === trimmed)) return;
-                      const buttons = [...bedrock.buttons];
-                      buttons[idx] = { ...b, id: trimmed };
-                      setBedrock({ ...bedrock, buttons }, "Renamed button ID");
-                    }}
-                  />
-                  <div className="flex gap-2 mb-2">
-                    <BufferedTextArea
-                      className="flex-1 ui-textarea px-2 py-1 text-xs h-14"
-                      value={b.text}
-                      maxLength={bedrock.type === "MODAL" ? 64 : 128}
-                      placeholder="text (supports new lines)"
-                      onCommit={(v) => {
-                        const buttons = [...bedrock.buttons];
-                        buttons[idx] = { ...b, text: v };
-                        setBedrock({ ...bedrock, buttons }, "Updated button text");
-                      }}
-                    />
-                    {bedrock.type === "SIMPLE" && (
-                      <button
-                        className="ui-btn-secondary px-2 py-1 text-xs"
-                        onClick={() => {
-                          const buttons = bedrock.buttons.filter((_, i) => i !== idx);
-                          setBedrock({
-                            ...bedrock,
-                            buttons: buttons.length ? buttons : [{ id: "button_1", text: "Button 1" }]
-                          }, "Removed button");
-                        }}
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  <div className="mb-2">
-                    <ImagePicker
-                      value={b.image ?? ""}
-                      ariaLabel={`Button ${idx + 1} image`}
-                      onChange={(v) => {
-                        const buttons = [...bedrock.buttons];
-                        buttons[idx] = { ...b, image: v ? v : undefined };
-                        setBedrock({ ...bedrock, buttons }, "Updated button image");
-                      }}
-                    />
-                  </div>
-                  {bedrock.type === "SIMPLE" && (
-                    <CollapsibleSection title="Conditions" icon="🔀" defaultExpanded={false}>
-                      <div className="pt-2 space-y-2">
-                        <div>
-                          <div className="text-[10px] text-brand-muted mb-1">Show Condition</div>
-                          <BufferedInput
-                            className="ui-input text-xs"
-                            placeholder={SHOW_CONDITION_HINT}
-                            value={b.showCondition ?? ""}
-                            onCommit={(v) => {
-                              const buttons = [...bedrock.buttons];
-                              buttons[idx] = { ...b, showCondition: v || undefined };
-                              setBedrock({ ...bedrock, buttons }, "Updated show condition");
-                            }}
-                          />
-                        </div>
-                        {(b.showCondition || b.alternativeText || b.alternativeImage) && (
-                          <>
-                            <div>
-                              <div className="text-[10px] text-brand-muted mb-1">Alternative Text</div>
-                              <BufferedInput
-                                className="ui-input text-xs"
-                                placeholder="Text when condition is false"
-                                value={b.alternativeText ?? ""}
-                                onCommit={(v) => {
-                                  const buttons = [...bedrock.buttons];
-                                  buttons[idx] = { ...b, alternativeText: v || undefined };
-                                  setBedrock({ ...bedrock, buttons }, "Updated alternative text");
-                                }}
-                              />
-                            </div>
-                            <div>
-                              <div className="text-[10px] text-brand-muted mb-1">Alternative Image</div>
-                              <ImagePicker
-                                value={b.alternativeImage ?? ""}
-                                placeholder="Image when condition is false"
-                                ariaLabel={`Button ${idx + 1} alternative image`}
-                                onChange={(v) => {
-                                  const buttons = [...bedrock.buttons];
-                                  buttons[idx] = { ...b, alternativeImage: v || undefined };
-                                  setBedrock({ ...bedrock, buttons }, "Updated alternative image");
-                                }}
-                              />
-                            </div>
-                          </>
-                        )}
-                        <ConditionRuleList
-                          rules={b.conditions ?? []}
-                          onChange={(conditions) => {
-                            const buttons = [...bedrock.buttons];
-                            buttons[idx] = { ...b, conditions };
-                            setBedrock({ ...bedrock, buttons }, "Updated conditions");
-                          }}
-                        />
-                      </div>
-                    </CollapsibleSection>
-                  )}
-                  <VisualActionEditor
-                    value={(b.onClick ?? []).map((a) => a.raw ?? "").filter(Boolean)}
-                    onChange={(blocks) => {
-                      const buttons = [...bedrock.buttons];
-                      buttons[idx] = {
-                        ...b,
-                        onClick: blocks.filter(Boolean).map((raw) => ({ id: "raw", params: raw, raw }))
-                      };
-                      setBedrock({ ...bedrock, buttons }, "Updated button actions");
-                    }}
-                  />
-                  </SortableCard>
-                ))}
-              </SortableContext>
-              </div>
-            </CollapsibleSection>
-          )}
-          {bedrock.type === "CUSTOM" && "components" in bedrock && (
-            <CollapsibleSection title="Components" icon="📦">
-              <div className="pt-2">
-              {selectedBedrockComponentId && (
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs text-brand.accent">Editing: {selectedBedrockComponentId}</div>
-                  <button
-                    className="ui-btn-ghost px-2 py-1 text-xs"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setSelectedBedrockComponentId(null);
-                    }}
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-              <SortableContext
-                items={bedrock.components.map((c) => `bedrock-component-${c.id}`)}
-                strategy={verticalListSortingStrategy}
-              >
-              {bedrock.components.map((c, ci) => (
-                <SortableCard
-                  key={c.id}
-                  sortable
-                  id={`bedrock-component-${c.id}`}
-                  selected={selectedBedrockComponentId === c.id}
-                  onSelect={() => {
-                    setSelectedBedrockComponentId(c.id);
-                    setSelectedBedrockButtonId(null);
-                  }}
-                  registerRef={(el) => {
-                    componentRefs.current[c.id] = el;
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs">{c.type}</div>
-                    <button
-                      className="ui-btn-secondary px-2 py-1 text-xs"
-                      onClick={() => {
-                        const components = bedrock.components.filter((x) => x.id !== c.id);
-                        setBedrock({ ...bedrock, components }, "Removed component");
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                  <BufferedInput
-                    className="ui-input text-xs mb-2"
-                    value={c.id}
-                    onCommit={(v) => {
-                      const components = [...bedrock.components];
-                      components[ci] = { ...c, id: v };
-                      setBedrock({ ...bedrock, components }, "Renamed component ID");
-                    }}
-                  />
-                  <ComponentPropsEditor
-                    type={c.type}
-                    props={c.props}
-                    onChange={(props) => {
-                      const components = [...bedrock.components];
-                      components[ci] = { ...c, props };
-                      setBedrock({ ...bedrock, components }, `Updated ${c.type} props`);
-                    }}
-                  />
-                  <VisualActionEditor
-                    value={(c.action ?? []).map((a) => a.raw ?? "").filter(Boolean)}
-                    onChange={(blocks) => {
-                      const components = [...bedrock.components];
-                      components[ci] = {
-                        ...c,
-                        action: blocks.filter(Boolean).map((raw) => ({ id: "raw", params: raw, raw }))
-                      };
-                      setBedrock({ ...bedrock, components }, "Updated component action");
-                    }}
-                  />
-                </SortableCard>
-              ))}
-              </SortableContext>
-              </div>
-            </CollapsibleSection>
-          )}
-          <CollapsibleSection title="Global Actions" icon="⚡" defaultExpanded={false}>
-            <div className="pt-2">
-            <VisualActionEditor
-              value={(globalActions ?? []).map((a) => a.raw ?? "").filter(Boolean)}
-              onChange={(blocks) => {
-                setGlobalActions(blocks.filter(Boolean).map((raw) => ({ id: "raw", params: raw, raw })));
-              }}
-            />
-            </div>
-          </CollapsibleSection>
-          <CollapsibleSection title="Form Chains" icon="🔗" defaultExpanded={false}>
-            <div className="pt-2">
-              <FormChainVisualizer />
-            </div>
-          </CollapsibleSection>
-        </div>
-      )}
-      </div>
-    </div>
-  );
+  if (button && form.type !== "CUSTOM") return <ButtonInspector key={`${doc.id}:${button.id}`} form={form} button={button} />;
+  if (component && form.type === "CUSTOM") return <ComponentInspector key={`${doc.id}:${component.id}`} form={form} component={component} />;
+  return <FormInspector key={doc.id} formId={doc.id} form={form} />;
 }
 
-function ConditionRuleList({
-  rules,
-  onChange
-}: {
-  rules: BedrockButtonConditionRule[];
-  onChange: (rules: BedrockButtonConditionRule[]) => void;
-}) {
-  const [showPlaceholderPicker, setShowPlaceholderPicker] = React.useState(false);
-  const [editingRuleIndex, setEditingRuleIndex] = React.useState<number | null>(null);
-
-  const addRule = () => {
-    onChange([...rules, { id: `cond_${Date.now()}`, condition: "", property: "text", value: "" }]);
-  };
-
-  const removeRule = (index: number) => {
-    onChange(rules.filter((_, i) => i !== index));
-  };
-
-  const updateRule = (index: number, updates: Partial<BedrockButtonConditionRule>) => {
-    const next = [...rules];
-    next[index] = { ...next[index], ...updates };
-    onChange(next);
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-brand-muted">Conditional Overrides</span>
-        <button className="ui-btn-secondary px-2 py-1 text-xs" onClick={addRule}>
-          + Add Rule
-        </button>
-      </div>
-
-      {rules.map((rule, idx) => (
-        <div key={rule.id} className="bg-brand-surface border border-brand-border p-2 rounded space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-brand-muted font-mono">Rule #{idx + 1}</span>
-            <button className="ui-btn-ghost px-1.5 py-0.5 text-xs text-brand-danger" onClick={() => removeRule(idx)}>
-              ✕
-            </button>
-          </div>
-
-          <ConditionBuilder
-            value={rule.condition}
-            context="colon"
-            onChange={(condition) => updateRule(idx, { condition })}
-          />
-
-          <div className="grid grid-cols-12 gap-2">
-            <select
-              className="ui-input text-xs col-span-3"
-              aria-label={`Rule ${idx + 1} property`}
-              value={rule.property}
-              onChange={(e) => updateRule(idx, { property: e.target.value as BedrockButtonConditionRule["property"] })}
-            >
-              {PROPERTY_OPTIONS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
-
-            {rule.property === "onClick" ? (
-              <div className="col-span-9">
-                <div className="text-[10px] text-brand-muted mb-1">Actions (raw format)</div>
-                <textarea
-                  className="ui-textarea h-14 text-xs font-mono"
-                  placeholder={'message {\n  - "Conditional text"\n}'}
-                  value={rule.value}
-                  onChange={(e) => updateRule(idx, { value: e.target.value })}
-                  onBlur={(e) => updateRule(idx, { value: e.target.value })}
-                />
-              </div>
-            ) : (
-              <div className="col-span-9 flex gap-1">
-                <BufferedInput
-                  className="ui-input text-xs flex-1"
-                  placeholder={rule.property === "text" ? "Conditional text" : "Image URL/path"}
-                  value={rule.value}
-                  onCommit={(v) => updateRule(idx, { value: v })}
-                />
-                {rule.property === "text" && (
-                  <button
-                    className="ui-btn-ghost px-1.5 py-1 text-xs"
-                    title="Insert placeholder"
-                    onClick={() => { setEditingRuleIndex(idx); setShowPlaceholderPicker(true); }}
-                  >
-                    @
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      ))}
-
-      {rules.length === 0 && (
-        <div className="text-xs text-brand-muted text-center py-3 border border-dashed border-brand-border rounded">
-          No conditional overrides. Add rules to change button properties based on conditions.
-        </div>
-      )}
-
-      {showPlaceholderPicker && (
-        <PlaceholderPicker
-          onSelect={(placeholder) => {
-            if (editingRuleIndex !== null) {
-              updateRule(editingRuleIndex, { value: rules[editingRuleIndex].value + placeholder });
-            }
-            setShowPlaceholderPicker(false);
-          }}
-          onClose={() => { setShowPlaceholderPicker(false); setEditingRuleIndex(null); }}
-        />
-      )}
-    </div>
-  );
-}
-
-function SortableCard({
+function InspectorHeader({
+  icon,
+  title,
   id,
-  selected,
-  onSelect,
-  registerRef,
-  sortable,
   children
 }: {
-  id: string;
-  selected?: boolean;
-  onSelect?: () => void;
-  registerRef?: (el: HTMLDivElement | null) => void;
-  /**
-   * MODAL buttons are not reorderable: DndHost gates reorder on
-   * `bedrock.type === "SIMPLE"`, so a handle here would be inert. Offering a
-   * drag affordance the app refuses to act on is a lie, so it is not rendered.
-   */
-  sortable?: boolean;
-  children: React.ReactNode;
+  icon: IconName;
+  title: string;
+  id?: string;
+  children?: React.ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id });
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.7 : 1
-  };
+  const { setSelectedBedrockButtonId, setSelectedBedrockComponentId } = useDesignerStore();
   return (
-    <div
-      ref={(node) => {
-        setNodeRef(node);
-        registerRef?.(node);
-      }}
-      style={style}
-      onClick={onSelect}
-      className={`mb-2 bg-brand-surface2 p-2 border ${selected ? "border-brand.accent" : "border-brand-border"}`}
-    >
-      {sortable && (
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-xs text-brand-muted">Drag</div>
-          <div className="px-2 py-1 bg-brand-surface text-xs cursor-move select-none border border-brand-border" {...attributes} {...listeners}>
-            ⋮⋮
-          </div>
-        </div>
+    <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-brand-border bg-brand-surface px-4 py-3">
+      {id !== undefined && (
+        <button
+          type="button"
+          className="ui-icon-btn -ml-1.5"
+          aria-label="Back to form settings"
+          title="Back to form settings"
+          onClick={() => {
+            setSelectedBedrockButtonId(null);
+            setSelectedBedrockComponentId(null);
+          }}
+        >
+          <Icon name="chevronRight" size={15} className="rotate-180" />
+        </button>
       )}
+      <Icon name={icon} size={16} className="text-brand-accent" />
+      <div className="min-w-0 flex-1">
+        <h2 className="truncate text-[14px] font-semibold">{title}</h2>
+        {id && <p className="truncate font-mono-ui text-[11.5px] text-brand-muted">{id}</p>}
+      </div>
       {children}
+    </header>
+  );
+}
+
+function FormInspector({ formId, form }: { formId: string; form: BedrockForm }) {
+  const { setBedrock, setGlobalActions } = useDesignerStore();
+  const update = (patch: Partial<BedrockForm>, description: string) =>
+    setBedrock({ ...form, ...patch } as BedrockForm, description);
+  const content = Array.isArray(form.content) ? form.content.join("\n") : form.content ?? "";
+
+  return (
+    <div>
+      <InspectorHeader icon={FORM_TYPE_INFO[form.type].icon} title="Form settings">
+        <span className="font-mono-ui text-[11.5px] text-brand-muted">{formId}.yml</span>
+      </InspectorHeader>
+
+      <Section title="Form">
+        <div>
+          <span className="ui-label">Type</span>
+          <FormTypePanel />
+        </div>
+        <Field label="Title" hint="Colour codes like &a or §l work here.">
+          <BufferedInput
+            className="ui-input"
+            aria-label="Form title"
+            value={form.title}
+            maxLength={64}
+            onCommit={(v) => update({ title: v }, "Updated title")}
+          />
+        </Field>
+        {form.type !== "CUSTOM" && (
+          <Field label={form.type === "MODAL" ? "Message" : "Text above the buttons"}>
+            <BufferedTextArea
+              className="ui-textarea"
+              aria-label="Form content"
+              rows={3}
+              value={content}
+              onCommit={(v) => update({ content: v }, "Updated content")}
+            />
+          </Field>
+        )}
+      </Section>
+
+      <Section title="Opening" description="Who can open this form, and how.">
+        <Field label="Command" hint="Players open the form with /command. Leave empty for none.">
+          <BufferedInput
+            className="ui-input font-mono-ui"
+            aria-label="Command"
+            placeholder="shop"
+            value={form.command ?? ""}
+            onCommit={(v) => update({ command: optional(v) }, "Updated command")}
+          />
+        </Field>
+        <Field label="Permission" hint="Only players with this permission can open it.">
+          <BufferedInput
+            className="ui-input font-mono-ui"
+            aria-label="Permission"
+            placeholder="server.shop"
+            value={form.permission ?? ""}
+            onCommit={(v) => update({ permission: optional(v) }, "Updated permission")}
+          />
+        </Field>
+        <ConditionField
+          label="Open only when"
+          value={form.openCondition ?? ""}
+          onChange={(v) => update({ openCondition: optional(v) }, "Updated open condition")}
+        />
+        {form.openCondition && (
+          <Field label="Message when it can't open" hint="Leave empty to use menu.requirements from messages.yml.">
+            <BufferedInput
+              className="ui-input"
+              aria-label="Open condition message"
+              value={form.openConditionMessage ?? ""}
+              onCommit={(v) => update({ openConditionMessage: optional(v) }, "Updated open condition message")}
+            />
+          </Field>
+        )}
+        <Field label="Cooldown" hint={COOLDOWN_HINT}>
+          <BufferedInput
+            className="ui-input font-mono-ui"
+            aria-label="Form cooldown"
+            placeholder="3s"
+            value={form.cooldown ?? ""}
+            onCommit={(v) => update({ cooldown: optional(v) }, "Updated cooldown")}
+          />
+        </Field>
+        <Field label="Replace a command" hint="When a Bedrock player runs this command, they get this form instead.">
+          <BufferedInput
+            className="ui-input font-mono-ui"
+            aria-label="Command intercept"
+            placeholder="warp"
+            value={form.commandIntercept ?? ""}
+            onCommit={(v) => update({ commandIntercept: optional(v) }, "Updated command intercept")}
+          />
+        </Field>
+      </Section>
+
+      <Section
+        title={form.type === "CUSTOM" ? "On submit" : "Global actions"}
+        description={form.type === "CUSTOM" ? `Read a field's value with ${componentReference("id")}, using the field's ID.` : "Run for every response to this form."}
+      >
+        <VisualActionEditor
+          value={toBlocks(form.globalActions)}
+          onChange={(blocks) => setGlobalActions(fromBlocks(blocks))}
+        />
+      </Section>
+
+      <Section title="On close" description="Runs when the player closes the form without choosing.">
+        <VisualActionEditor
+          value={toBlocks(form.onClose)}
+          onChange={(blocks) => update({ onClose: fromBlocks(blocks) }, "Updated on close actions")}
+        />
+      </Section>
+    </div>
+  );
+}
+
+function ButtonInspector({ form, button }: { form: Extract<BedrockForm, { buttons: BedrockButton[] }>; button: BedrockButton }) {
+  const { setBedrock, setSelectedBedrockButtonId } = useDesignerStore();
+  const index = form.buttons.findIndex((b) => b.id === button.id);
+  const isSimple = form.type === "SIMPLE";
+  const update = (patch: Partial<BedrockButton>, description: string) =>
+    setBedrock({ ...form, buttons: form.buttons.map((b) => (b.id === button.id ? { ...b, ...patch } : b)) }, description);
+
+  const duplicate = () => {
+    const id = nextSequentialId("button", form.buttons.map((b) => b.id));
+    const buttons = [...form.buttons];
+    buttons.splice(index + 1, 0, { ...structuredClone(button), id });
+    setBedrock({ ...form, buttons }, "Duplicated button");
+    setSelectedBedrockButtonId(id);
+  };
+
+  const remove = () => {
+    const buttons = form.buttons.filter((b) => b.id !== button.id);
+    setBedrock({ ...form, buttons }, "Removed button");
+    setSelectedBedrockButtonId(null);
+  };
+
+  return (
+    <div>
+      <InspectorHeader icon="button" title={isSimple ? `Button ${index + 1}` : index === 0 ? "First button" : "Second button"} id={button.id}>
+        {isSimple && (
+          <>
+            <button type="button" className="ui-icon-btn" aria-label="Duplicate button" title="Duplicate" onClick={duplicate}>
+              <Icon name="copy" size={15} />
+            </button>
+            <button type="button" className="ui-icon-btn hover:!text-brand-danger" aria-label="Remove button" title="Remove" onClick={remove}>
+              <Icon name="trash" size={15} />
+            </button>
+          </>
+        )}
+      </InspectorHeader>
+
+      <Section title="Button">
+        <Field label="Text" hint="Colour codes work. Press Enter for a second line.">
+          <BufferedTextArea
+            className="ui-textarea min-h-0"
+            aria-label="Button text"
+            rows={2}
+            value={button.text}
+            maxLength={form.type === "MODAL" ? 64 : 128}
+            onCommit={(v) => update({ text: v }, "Updated button text")}
+          />
+        </Field>
+        {isSimple && (
+          <div>
+            <span className="ui-label">Icon</span>
+            <ImagePicker
+              value={button.image ?? ""}
+              ariaLabel={`Button ${index + 1} image`}
+              onChange={(v) => update({ image: optional(v) }, "Updated button image")}
+            />
+          </div>
+        )}
+        <Field label="ID" hint="Used as the key in the YAML file.">
+          <BufferedInput
+            className="ui-input font-mono-ui"
+            aria-label="Button ID"
+            value={button.id}
+            disabled={!isSimple}
+            onCommit={(v) => {
+              const id = v.trim();
+              if (!id || form.buttons.some((b) => b.id === id)) return;
+              update({ id }, "Renamed button ID");
+              setSelectedBedrockButtonId(id);
+            }}
+          />
+        </Field>
+      </Section>
+
+      <Section title="When clicked">
+        <VisualActionEditor value={toBlocks(button.onClick)} onChange={(blocks) => update({ onClick: fromBlocks(blocks) }, "Updated button actions")} />
+        <Field label="Cooldown" hint={COOLDOWN_HINT}>
+          <BufferedInput
+            className="ui-input font-mono-ui"
+            aria-label="Button cooldown"
+            placeholder="2s"
+            value={button.cooldown ?? ""}
+            onCommit={(v) => update({ cooldown: optional(v) }, "Updated button cooldown")}
+          />
+        </Field>
+      </Section>
+
+      {isSimple && (
+        <Section title="Visibility" description="Hide the button, or swap its text and icon, for some players.">
+          <ConditionField
+            label="Show only when"
+            value={button.showCondition ?? ""}
+            onChange={(v) => update({ showCondition: optional(v) }, "Updated show condition")}
+          />
+          {(button.showCondition || button.alternativeText || button.alternativeImage) && (
+            <>
+              <Field label="Otherwise show this text" hint="Leave empty to hide the button instead.">
+                <BufferedInput
+                  className="ui-input"
+                  aria-label="Alternative text"
+                  value={button.alternativeText ?? ""}
+                  onCommit={(v) => update({ alternativeText: optional(v) }, "Updated alternative text")}
+                />
+              </Field>
+              <div>
+                <span className="ui-label">Otherwise show this icon</span>
+                <ImagePicker
+                  value={button.alternativeImage ?? ""}
+                  placeholder="Icon when the condition is false"
+                  ariaLabel={`Button ${index + 1} alternative image`}
+                  onChange={(v) => update({ alternativeImage: optional(v) }, "Updated alternative image")}
+                />
+              </div>
+            </>
+          )}
+          <ConditionRuleList rules={button.conditions ?? []} onChange={(conditions) => update({ conditions }, "Updated conditions")} />
+        </Section>
+      )}
+    </div>
+  );
+}
+
+function ComponentInspector({ form, component }: { form: Extract<BedrockForm, { type: "CUSTOM" }>; component: BedrockComponent }) {
+  const { setBedrock, setSelectedBedrockComponentId } = useDesignerStore();
+  const meta = COMPONENT_META[component.type] ?? COMPONENT_META.input;
+  const props = component.props as Record<string, any>;
+  const update = (patch: Partial<BedrockComponent>, description: string) =>
+    setBedrock(
+      { ...form, components: form.components.map((c) => (c.id === component.id ? { ...c, ...patch } : c)) },
+      description
+    );
+  const setProps = (next: Record<string, unknown>) => update({ props: { ...props, ...next } }, `Updated ${meta.label.toLowerCase()}`);
+
+  const duplicate = () => {
+    const id = nextSequentialId("component", form.components.map((c) => c.id));
+    const components = [...form.components];
+    components.splice(form.components.indexOf(component) + 1, 0, { ...structuredClone(component), id });
+    setBedrock({ ...form, components }, "Duplicated component");
+    setSelectedBedrockComponentId(id);
+  };
+
+  const remove = () => {
+    setBedrock({ ...form, components: form.components.filter((c) => c.id !== component.id) }, "Removed component");
+    setSelectedBedrockComponentId(null);
+  };
+
+  return (
+    <div>
+      <InspectorHeader icon={meta.icon} title={meta.label} id={component.id}>
+        <button type="button" className="ui-icon-btn" aria-label="Duplicate field" title="Duplicate" onClick={duplicate}>
+          <Icon name="copy" size={15} />
+        </button>
+        <button type="button" className="ui-icon-btn hover:!text-brand-danger" aria-label="Remove field" title="Remove" onClick={remove}>
+          <Icon name="trash" size={15} />
+        </button>
+      </InspectorHeader>
+
+      <Section title="Field">
+        <Field label={component.type === "label" ? "Text" : "Label"}>
+          {component.type === "label" ? (
+            <BufferedTextArea className="ui-textarea" aria-label="Text" rows={3} value={String(props.text ?? "")} onCommit={(v) => setProps({ text: v })} />
+          ) : (
+            <BufferedInput className="ui-input" aria-label="Label" value={String(props.text ?? "")} onCommit={(v) => setProps({ text: v })} />
+          )}
+        </Field>
+        <ComponentPropsEditor type={component.type} props={props} onChange={setProps} />
+        <Field
+          label="ID"
+          hint={component.type === "label" ? undefined : `Read the answer in actions with ${componentReference(component.id)}.`}
+        >
+          <BufferedInput
+            className="ui-input font-mono-ui"
+            aria-label="Field ID"
+            value={component.id}
+            onCommit={(v) => {
+              const id = v.trim();
+              if (!id || form.components.some((c) => c.id === id)) return;
+              update({ id }, "Renamed component ID");
+              setSelectedBedrockComponentId(id);
+            }}
+          />
+        </Field>
+      </Section>
+
+      {component.type !== "label" && (
+        <Section title="On submit" description="Runs after the form is sent. {1} is this field's value.">
+          <VisualActionEditor value={toBlocks(component.action)} onChange={(blocks) => update({ action: fromBlocks(blocks) }, "Updated component action")} />
+        </Section>
+      )}
     </div>
   );
 }
@@ -551,133 +402,189 @@ function ComponentPropsEditor({
 }: {
   type: string;
   props: Record<string, any>;
-  onChange: (p: Record<string, any>) => void;
+  onChange: (p: Record<string, unknown>) => void;
 }) {
-  if (type === "label") {
-    return (
-      <BufferedInput
-        className="w-full ui-input px-2 py-1 mb-2"
-        placeholder="text"
-        value={props.text ?? ""}
-        onCommit={(v) => onChange({ ...props, text: v })}
-      />
-    );
-  }
   if (type === "input") {
     return (
-      <div className="space-y-2 mb-2">
-        <BufferedInput
-          className="w-full ui-input px-2 py-1"
-          placeholder="text"
-          value={props.text ?? ""}
-          onCommit={(v) => onChange({ ...props, text: v })}
-        />
-        <BufferedInput
-          className="w-full ui-input px-2 py-1"
-          placeholder="placeholder"
-          value={props.placeholder ?? ""}
-          onCommit={(v) => onChange({ ...props, placeholder: v })}
-        />
-        <BufferedInput
-          className="w-full ui-input px-2 py-1"
-          placeholder="default"
-          value={props.default ?? ""}
-          onCommit={(v) => onChange({ ...props, default: v })}
-        />
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Placeholder">
+          <BufferedInput className="ui-input" aria-label="Placeholder" value={props.placeholder ?? ""} onCommit={(v) => onChange({ placeholder: v })} />
+        </Field>
+        <Field label="Starting value">
+          <BufferedInput className="ui-input" aria-label="Default value" value={props.default ?? ""} onCommit={(v) => onChange({ default: v })} />
+        </Field>
       </div>
     );
   }
-  if (type === "dropdown") {
+  if (type === "dropdown" || type === "step_slider") {
+    const key = type === "dropdown" ? "options" : "steps";
+    const list = choiceList(props[key]);
+    const hasPlayers = list.some((o) => o.trim().toLowerCase() === ONLINE_PLAYERS_TOKEN);
+    const def = Number(props.default ?? 0);
     return (
-      <div className="space-y-2 mb-2">
-        <BufferedInput
-          className="w-full ui-input px-2 py-1"
-          placeholder="text"
-          value={props.text ?? ""}
-          onCommit={(v) => onChange({ ...props, text: v })}
-        />
-        <BufferedTextArea
-          className="ui-textarea h-20 text-xs"
-          placeholder="options (one per line)"
-          value={Array.isArray(props.options) ? props.options.join("\n") : ""}
-          onCommit={(v) =>
-            onChange({
-              ...props,
-              options: v.split("\n").map((s) => s.trim()).filter(Boolean)
-            })
-          }
-        />
-        <BufferedInput
-          className="w-full ui-input px-2 py-1"
-          type="number"
-          placeholder="default index"
-          value={props.default ?? 0}
-          onCommit={(v) => onChange({ ...props, default: Number(v) })}
-        />
-      </div>
+      <>
+        <Field label={type === "dropdown" ? "Options" : "Steps"} hint="One per line.">
+          <BufferedTextArea
+            className="ui-textarea font-mono-ui text-[12px]"
+            aria-label={type === "dropdown" ? "Options" : "Steps"}
+            rows={4}
+            value={list.join("\n")}
+            onCommit={(v) => onChange({ [key]: v.split("\n").map((s) => s.trim()).filter(Boolean) })}
+          />
+        </Field>
+        <label className="flex items-start gap-2 text-[13px]">
+          <input
+            type="checkbox"
+            className="mt-0.5 accent-[rgb(var(--ui-accent))]"
+            checked={hasPlayers}
+            onChange={(e) =>
+              onChange({
+                [key]: e.target.checked
+                  ? [...list, ONLINE_PLAYERS_TOKEN]
+                  : list.filter((o) => o.trim().toLowerCase() !== ONLINE_PLAYERS_TOKEN)
+              })
+            }
+          />
+          <span>
+            Add every online player
+            <span className="ui-hint block">Lists their names, without the player viewing the form.</span>
+          </span>
+        </label>
+        <Field label="Selected at start">
+          <select className="ui-input" aria-label="Default option" value={Number.isFinite(def) ? def : 0} onChange={(e) => onChange({ default: Number(e.target.value) })}>
+            {list.map((o, i) => (
+              <option key={i} value={i}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </>
     );
   }
   if (type === "toggle") {
     return (
-      <div className="space-y-2 mb-2">
-        <BufferedInput
-          className="w-full ui-input px-2 py-1"
-          placeholder="text"
-          value={props.text ?? ""}
-          onCommit={(v) => onChange({ ...props, text: v })}
+      <label className="flex items-center gap-2 text-[13px]">
+        <input
+          type="checkbox"
+          className="accent-[rgb(var(--ui-accent))]"
+          checked={props.default === true || props.default === "true"}
+          onChange={(e) => onChange({ default: e.target.checked })}
         />
-        <label className="flex items-center gap-2 text-xs text-brand-muted">
-          <input
-            type="checkbox"
-            checked={Boolean(props.default)}
-            onChange={(e) => onChange({ ...props, default: e.target.checked })}
-          />
-          default
-        </label>
-      </div>
+        On at start
+      </label>
     );
   }
   if (type === "slider") {
-    return (
-      <div className="space-y-2 mb-2">
+    const num = (key: string, label: string, fallback: number) => (
+      <Field label={label}>
         <BufferedInput
-          className="w-full ui-input px-2 py-1"
-          placeholder="text"
-          value={props.text ?? ""}
-          onCommit={(v) => onChange({ ...props, text: v })}
+          className="ui-input font-mono-ui"
+          type="number"
+          aria-label={label}
+          value={props[key] ?? fallback}
+          onCommit={(v) => onChange({ [key]: Number(v) })}
         />
-        <div className="grid grid-cols-4 gap-2">
-          <BufferedInput
-            className="ui-input px-2 py-1"
-            type="number"
-            placeholder="min"
-            value={props.min ?? 0}
-            onCommit={(v) => onChange({ ...props, min: Number(v) })}
-          />
-          <BufferedInput
-            className="ui-input px-2 py-1"
-            type="number"
-            placeholder="max"
-            value={props.max ?? 10}
-            onCommit={(v) => onChange({ ...props, max: Number(v) })}
-          />
-          <BufferedInput
-            className="ui-input px-2 py-1"
-            type="number"
-            placeholder="step"
-            value={props.step ?? 1}
-            onCommit={(v) => onChange({ ...props, step: Number(v) })}
-          />
-          <BufferedInput
-            className="ui-input px-2 py-1"
-            type="number"
-            placeholder="default"
-            value={props.default ?? 0}
-            onCommit={(v) => onChange({ ...props, default: Number(v) })}
-          />
-        </div>
+      </Field>
+    );
+    return (
+      <div className="grid grid-cols-4 gap-2">
+        {num("min", "Min", 0)}
+        {num("max", "Max", 10)}
+        {num("step", "Step", 1)}
+        {num("default", "Start", Number(props.min ?? 0))}
       </div>
     );
   }
   return null;
+}
+
+function ConditionRuleList({
+  rules,
+  onChange
+}: {
+  rules: BedrockButtonConditionRule[];
+  onChange: (rules: BedrockButtonConditionRule[]) => void;
+}) {
+  const [pickerFor, setPickerFor] = React.useState<number | null>(null);
+
+  const addRule = () => onChange([...rules, { id: `cond_${Date.now()}`, condition: "", property: "text", value: "" }]);
+  const removeRule = (index: number) => onChange(rules.filter((_, i) => i !== index));
+  const updateRule = (index: number, updates: Partial<BedrockButtonConditionRule>) => {
+    const next = [...rules];
+    next[index] = { ...next[index], ...updates };
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="ui-label mb-0">Overrides</span>
+        <button type="button" className="ui-btn-ghost min-h-7 text-[12.5px]" onClick={addRule}>
+          <Icon name="plus" size={13} /> Add override
+        </button>
+      </div>
+      {rules.length === 0 && <p className="ui-hint mt-0">Change the text, icon or actions when a condition is true.</p>}
+
+      {rules.map((rule, idx) => (
+        <div key={rule.id} className="space-y-2 rounded-md border border-brand-border bg-brand-surface2/50 p-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] font-medium text-brand-muted">Override {idx + 1}</span>
+            <button type="button" className="ui-icon-btn size-6 hover:!text-brand-danger" aria-label={`Remove override ${idx + 1}`} onClick={() => removeRule(idx)}>
+              <Icon name="x" size={13} />
+            </button>
+          </div>
+          <ConditionField label="When" value={rule.condition} onChange={(condition) => updateRule(idx, { condition })} />
+          <div className="grid grid-cols-[96px_1fr] gap-2">
+            <select
+              className="ui-input"
+              aria-label={`Rule ${idx + 1} property`}
+              value={rule.property}
+              onChange={(e) => updateRule(idx, { property: e.target.value as BedrockButtonConditionRule["property"] })}
+            >
+              {PROPERTY_OPTIONS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            {rule.property === "onClick" ? (
+              <BufferedTextArea
+                className="ui-textarea font-mono-ui text-[12px]"
+                aria-label={`Rule ${idx + 1} actions`}
+                placeholder={'message {\n  - "Conditional text"\n}'}
+                value={rule.value}
+                onCommit={(v) => updateRule(idx, { value: v })}
+              />
+            ) : (
+              <div className="flex gap-1">
+                <BufferedInput
+                  className="ui-input flex-1"
+                  aria-label={`Rule ${idx + 1} value`}
+                  placeholder={rule.property === "text" ? "Text when true" : "Icon when true"}
+                  value={rule.value}
+                  onCommit={(v) => updateRule(idx, { value: v })}
+                />
+                {rule.property === "text" && (
+                  <button type="button" className="ui-icon-btn size-8" title="Insert placeholder" aria-label="Insert placeholder" onClick={() => setPickerFor(idx)}>
+                    {"{}"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {pickerFor !== null && (
+        <PlaceholderPicker
+          onSelect={(placeholder) => {
+            updateRule(pickerFor, { value: rules[pickerFor].value + placeholder });
+            setPickerFor(null);
+          }}
+          onClose={() => setPickerFor(null)}
+        />
+      )}
+    </div>
+  );
 }

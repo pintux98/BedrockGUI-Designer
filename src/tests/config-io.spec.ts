@@ -143,7 +143,7 @@ describe("parseLegacyInlineConfig", () => {
     expect(components[0].type).toBe("input");
   });
 
-  it("captures a sibling java: section on javaRaw without leaking it into the bedrock model", () => {
+  it("drops a sibling java: section without leaking it into the bedrock model", () => {
     const legacy = `forms:
   dual:
     type: "SIMPLE"
@@ -157,7 +157,7 @@ describe("parseLegacyInlineConfig", () => {
 `;
     const forms = parseLegacyInlineConfig(legacy);
     expect(forms).toHaveLength(1);
-    expect(forms[0].javaRaw).toEqual({ title: "Java Title", slots: 27 });
+    expect(Object.keys(forms[0])).not.toContain("javaRaw");
     expect((forms[0].bedrock as any).java).toBeUndefined();
     expect(Object.keys(forms[0].bedrock)).not.toContain("java");
   });

@@ -21,8 +21,8 @@ function normalizeEntry(entry: any, actionKey: "onClick" | "action") {
 }
 
 describe("golden round-trip against the shipped plugin forms", () => {
-  it("has all seven fixtures", () => {
-    expect(files).toHaveLength(7);
+  it("has all eight fixtures", () => {
+    expect(files).toHaveLength(8);
   });
 
   for (const file of files) {
@@ -45,6 +45,10 @@ describe("golden round-trip against the shipped plugin forms", () => {
       expect(after.bedrock.command).toBe(before.bedrock.command);
       expect(after.bedrock.command_intercept).toBe(before.bedrock.command_intercept);
       expect(after.bedrock.permission).toBe(before.bedrock.permission);
+      expect(after.bedrock.cooldown).toBe(before.bedrock.cooldown);
+      expect(after.bedrock.open_condition).toBe(before.bedrock.open_condition);
+      expect(after.bedrock.open_condition_message).toBe(before.bedrock.open_condition_message);
+      expect(normalizeActions(after.bedrock.on_close)).toEqual(normalizeActions(before.bedrock.on_close));
 
       const beforeContent = before.bedrock.content ?? before.bedrock.description;
       if (beforeContent !== undefined) {
@@ -74,7 +78,6 @@ describe("golden round-trip against the shipped plugin forms", () => {
         normalizeActions(before.bedrock.global_actions)
       );
 
-      if (before.java) expect(after.java).toEqual(before.java);
     });
 
     it(`${file} emits none of the keys the plugin ignores`, () => {

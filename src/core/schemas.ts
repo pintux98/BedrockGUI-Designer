@@ -17,6 +17,7 @@ export const bedrockButtonSchema = z.object({
   alternativeText: z.string().optional(),
   alternativeImage: z.string().optional(),
   alternativeOnClick: z.string().optional(),
+  cooldown: z.string().optional(),
   conditions: z
     .array(
       z.object({
@@ -31,19 +32,23 @@ export const bedrockButtonSchema = z.object({
 
 export const bedrockComponentSchema = z.object({
   id: z.string(),
-  type: z.enum(["input", "slider", "dropdown", "toggle"]),
+  type: z.enum(["label", "input", "dropdown", "toggle", "slider", "step_slider"]),
   props: z.record(z.string(), z.any()),
   action: z.array(actionSchema).optional()
 });
 
 export const bedrockBaseSchema = z.object({
   type: z.enum(["SIMPLE", "MODAL", "CUSTOM"]),
-  title: z.string().min(1),
+  title: z.string(),
   content: z.union([z.string(), z.array(z.string())]).optional(),
   description: z.string().optional(),
   command: z.string().optional(),
   commandIntercept: z.string().optional(),
   permission: z.string().optional(),
+  cooldown: z.string().optional(),
+  openCondition: z.string().optional(),
+  openConditionMessage: z.string().optional(),
+  onClose: z.array(actionSchema).optional(),
   globalActions: z.array(actionSchema).optional()
 });
 

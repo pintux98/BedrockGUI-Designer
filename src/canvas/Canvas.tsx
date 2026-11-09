@@ -1,50 +1,52 @@
 import React from "react";
-import { useDroppable } from "@dnd-kit/core";
 import { useDesignerStore } from "../core/store";
 import { BedrockPreview } from "./previews/BedrockPreview";
 
 export function Canvas() {
-  const { activeForm } = useDesignerStore();
-  const bedrock = activeForm().bedrock;
-  const bedrockId =
-    bedrock?.type === "CUSTOM" ? "bedrock-components" : "bedrock-buttons";
-  const { isOver, setNodeRef } = useDroppable({ id: bedrockId });
+  const { activeForm, setSelectedBedrockButtonId, setSelectedBedrockComponentId } = useDesignerStore();
+  const doc = activeForm();
+  const form = doc.bedrock;
+  const [conditionsMet, setConditionsMet] = React.useState(true);
+  const hasConditions =
+    form.type !== "CUSTOM" &&
+    form.buttons.some((b) => b.showCondition || b.alternativeText || b.alternativeImage || b.conditions?.length);
 
   return (
-    <div className="h-full flex flex-col bg-[#1e1e1e] relative">
-      <div className="h-10 bg-brand-surface border-b-2 border-[#1e1e1e] flex items-center justify-between px-4">
-        <div className="text-xs text-brand-muted uppercase tracking-widest font-bold">Preview</div>
-        <div className="flex gap-1 bg-brand-surface2 p-1 border-2 border-[#555] border-t-[#101010] border-l-[#101010] border-b-[#555] border-r-[#555]">
-          <button
-            disabled
-            className="px-3 py-1 text-xs font-bold bg-brand-accent text-white cursor-default"
-          >
-            DESKTOP
-          </button>
-        </div>
+    <div className="flex h-full flex-col">
+      <div className="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-brand-border bg-brand-surface px-3 py-1.5">
+        <span className="truncate text-[12.5px] text-brand-muted">
+          Preview of <span className="font-mono-ui text-brand-text">{doc.fileName}</span>
+        </span>
+        {hasConditions && (
+          <div role="radiogroup" aria-label="Preview conditions" className="flex rounded-md border border-brand-border p-0.5 text-[12px]">
+            {[
+              { value: true, label: "Conditions met" },
+              { value: false, label: "Not met" }
+            ].map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                role="radio"
+                aria-checked={conditionsMet === o.value}
+                onClick={() => setConditionsMet(o.value)}
+                className={`rounded px-2 py-0.5 ${conditionsMet === o.value ? "bg-brand-surface-raised text-brand-text" : "text-brand-muted hover:text-brand-text"}`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div
-        ref={setNodeRef}
-        className={`flex-1 p-8 overflow-y-auto overflow-x-hidden flex justify-center items-start ${
-          isOver ? "bg-brand-surface/20" : ""
-        }`}
-        style={{
-          backgroundImage: "radial-gradient(#2b2b2b 1px, transparent 1px)",
-          backgroundSize: "20px 20px"
+        className="bedrock-stage flex-1 overflow-auto px-4 py-10"
+        onClick={(e) => {
+          if (e.target !== e.currentTarget) return;
+          setSelectedBedrockButtonId(null);
+          setSelectedBedrockComponentId(null);
         }}
       >
-        <div className="flex flex-col items-center gap-2 transition-all duration-300 w-full">
-          <div className="text-xs text-brand-muted font-mono">
-            Desktop View (Full Width)
-          </div>
-          <div className="w-full max-w-4xl">
-            {bedrock && <BedrockPreview form={bedrock} />}
-            {!bedrock && (
-              <div className="text-sm text-gray-400 text-center py-8">No form configured</div>
-            )}
-          </div>
-        </div>
+        <BedrockPreview form={form} conditionsMet={conditionsMet} />
       </div>
     </div>
   );

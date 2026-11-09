@@ -52,8 +52,8 @@ function HistorySection({
   return (
     <div className="space-y-1">
       <div className="px-2 pt-1 flex items-baseline justify-between gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-text">{label}</span>
-        <span className="text-[10px] text-brand-muted truncate">{hint}</span>
+        <span className="text-[11.5px] font-bold text-brand-text">{label}</span>
+        <span className="text-[11.5px] text-brand-muted truncate">{hint}</span>
       </div>
       {entries.map((entry, i) => (
         <div
@@ -70,13 +70,13 @@ function HistorySection({
         >
           <div className="flex flex-col overflow-hidden">
             <div className="font-bold truncate">{entry.description}</div>
-            <div className="opacity-50 text-[10px]">
+            <div className="opacity-50 text-[11.5px]">
               {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : "--:--"}
             </div>
           </div>
           {entry.active && <div className="w-2 h-2 rounded-full bg-brand-accent shadow-[0_0_5px_rgba(0,255,0,0.5)]" />}
           {!entry.active && entry.index < undoRows.length && (
-            <div className="hidden group-hover:block text-[10px] bg-brand-surface2 px-1 border border-brand-border">
+            <div className="hidden group-hover:block text-[11.5px] bg-brand-surface2 px-1 border border-brand-border">
               Revert
             </div>
           )}
@@ -117,7 +117,7 @@ export function HistoryPanel({ onCollapseChange }: HistoryPanelProps) {
       >
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-brand-text">History</span>
-          {collapsed && <span className="text-[10px] text-brand-muted px-2 py-0.5 rounded bg-brand-bg border border-brand-border">Collapsed</span>}
+          {collapsed && <span className="text-[11.5px] text-brand-muted px-2 py-0.5 rounded bg-brand-bg border border-brand-border">Collapsed</span>}
         </div>
         <span className="text-xs text-brand-muted transition-transform duration-300" style={{ transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
       </div>

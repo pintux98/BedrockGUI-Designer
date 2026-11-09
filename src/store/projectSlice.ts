@@ -17,6 +17,7 @@ export interface ProjectSlice {
   setBedrock: (form: BedrockForm, description?: string) => void;
   setGlobalActions: (actions: ActionInstance[] | undefined, description?: string) => void;
   setAssets: (assets: AssetsConfig) => void;
+  setProjectName: (name: string) => void;
 }
 
 export const createProjectSlice: StateCreator<
@@ -110,5 +111,7 @@ export const createProjectSlice: StateCreator<
     get().pushProjectHistory("Updated assets configuration");
     set((s) => ({ project: { ...s.project, assets }, dirty: true }));
   },
+
+  setProjectName: (name) => set((s) => ({ project: { ...s.project, name }, dirty: true })),
 
 });

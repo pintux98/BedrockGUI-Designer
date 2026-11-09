@@ -1,24 +1,32 @@
 import React from "react";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
-import { render, fireEvent, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, fireEvent, screen, cleanup, waitFor, within } from "@testing-library/react";
 import { DndContext } from "@dnd-kit/core";
 import { unzipSync } from "fflate";
 import { useDesignerStore } from "../core/store";
 import { createEmptyProject } from "../core/project";
 import { useToastStore } from "../core/toast";
 import { PropertiesPanel } from "../panels/PropertiesPanel";
-import { Palette } from "../panels/Palette";
-import { StyleGuidePanel } from "../panels/StyleGuidePanel";
+import { Outline } from "../panels/Outline";
 import { TopBar } from "../app/TopBar";
 
 function wrap(ui: React.ReactElement) {
   return render(<DndContext>{ui}</DndContext>);
 }
 
+function pressCtrlS() {
+  fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+}
+
+function selectButton(id: string) {
+  useDesignerStore.setState({ selectedBedrockButtonId: id, selectedBedrockComponentId: null } as any);
+}
+
 beforeEach(() => {
   useDesignerStore.setState({
     project: {
-      pluginTarget: "2.0.11",
+      name: "example",
+      pluginTarget: "2.0.12",
       configVersion: 1,
       assets: { enabled: false, port: 0, host: "" },
       platformTarget: "paper",
@@ -46,18 +54,20 @@ beforeEach(() => {
 describe("ui panels", () => {
   afterEach(() => cleanup());
 
-  it("renders style guide panel", () => {
-    wrap(<StyleGuidePanel />);
-    expect(screen.getByText("UI Guide")).toBeInTheDocument();
-    expect(screen.getByText("Buttons")).toBeInTheDocument();
-    expect(screen.getByText("Primary")).toBeInTheDocument();
-  });
-
   it("renders top bar without crashing", () => {
     wrap(<TopBar />);
-    expect(screen.getByText("BEDROCK")).toBeInTheDocument();
-    expect(screen.getByText("GUI")).toBeInTheDocument();
+    expect(screen.getByText("BedrockGUI Designer")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import" })).toBeInTheDocument();
+  });
+
+  it("names the project separately from its forms", () => {
+    wrap(<TopBar />);
+    fireEvent.click(screen.getByText("example"));
+    fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "My server" } });
+    const st = useDesignerStore.getState();
+    expect(st.project.name).toBe("My server");
+    expect(st.project.forms.map((f) => f.id)).toEqual(["example"]);
   });
 
   it("exports a single-form project as that form's yml, named from its fileName, and the modal lists exactly that one entry", async () => {
@@ -171,7 +181,7 @@ describe("ui panels", () => {
 
     try {
       wrap(<TopBar />);
-      fireEvent.click(screen.getByText("example"));
+      fireEvent.click(screen.getByText("example", { selector: "span" }));
       fireEvent.click(screen.getByText("broken"));
 
       const st = useDesignerStore.getState();
@@ -208,7 +218,7 @@ describe("ui panels", () => {
 
     try {
       wrap(<TopBar />);
-      fireEvent.click(screen.getByText("example"));
+      fireEvent.click(screen.getByText("example", { selector: "span" }));
       fireEvent.click(screen.getByText("wip"));
 
       const st = useDesignerStore.getState();
@@ -227,16 +237,7 @@ describe("ui panels", () => {
     useDesignerStore.setState((s: any) => ({
       project: {
         ...s.project,
-        forms: [
-          {
-            ...s.project.forms[0],
-            bedrock: {
-              type: "NOT_A_REAL_TYPE",
-              title: "Example Form",
-              content: "Content"
-            }
-          }
-        ]
+        forms: [{ ...s.project.forms[0], bedrock: { type: "NOT_A_REAL_TYPE", title: "Example Form", content: "Content" } }]
       }
     }));
     useToastStore.setState({ toasts: [] });
@@ -244,8 +245,7 @@ describe("ui panels", () => {
 
     try {
       wrap(<TopBar />);
-      window.dispatchEvent(new Event("save-project"));
-
+      pressCtrlS();
       expect(localStorage.getItem("project_example")).toBeNull();
       const errorToast = useToastStore.getState().toasts.find((t) => t.variant === "error");
       expect(errorToast?.message).toContain("example");
@@ -256,21 +256,11 @@ describe("ui panels", () => {
     }
   });
 
-  it("saves a work-in-progress project (0-component CUSTOM form) now that structural validity and plugin-readiness are separate", () => {
+  it("saves a work-in-progress project (0-component CUSTOM form) with Ctrl+S", () => {
     useDesignerStore.setState((s: any) => ({
       project: {
         ...s.project,
-        forms: [
-          {
-            ...s.project.forms[0],
-            bedrock: {
-              type: "CUSTOM",
-              title: "Example Form",
-              content: "Content",
-              components: []
-            }
-          }
-        ]
+        forms: [{ ...s.project.forms[0], bedrock: { type: "CUSTOM", title: "Example Form", components: [] } }]
       }
     }));
     useToastStore.setState({ toasts: [] });
@@ -278,39 +268,51 @@ describe("ui panels", () => {
 
     try {
       wrap(<TopBar />);
-      window.dispatchEvent(new Event("save-project"));
-
+      pressCtrlS();
       expect(localStorage.getItem("project_example")).not.toBeNull();
       const successToast = useToastStore.getState().toasts.find((t) => t.variant === "success");
-      expect(successToast?.message).toContain("saved");
+      expect(successToast?.message).toContain("Saved");
     } finally {
       localStorage.removeItem("project_example");
       useToastStore.setState({ toasts: [] });
     }
   });
 
-  it("action editor adds an action and updates store", () => {
+  it("shows form settings when nothing is selected", () => {
     wrap(<PropertiesPanel />);
-    fireEvent.click(screen.getAllByText("+ Add Action")[0]);
-    fireEvent.click(screen.getByText("Message"));
-    const textarea = screen.getByPlaceholderText("e.g. &aHello, {player}!") as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "Hello" } });
-    fireEvent.blur(textarea);
-    const st = useDesignerStore.getState();
-    expect(st.activeForm().bedrock?.type).toBe("SIMPLE");
-    const actions = (st.activeForm().bedrock as any).buttons[0].onClick;
-    expect(Array.isArray(actions)).toBe(true);
+    expect(screen.getByText("Form settings", { selector: "h2" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Form title")).toHaveValue("Example Form");
+    expect(screen.queryByLabelText("Button text")).toBeNull();
+    expect(screen.queryByText("Bedrock")).toBeNull();
+  });
+
+  it("edits only the selected button", () => {
+    selectButton("button_1");
+    wrap(<PropertiesPanel />);
+    expect(screen.getByLabelText("Button text")).toHaveValue("Click me");
+    expect(screen.queryByLabelText("Form title")).toBeNull();
+  });
+
+  it("action editor adds an action and updates store", () => {
+    selectButton("button_1");
+    wrap(<PropertiesPanel />);
+    fireEvent.click(screen.getAllByText("Add action")[0]);
+    fireEvent.click(screen.getByText("Send a chat message"));
+    const dialog = screen.getByRole("dialog", { name: "Send a chat message" });
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "Hello" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add action" }));
+    const actions = (useDesignerStore.getState().activeForm().bedrock as any).buttons[0].onClick;
     expect(actions[0].raw).toContain("message");
     expect(actions[0].raw).toContain("Hello");
   });
 
   it("bedrock button text supports new lines", () => {
+    selectButton("button_1");
     wrap(<PropertiesPanel />);
-    const textarea = screen.getAllByPlaceholderText("text (supports new lines)")[0] as HTMLTextAreaElement;
+    const textarea = screen.getByLabelText("Button text") as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "Line1\nLine2" } });
     fireEvent.blur(textarea);
-    const st = useDesignerStore.getState() as any;
-    expect(st.activeForm().bedrock.buttons[0].text).toBe("Line1\nLine2");
+    expect((useDesignerStore.getState().activeForm().bedrock as any).buttons[0].text).toBe("Line1\nLine2");
   });
 
   it("mints a unique id when Add reuses a removed button's slot, so no button is lost on export", () => {
@@ -320,29 +322,27 @@ describe("ui panels", () => {
         forms: [
           {
             ...s.project.forms[0],
-            bedrock: {
-              type: "SIMPLE",
-              title: "Example Form",
-              content: "Content",
-              buttons: [
-                { id: "button_1", text: "First" },
-                { id: "button_2", text: "Second" }
-              ]
-            }
+            bedrock: { type: "SIMPLE", title: "Example Form", content: "", buttons: [{ id: "button_1", text: "First" }, { id: "button_2", text: "Second" }] }
           }
         ]
       }
     }));
-
-    wrap(<PropertiesPanel />);
-    fireEvent.click(screen.getAllByText("Remove")[0]);
-    fireEvent.click(screen.getByText("Add"));
+    selectButton("button_1");
+    wrap(
+      <>
+        <Outline />
+        <PropertiesPanel />
+      </>
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remove button" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add button" }));
 
     const buttons = (useDesignerStore.getState().activeForm().bedrock as any).buttons;
     const ids = buttons.map((b: any) => b.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(buttons).toHaveLength(2);
     expect(buttons.find((b: any) => b.text === "Second")).toBeDefined();
+    expect(useDesignerStore.getState().selectedBedrockButtonId).toBe(ids[1]);
   });
 
   it("refuses a button id rename that collides with an existing button id", () => {
@@ -352,64 +352,80 @@ describe("ui panels", () => {
         forms: [
           {
             ...s.project.forms[0],
-            bedrock: {
-              type: "SIMPLE",
-              title: "Example Form",
-              content: "Content",
-              buttons: [
-                { id: "button_1", text: "First" },
-                { id: "button_2", text: "Second" }
-              ]
-            }
+            bedrock: { type: "SIMPLE", title: "Example Form", content: "", buttons: [{ id: "button_1", text: "First" }, { id: "button_2", text: "Second" }] }
           }
         ]
       }
     }));
-
+    selectButton("button_2");
     wrap(<PropertiesPanel />);
-    const secondIdInput = screen.getByDisplayValue("button_2") as HTMLInputElement;
-    fireEvent.change(secondIdInput, { target: { value: "button_1" } });
-    fireEvent.blur(secondIdInput);
-
+    const idInput = screen.getByLabelText("Button ID") as HTMLInputElement;
+    fireEvent.change(idInput, { target: { value: "button_1" } });
+    fireEvent.blur(idInput);
     const buttons = (useDesignerStore.getState().activeForm().bedrock as any).buttons;
     expect(buttons.map((b: any) => b.id)).toEqual(["button_1", "button_2"]);
   });
 
-  it("action editor supports bungee action blocks", () => {
+  it("sends a player to another server through the wizard", () => {
+    selectButton("button_1");
     wrap(<PropertiesPanel />);
-    fireEvent.click(screen.getAllByText("+ Add Action")[0]);
-    fireEvent.click(screen.getByText("Bungee"));
+    fireEvent.click(screen.getAllByText("Add action")[0]);
+    fireEvent.click(screen.getByText("Send to another server"));
+    const dialog = screen.getByRole("dialog", { name: "Send to another server" });
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "lobby" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add action" }));
+    const raw = (useDesignerStore.getState() as any).activeForm().bedrock.buttons[0].onClick[0].raw;
+    expect(raw).toBe('bungee {\n  subchannel: "Connect"\n  - "lobby"\n}');
+  });
+
+  it("action editor still edits any bungee subchannel after it is added", () => {
+    selectButton("button_1");
+    wrap(<PropertiesPanel />);
+    fireEvent.click(screen.getAllByText("Add action")[0]);
+    fireEvent.click(screen.getByText("Send to another server"));
+    const dialog = screen.getByRole("dialog", { name: "Send to another server" });
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "x" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add action" }));
     const sub = screen.getByLabelText("Subchannel") as HTMLInputElement;
     fireEvent.change(sub, { target: { value: "Message" } });
     fireEvent.blur(sub);
     const arg = screen.getByLabelText("Arg 1") as HTMLInputElement;
     fireEvent.change(arg, { target: { value: "lobby" } });
     fireEvent.blur(arg);
-    const st = useDesignerStore.getState() as any;
-    const actions = st.activeForm().bedrock.buttons[0].onClick;
+    const actions = (useDesignerStore.getState() as any).activeForm().bedrock.buttons[0].onClick;
     expect(actions[0].raw).toContain("bungee");
     expect(actions[0].raw).toContain('subchannel: "Message"');
     expect(actions[0].raw).toContain('"lobby"');
   });
 
-  it("renders no redundant Bedrock chip above the properties sections", () => {
-    wrap(<PropertiesPanel />);
-    expect(screen.getByText("Form Settings")).toBeInTheDocument();
-    expect(screen.queryByText("Bedrock")).toBeNull();
-  });
-
   it("labels each conditional-override property select so multiple rules stay distinguishable", () => {
+    selectButton("button_1");
     wrap(<PropertiesPanel />);
-    fireEvent.click(screen.getByText("Conditions"));
-    fireEvent.click(screen.getByText("+ Add Rule"));
-    fireEvent.click(screen.getByText("+ Add Rule"));
-
+    fireEvent.click(screen.getByText("Add override"));
+    fireEvent.click(screen.getByText("Add override"));
     expect(screen.getByRole("combobox", { name: /rule 1 property/i })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /rule 2 property/i })).toBeInTheDocument();
   });
+
+  it("edits the 2.0.12 form keys: open condition message, cooldown and on close", () => {
+    useDesignerStore.setState((s: any) => ({
+      project: { ...s.project, forms: [{ ...s.project.forms[0], bedrock: { ...s.project.forms[0].bedrock, openCondition: "plugin:Vault" } }] }
+    }));
+    wrap(<PropertiesPanel />);
+    const cooldown = screen.getByLabelText("Form cooldown");
+    fireEvent.change(cooldown, { target: { value: "3s" } });
+    fireEvent.blur(cooldown);
+    const message = screen.getByLabelText("Open condition message");
+    fireEvent.change(message, { target: { value: "Needs Vault" } });
+    fireEvent.blur(message);
+    const form = useDesignerStore.getState().activeForm().bedrock;
+    expect(form.cooldown).toBe("3s");
+    expect(form.openConditionMessage).toBe("Needs Vault");
+    expect(screen.getByText("On close")).toBeInTheDocument();
+  });
 });
 
-describe("palette visibility by form type", () => {
+describe("outline add affordances by form type", () => {
   afterEach(() => cleanup());
 
   function setBedrock(bedrock: unknown) {
@@ -418,46 +434,29 @@ describe("palette visibility by form type", () => {
     }));
   }
 
-  it("offers only Button on a SIMPLE form", () => {
-    wrap(<Palette />);
-    expect(screen.getByText("Palette")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Button" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Input" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Dropdown" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Toggle" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Slider" })).toBeNull();
+  it("offers Add button on a SIMPLE form", () => {
+    wrap(<Outline />);
+    expect(screen.getByRole("button", { name: "Add button" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add field" })).toBeNull();
   });
 
-  it("offers the four component items on a CUSTOM form", () => {
+  it("offers all six field types on a CUSTOM form, including label and step slider", () => {
     setBedrock({ type: "CUSTOM", title: "Example Form", components: [] });
-    wrap(<Palette />);
-    expect(screen.getByText("Palette")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Input" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Dropdown" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Toggle" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Slider" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Button" })).toBeNull();
+    wrap(<Outline />);
+    fireEvent.click(screen.getByRole("button", { name: "Add field" }));
+    expect(screen.getAllByRole("menuitem")).toHaveLength(6);
+    fireEvent.click(screen.getByRole("menuitem", { name: /Step slider/ }));
+    const form = useDesignerStore.getState().activeForm().bedrock as any;
+    expect(form.components[0].type).toBe("step_slider");
+    expect(useDesignerStore.getState().selectedBedrockComponentId).toBe(form.components[0].id);
   });
 
-  it("renders no palette at all on a MODAL form, only a note explaining why", () => {
-    setBedrock({
-      type: "MODAL",
-      title: "Example Form",
-      content: "Content",
-      buttons: [
-        { id: "yes", text: "Yes" },
-        { id: "no", text: "No" }
-      ]
-    });
-    const { container } = wrap(<Palette />);
-    expect(screen.queryByText("Palette")).toBeNull();
-    expect(container.querySelectorAll("button")).toHaveLength(0);
-    expect(screen.queryByRole("button", { name: "Button" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Input" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Dropdown" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Toggle" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Slider" })).toBeNull();
-    expect(screen.getByText(/fixed two-button dialog/i)).toBeInTheDocument();
+  it("offers nothing to add on a MODAL form, only a note explaining why", () => {
+    setBedrock({ type: "MODAL", title: "Example Form", content: "", buttons: [{ id: "yes", text: "Yes" }, { id: "no", text: "No" }] });
+    wrap(<Outline />);
+    expect(screen.queryByRole("button", { name: "Add button" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add field" })).toBeNull();
+    expect(screen.getByText(/exactly two buttons/i)).toBeInTheDocument();
   });
 });
 
@@ -467,25 +466,22 @@ describe("reorder affordances tell the truth about what can be reordered", () =>
   });
   afterEach(() => cleanup());
 
-  // DndHost gates reorder on bedrock.type === "SIMPLE", so a MODAL handle would
-  // be inert. A drag affordance the app refuses to act on is a lie.
   it("offers a drag handle for SIMPLE buttons", () => {
-    const s = useDesignerStore.getState();
-    s.setBedrock(
+    useDesignerStore.getState().setBedrock(
       { type: "SIMPLE", title: "t", content: "", buttons: [{ id: "a", text: "A" }, { id: "b", text: "B" }] },
       "setup"
     );
-    wrap(<PropertiesPanel />);
-    expect(screen.getAllByText("⋮⋮").length).toBe(2);
+    wrap(<Outline />);
+    expect(screen.getByLabelText("Reorder a")).toBeInTheDocument();
+    expect(screen.getByLabelText("Reorder b")).toBeInTheDocument();
   });
 
   it("offers no drag handle for MODAL buttons, which cannot be reordered", () => {
-    const s = useDesignerStore.getState();
-    s.setBedrock(
+    useDesignerStore.getState().setBedrock(
       { type: "MODAL", title: "t", content: "", buttons: [{ id: "yes", text: "Yes" }, { id: "no", text: "No" }] },
       "setup"
     );
-    wrap(<PropertiesPanel />);
-    expect(screen.queryByText("⋮⋮")).toBeNull();
+    wrap(<Outline />);
+    expect(screen.queryByLabelText("Reorder yes")).toBeNull();
   });
 });

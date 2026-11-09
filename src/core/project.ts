@@ -11,10 +11,10 @@ export interface FormDoc {
   id: string;
   fileName: string;
   bedrock: BedrockForm;
-  javaRaw?: unknown;
 }
 
 export interface Project {
+  name?: string;
   pluginTarget: typeof PLUGIN_TARGET;
   configVersion: 1;
   assets: AssetsConfig;

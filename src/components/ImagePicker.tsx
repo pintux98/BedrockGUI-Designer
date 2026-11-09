@@ -132,14 +132,14 @@ export function ImagePicker({
       </div>
 
       {settled && result?.kind === "unknown" && (
-        <div role="alert" className="text-[10px] text-brand-danger leading-snug">
+        <div role="alert" className="text-[11.5px] text-brand-danger leading-snug">
           {KIND_LABELS.unknown} — the plugin will not resolve this to an icon. Pick one of the sources listed under Image
           sources.
         </div>
       )}
 
       {result && result.kind !== "unknown" && (
-        <div className="text-[10px] text-brand-muted flex items-center gap-1 flex-wrap">
+        <div className="text-[11.5px] text-brand-muted flex items-center gap-1 flex-wrap">
           <span>{KIND_LABELS[result.kind]}</span>
           {result.detail && (
             <code className="font-mono bg-brand-surface2 px-1 rounded text-brand-accent break-all">{result.detail}</code>
@@ -148,7 +148,7 @@ export function ImagePicker({
       )}
 
       {settled && result?.kind === "headFallback" && (
-        <div role="alert" className="text-[10px] text-brand-warning leading-snug">
+        <div role="alert" className="text-[11.5px] text-brand-warning leading-snug">
           {trimmed} has no item icon, so the game draws a player head named “{trimmed}” instead — the same goes for{" "}
           {HEAD_FALLBACK_LIST}. Leave the image blank for a button with no icon.
         </div>
@@ -158,7 +158,7 @@ export function ImagePicker({
         <div className="border border-brand-border rounded bg-brand-surface p-2 space-y-2 overflow-hidden">
           {SOURCE_GROUPS.map((group) => (
             <div key={group.title}>
-              <div className="text-[9px] uppercase tracking-wide text-brand-muted mb-1">{group.title}</div>
+              <div className="text-[11px] text-brand-muted mb-1">{group.title}</div>
               <div className="space-y-1">
                 {group.kinds.map((src) => (
                   <button
@@ -174,10 +174,10 @@ export function ImagePicker({
                     {/* flex-wrap + break-all: the Mojang texture row is wider than the
                         properties column, and without these it was clipped on the right. */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      <code className="text-[10px] font-mono text-brand-accent break-all">{src.template}</code>
-                      <span className="text-[10px] text-brand-text">{KIND_LABELS[src.kind]}</span>
+                      <code className="text-[11.5px] font-mono text-brand-accent break-all">{src.template}</code>
+                      <span className="text-[11.5px] text-brand-text">{KIND_LABELS[src.kind]}</span>
                     </div>
-                    <div className="text-[9px] text-brand-muted leading-snug">{src.hint}</div>
+                    <div className="text-[11px] text-brand-muted leading-snug">{src.hint}</div>
                   </button>
                 ))}
               </div>

@@ -15,7 +15,7 @@ export function RawEditor({ action, onChange }: RawEditorProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] text-brand-muted">Raw action block</span>
+        <span className="text-[11.5px] text-brand-muted">Raw action block</span>
         <button
           type="button"
           className="ui-btn-ghost px-1.5 py-0.5 text-xs"

@@ -182,7 +182,7 @@ describe("keys", () => {
 });
 
 describe("contract", () => {
-  it("targets plugin 2.0.11", () => {
-    expect(PLUGIN_TARGET).toBe("2.0.11");
+  it("targets plugin 2.0.12", () => {
+    expect(PLUGIN_TARGET).toBe("2.0.12");
   });
 });

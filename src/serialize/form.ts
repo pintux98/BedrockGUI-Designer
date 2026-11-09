@@ -11,6 +11,11 @@ export function serializeFormDocument(doc: FormDoc): string {
   if (form.command) bedrock[FORM_KEYS.command] = form.command;
   if (form.commandIntercept) bedrock[FORM_KEYS.commandIntercept] = form.commandIntercept;
   if (form.permission) bedrock[FORM_KEYS.permission] = form.permission;
+  if (form.openCondition) bedrock[FORM_KEYS.openCondition] = form.openCondition;
+  if (form.openConditionMessage) bedrock[FORM_KEYS.openConditionMessage] = form.openConditionMessage;
+  if (form.cooldown) bedrock[FORM_KEYS.cooldown] = form.cooldown;
+  const onClose = actionsToList(form.onClose);
+  if (onClose) bedrock[FORM_KEYS.onClose] = onClose.length === 1 ? onClose[0] : onClose;
   bedrock[FORM_KEYS.type] = form.type;
   bedrock[FORM_KEYS.title] = form.title;
 
@@ -28,7 +33,6 @@ export function serializeFormDocument(doc: FormDoc): string {
   if (globalActions) bedrock[FORM_KEYS.globalActions] = globalActions;
 
   const document: Record<string, unknown> = { [DOCUMENT_KEYS.bedrock]: bedrock };
-  if (doc.javaRaw !== undefined) document[DOCUMENT_KEYS.java] = doc.javaRaw;
 
   return applyBlockScalars(
     yaml.dump(document, { lineWidth: -1, noRefs: true, forceQuotes: true, quoteStyle: "double" })
@@ -46,6 +50,7 @@ function buttonsToMap(buttons: BedrockButton[]): Record<string, unknown> {
     if (b.alternativeText) entry[BUTTON_KEYS.alternativeText] = b.alternativeText;
     if (b.alternativeImage) entry[BUTTON_KEYS.alternativeImage] = b.alternativeImage;
     if (b.alternativeOnClick) entry[BUTTON_KEYS.alternativeOnClick] = b.alternativeOnClick;
+    if (b.cooldown) entry[BUTTON_KEYS.cooldown] = b.cooldown;
     if (b.conditions?.length) {
       entry[BUTTON_KEYS.conditions] = Object.fromEntries(
         b.conditions.map((c) => [

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { parseFormDocument } from "../parse/form";
+import { serializeFormDocument } from "../serialize/form";
 
 const fixture = (name: string) =>
   fs.readFileSync(path.resolve(__dirname, "fixtures/plugin-forms", name), "utf8");
@@ -45,14 +46,10 @@ describe("parseFormDocument", () => {
     expect(admin.alternativeText).toContain("requires bedrockgui.admin");
   });
 
-  it("captures a java section without interpreting it", () => {
-    const doc = parseFormDocument(fixture("economy_shop.yml"), "economy_shop");
-    expect(doc.javaRaw).toBeDefined();
-    expect((doc.javaRaw as any).type).toBe("CHEST");
-  });
-
-  it("has no java section when the file has none", () => {
-    expect(parseFormDocument(fixture("main_menu.yml"), "main_menu").javaRaw).toBeUndefined();
+  it("drops a leftover java section, which the plugin no longer reads", () => {
+    const doc = parseFormDocument('bedrock:\n  type: "SIMPLE"\njava:\n  type: "CHEST"\n', "shop");
+    expect(Object.keys(doc)).not.toContain("javaRaw");
+    expect(serializeFormDocument(doc)).not.toContain("java:");
   });
 });
 
@@ -69,14 +66,6 @@ describe("parseFormDocument accepts the keys no fixture exercises", () => {
     );
     expect(doc.bedrock.title).toBe("Wrapped");
     expect((doc.bedrock as any).buttons[0].id).toBe("b1");
-  });
-
-  it("preserves the top-level `java:` key verbatim as javaRaw", () => {
-    const doc = parseFormDocument(
-      ["bedrock:", "  title: Shop", "java:", "  type: CHEST", "  size: 27"].join("\n"),
-      "shop"
-    );
-    expect(doc.javaRaw).toEqual({ type: "CHEST", size: 27 });
   });
 
   it("reads the form permission from `permission`", () => {
@@ -123,5 +112,32 @@ describe("parseFormDocument accepts the keys no fixture exercises", () => {
     expect(button.showCondition).toBe("permission:bedrockgui.admin");
     expect(button.alternativeText).toBe("Locked");
     expect(button.alternativeImage).toBe("textures/ui/lock");
+  });
+});
+
+describe("2.0.12 keys", () => {
+  it("reads pay_player.yml's open gate, cooldown, on_close and new components", () => {
+    const form = parseFormDocument(fixture("pay_player.yml"), "pay_player").bedrock;
+    expect(form.openCondition).toBe("plugin:Vault");
+    expect(form.openConditionMessage).toContain("Vault");
+    expect(form.cooldown).toBe("3s");
+    expect(form.onClose?.[0].raw).toContain('"main_menu"');
+    if (form.type !== "CUSTOM") throw new Error("expected CUSTOM");
+    expect(form.components.map((c) => c.type)).toEqual(["label", "dropdown", "step_slider"]);
+    expect(form.components[2].props.steps).toEqual(["10", "50", "100", "500", "1000"]);
+  });
+
+  it("reads a button cooldown and a numeric cooldown", () => {
+    const form = parseFormDocument(
+      'bedrock:\n  type: "SIMPLE"\n  cooldown: 5\n  buttons:\n    a:\n      text: "A"\n      cooldown: "2s"\n',
+      "x"
+    ).bedrock;
+    expect(form.cooldown).toBe("5");
+    if (form.type !== "SIMPLE") throw new Error("expected SIMPLE");
+    expect(form.buttons[0].cooldown).toBe("2s");
+  });
+
+  it("falls back to an empty title like the plugin", () => {
+    expect(parseFormDocument('bedrock:\n  type: "CUSTOM"\n', "x").bedrock.title).toBe("");
   });
 });

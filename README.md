@@ -1,7 +1,7 @@
 # BedrockGUI Designer
 
 A visual designer for **Minecraft Bedrock GUI forms**, targeting the
-[BedrockGUI](https://github.com/pintux98/BedrockGUI) server plugin **2.0.11**.
+[BedrockGUI](https://github.com/pintux98/BedrockGUI) server plugin **2.0.12**.
 
 Design your forms by dragging them together, preview them as a player sees them, and export the
 YAML the plugin reads. The app is client-only — nothing leaves your browser.
@@ -32,14 +32,14 @@ export hands you the registry lines to add and leaves the rest of the file alone
 
 ## What it knows about the plugin
 
-`src/plugin/` is a versioned, data-only model of BedrockGUI 2.0.11 — the 14 action types and their
+`src/plugin/` is a versioned, data-only model of BedrockGUI 2.0.12 — the 14 action types and their
 capability gates, the condition grammar, the built-in placeholders, image-source classification,
 the addon catalogues, and the plugin's own limits. Everything else in the app derives from it, so
 the designer offers what the plugin actually implements rather than what its documentation
 describes. Where the two disagree, the plugin's Java source wins; the differences found so far are
 catalogued in `docs/superpowers/specs/`.
 
-The round-trip is pinned by golden tests against byte-exact copies of the seven form files the
+The round-trip is pinned by golden tests against byte-exact copies of the eight form files the
 plugin ships, so a change to parsing or serialization has to keep reproducing real files.
 
 ## Development

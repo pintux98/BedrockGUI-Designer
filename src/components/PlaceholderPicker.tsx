@@ -144,7 +144,7 @@ export function PlaceholderPicker({ onSelect, onClose }: PlaceholderPickerProps)
           />
           <div className="flex flex-wrap gap-1">
             <button
-              className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${category === "all" ? "bg-brand-accent text-white border-brand-accent" : "border-brand-border text-brand-muted hover:text-brand-text"}`}
+              className={`px-2 py-0.5 text-[11.5px] rounded border transition-colors ${category === "all" ? "bg-brand-accent text-white border-brand-accent" : "border-brand-border text-brand-muted hover:text-brand-text"}`}
               onClick={() => setCategory("all")}
             >
               All
@@ -152,7 +152,7 @@ export function PlaceholderPicker({ onSelect, onClose }: PlaceholderPickerProps)
             {CATEGORIES.map((cat) => (
               <button
                 key={cat.id}
-                className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${category === cat.id ? "bg-brand-accent text-white border-brand-accent" : `border-brand-border ${cat.color} hover:text-brand-text`}`}
+                className={`px-2 py-0.5 text-[11.5px] rounded border transition-colors ${category === cat.id ? "bg-brand-accent text-white border-brand-accent" : `border-brand-border ${cat.color} hover:text-brand-text`}`}
                 onClick={() => setCategory(cat.id)}
               >
                 {cat.label}
@@ -176,7 +176,7 @@ export function PlaceholderPicker({ onSelect, onClose }: PlaceholderPickerProps)
                 <div className="text-[11px] leading-snug text-brand-muted">{p.description}</div>
               </div>
               {p.paperOnly && (
-                <span className="shrink-0 text-[9px] uppercase tracking-wide text-amber-400 border border-amber-400/40 rounded px-1 py-0.5">
+                <span className="shrink-0 text-[11px] text-amber-400 border border-amber-400/40 rounded px-1 py-0.5">
                   Paper only
                 </span>
               )}
@@ -186,7 +186,7 @@ export function PlaceholderPicker({ onSelect, onClose }: PlaceholderPickerProps)
             <div className="px-3 py-4 text-xs text-brand-muted text-center">No placeholders match</div>
           )}
         </div>
-        <div className="px-3 py-2 border-t border-brand-border bg-brand-surface text-[10px] text-brand-muted">
+        <div className="px-3 py-2 border-t border-brand-border bg-brand-surface text-[11.5px] text-brand-muted">
           {PAPI_NOTE}
         </div>
       </div>

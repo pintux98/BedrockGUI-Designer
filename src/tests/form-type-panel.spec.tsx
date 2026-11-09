@@ -7,7 +7,7 @@ import { FormTypePanel } from "../panels/FormTypePanel";
 beforeEach(() => {
   useDesignerStore.setState({
     project: {
-      pluginTarget: "2.0.11",
+      pluginTarget: "2.0.12",
       configVersion: 1,
       assets: { enabled: false, port: 0, host: "" },
       platformTarget: "paper",
@@ -39,18 +39,16 @@ beforeEach(() => {
 describe("FormTypePanel type conversion", () => {
   afterEach(() => cleanup());
 
-  it("shows no redundant Bedrock badge beside the form type heading", () => {
+  it("offers the three form types as one radio group with the current one checked", () => {
     render(<FormTypePanel />);
-    expect(screen.getByText("Form Type")).toBeInTheDocument();
-    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(screen.getByRole("radio", { name: "Menu" })).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByText("Bedrock")).toBeNull();
   });
 
   it("preserves shared fields across SIMPLE -> CUSTOM -> SIMPLE", () => {
     render(<FormTypePanel />);
-    const select = screen.getByRole("combobox") as HTMLSelectElement;
-
-    fireEvent.change(select, { target: { value: "CUSTOM" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Input form" }));
     let bedrock = useDesignerStore.getState().activeForm().bedrock as any;
     expect(bedrock.type).toBe("CUSTOM");
     expect(bedrock.title).toBe("Example Form");
@@ -60,7 +58,7 @@ describe("FormTypePanel type conversion", () => {
     expect(bedrock.permission).toBe("example.use");
     expect(bedrock.globalActions).toEqual([{ id: "a1", params: {}, raw: "message: hi" }]);
 
-    fireEvent.change(select, { target: { value: "SIMPLE" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Menu" }));
     bedrock = useDesignerStore.getState().activeForm().bedrock as any;
     expect(bedrock.type).toBe("SIMPLE");
     expect(bedrock.title).toBe("Example Form");

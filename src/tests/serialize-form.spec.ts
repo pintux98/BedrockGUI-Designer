@@ -37,13 +37,6 @@ describe("serializeFormDocument", () => {
     expect(serializeFormDocument(doc)).toContain("- |-");
   });
 
-  it("round-trips a preserved java section", () => {
-    const doc = createForm("shop");
-    doc.javaRaw = { type: "CHEST", size: "27" };
-    const loaded = yaml.load(serializeFormDocument(doc)) as any;
-    expect(loaded.java).toEqual({ type: "CHEST", size: "27" });
-  });
-
   it("emits a single component action as a bare block scalar string, not a list", () => {
     const source = fixture("player_settings.yml");
     const doc = parseFormDocument(source, "player_settings");
@@ -108,14 +101,6 @@ describe("serializeFormDocument pins the keys no fixture exercises", () => {
     const text = serializeFormDocument(createForm("welcome"));
     expect(text.startsWith("bedrock:\n")).toBe(true);
     expect(Object.keys(yaml.load(text) as any)).toEqual(["bedrock"]);
-  });
-
-  it("writes a preserved java block under a top-level `java:` key, after `bedrock:`", () => {
-    const doc = createForm("shop");
-    doc.javaRaw = { type: "CHEST", size: "27" };
-    const text = serializeFormDocument(doc);
-    expect(text).toContain("\njava:\n");
-    expect(Object.keys(yaml.load(text) as any)).toEqual(["bedrock", "java"]);
   });
 
   it("emits the form permission as `permission`", () => {

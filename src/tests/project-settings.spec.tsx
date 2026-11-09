@@ -34,7 +34,7 @@ it("renders no Platform Target selector in the properties pane", () => {
   render(<DesignerShell />);
 
   // Proves the right-hand pane really rendered, so the absences below mean something.
-  expect(screen.getByText("Form Settings")).toBeInTheDocument();
+  expect(screen.getByText("Form settings", { selector: "h2" })).toBeInTheDocument();
 
   expect(screen.queryByText("Platform Target")).toBeNull();
   expect(screen.queryByText("Platform")).toBeNull();

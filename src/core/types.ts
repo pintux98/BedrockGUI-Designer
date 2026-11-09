@@ -8,6 +8,10 @@ export interface BedrockFormBase {
   command?: string;
   commandIntercept?: string;
   permission?: string;
+  cooldown?: string;
+  openCondition?: string;
+  openConditionMessage?: string;
+  onClose?: ActionInstance[];
   globalActions?: ActionInstance[];
 }
 
@@ -37,6 +41,7 @@ export interface BedrockButton {
   alternativeText?: string;
   alternativeImage?: string;
   alternativeOnClick?: string;
+  cooldown?: string;
   conditions?: BedrockButtonConditionRule[];
 }
 
@@ -49,9 +54,9 @@ export interface BedrockButtonConditionRule {
   value: string;
 }
 
-export type BedrockComponentType = "input" | "slider" | "dropdown" | "toggle";
+export type BedrockComponentType = "label" | "input" | "dropdown" | "toggle" | "slider" | "step_slider";
 
-export const BEDROCK_COMPONENT_TYPES: BedrockComponentType[] = ["input", "slider", "dropdown", "toggle"];
+export const BEDROCK_COMPONENT_TYPES: BedrockComponentType[] = ["label", "input", "dropdown", "toggle", "slider", "step_slider"];
 
 export function isBedrockComponentType(value: string): value is BedrockComponentType {
   return (BEDROCK_COMPONENT_TYPES as string[]).includes(value);

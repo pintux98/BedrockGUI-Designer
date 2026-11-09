@@ -273,6 +273,7 @@ function rawActionBlocks(form: FormDoc): string[] {
     for (const component of bedrock.components ?? []) push(component?.action);
   }
   push(bedrock.globalActions);
+  push(bedrock.onClose);
   return out;
 }
 

@@ -2,6 +2,7 @@ import React from "react";
 import { ParsedAction } from "../plugin/grammar";
 import { infoForAction } from "./actionInfo";
 import { ActionEditor } from "./editors";
+import { Icon } from "../components/Icon";
 
 interface ActionBlockProps {
   action: ParsedAction;
@@ -30,50 +31,35 @@ export function ActionBlock({
   const info = infoForAction(action);
 
   return (
-    <div className={`bg-brand-surface2 border-l-4 ${info.color} border border-brand-border rounded overflow-hidden transition-all duration-150`}>
-      <div className="flex items-center gap-2 px-2 py-1.5 bg-brand-surface/50 border-b border-brand-border">
+    <div className="overflow-hidden rounded-md border border-brand-border bg-brand-surface2">
+      <div className={`flex items-center gap-1 py-1 pl-1 pr-1 ${expanded ? "border-b border-brand-border" : ""}`}>
         <button
+          type="button"
           onClick={() => setExpanded(!expanded)}
-          className="text-xs text-brand-muted hover:text-brand-text transition-colors w-4 text-left"
+          className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-brand-surface-raised"
           aria-label={expanded ? "Collapse action" : "Expand action"}
+          aria-expanded={expanded}
+          title={info.description}
         >
-          {expanded ? "▼" : "▶"}
+          <Icon name={expanded ? "chevronDown" : "chevronRight"} size={14} className="text-brand-muted" />
+          <span className="truncate text-[13px] font-medium">{info.label}</span>
         </button>
-        <span className="text-sm" title={info.description}>{info.icon}</span>
-        <span className="text-xs font-medium text-brand-text flex-1">{info.label}</span>
-        <span className="text-[10px] text-brand-muted font-mono">#{index + 1}</span>
-        <div className="flex items-center gap-0.5">
-          <button onClick={onDuplicate} className="ui-btn-ghost px-1.5 py-0.5 text-xs" aria-label="Duplicate action">
-            ⧉
-          </button>
-          <button
-            onClick={onMoveUp}
-            className="ui-btn-ghost px-1.5 py-0.5 text-xs"
-            aria-label="Move action up"
-            disabled={index === 0}
-          >
-            ↑
-          </button>
-          <button
-            onClick={onMoveDown}
-            className="ui-btn-ghost px-1.5 py-0.5 text-xs"
-            aria-label="Move action down"
-            disabled={index === total - 1}
-          >
-            ↓
-          </button>
-          <button
-            onClick={onRemove}
-            className="ui-btn-ghost px-1.5 py-0.5 text-xs text-brand-danger hover:text-red-400"
-            aria-label="Remove action"
-          >
-            ✕
-          </button>
-        </div>
+        <button type="button" onClick={onMoveUp} className="ui-icon-btn size-6" aria-label="Move action up" title="Move up" disabled={index === 0}>
+          <Icon name="up" size={14} />
+        </button>
+        <button type="button" onClick={onMoveDown} className="ui-icon-btn size-6" aria-label="Move action down" title="Move down" disabled={index === total - 1}>
+          <Icon name="down" size={14} />
+        </button>
+        <button type="button" onClick={onDuplicate} className="ui-icon-btn size-6" aria-label="Duplicate action" title="Duplicate">
+          <Icon name="copy" size={13} />
+        </button>
+        <button type="button" onClick={onRemove} className="ui-icon-btn size-6 hover:!text-brand-danger" aria-label="Remove action" title="Remove">
+          <Icon name="trash" size={13} />
+        </button>
       </div>
 
       {expanded && (
-        <div className="p-2">
+        <div className="p-2.5">
           <ActionEditor action={action} onChange={onUpdate} />
         </div>
       )}

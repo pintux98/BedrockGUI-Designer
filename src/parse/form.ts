@@ -16,11 +16,15 @@ export function parseFormDocument(text: string, id: string): FormDoc {
   const type = String(bedrock[FORM_KEYS.type] ?? "SIMPLE").toUpperCase();
 
   const base = {
-    title: String(bedrock[FORM_KEYS.title] ?? "Unknown"),
+    title: String(bedrock[FORM_KEYS.title] ?? ""),
     content: readContent(bedrock),
     command: str(bedrock[FORM_KEYS.command]),
     commandIntercept: str(bedrock[FORM_KEYS.commandIntercept]),
     permission: str(bedrock[FORM_KEYS.permission]),
+    cooldown: seconds(bedrock[FORM_KEYS.cooldown]),
+    openCondition: str(bedrock[FORM_KEYS.openCondition]),
+    openConditionMessage: str(bedrock[FORM_KEYS.openConditionMessage]),
+    onClose: readActions(bedrock[FORM_KEYS.onClose]),
     globalActions: readActions(bedrock[FORM_KEYS.globalActions])
   };
 
@@ -34,12 +38,15 @@ export function parseFormDocument(text: string, id: string): FormDoc {
         };
 
   const result: FormDoc = { id, fileName: `${id}.yml`, bedrock: form };
-  if (doc[DOCUMENT_KEYS.java] !== undefined) result.javaRaw = doc[DOCUMENT_KEYS.java];
   return result;
 }
 
 function str(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function seconds(value: unknown): string | undefined {
+  return typeof value === "number" ? String(value) : str(value);
 }
 
 function readContent(bedrock: Record<string, any>): string | string[] | undefined {
@@ -68,6 +75,8 @@ function readButtons(value: unknown): BedrockButton[] {
     if (str(b?.[BUTTON_KEYS.alternativeImage])) button.alternativeImage = b[BUTTON_KEYS.alternativeImage];
     if (str(b?.[BUTTON_KEYS.alternativeOnClick]))
       button.alternativeOnClick = b[BUTTON_KEYS.alternativeOnClick];
+    const cooldown = seconds(b?.[BUTTON_KEYS.cooldown]);
+    if (cooldown) button.cooldown = cooldown;
     const conditions = readConditions(b?.[BUTTON_KEYS.conditions]);
     if (conditions) button.conditions = conditions;
     return button;

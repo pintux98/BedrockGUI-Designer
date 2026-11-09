@@ -89,8 +89,8 @@ describe("classifyImage against the shipped fixtures", () => {
     collectImages(doc, images);
   }
 
-  it("found exactly 40 image values in the fixtures", () => {
-    expect(images.length).toBe(40);
+  it("found exactly 41 image values in the fixtures", () => {
+    expect(images.length).toBe(41);
   });
 
   it("classifies every fixture image value as a known kind", () => {

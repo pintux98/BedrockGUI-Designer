@@ -29,7 +29,7 @@ function setActiveFormBedrock(bedrock: any) {
 
 function renderExpanded() {
   const result = render(<ValidationPanel />);
-  const summary = result.container.querySelector(".cursor-pointer");
+  const summary = result.container.querySelector("button[aria-expanded]");
   if (summary) fireEvent.click(summary);
   return result;
 }
@@ -65,7 +65,7 @@ describe("ValidationPanel", () => {
       ]
     });
     const { container } = renderExpanded();
-    expect(container.textContent).toContain("unknown action type 'totally_bogus_action'");
+    expect(container.textContent).toContain("'totally_bogus_action' is not an action the plugin knows");
   });
 
   it("reports a bad action type on a CUSTOM component (field is `action`, not `onClick`)", () => {
@@ -83,7 +83,7 @@ describe("ValidationPanel", () => {
       ]
     });
     const { container } = renderExpanded();
-    expect(container.textContent).toContain("unknown action type 'nonsense_action'");
+    expect(container.textContent).toContain("'nonsense_action' is not an action the plugin knows");
   });
 
   it("does not call an addon action type unknown, and names the addon that supplies it", () => {
@@ -97,10 +97,10 @@ describe("ValidationPanel", () => {
       buttons: [{ id: "a", text: "A", onClick: [{ id: "act1", params: {}, raw: "bw_shop_main {\n}" }] }]
     });
     const { container } = renderExpanded();
-    expect(container.textContent).not.toContain("unknown action type");
+    expect(container.textContent).not.toContain("is not an action the plugin knows");
     expect(container.textContent).toContain("Bedwars Addon");
     expect(container.textContent).toContain("BedrockGUI-BedwarsAddon.jar");
-    expect(container.textContent).toContain("only runs on servers with that addon installed");
+    expect(container.textContent).toContain("only runs on servers with that addon");
   });
 
   it("recognises an addon action type on a CUSTOM component too", () => {
@@ -113,7 +113,7 @@ describe("ValidationPanel", () => {
       ]
     });
     const { container } = renderExpanded();
-    expect(container.textContent).not.toContain("unknown action type");
+    expect(container.textContent).not.toContain("is not an action the plugin knows");
     expect(container.textContent).toContain("Homestead Addon");
   });
 
@@ -125,7 +125,7 @@ describe("ValidationPanel", () => {
       buttons: [{ id: "a", text: "A", onClick: [{ id: "act1", params: {}, raw: "hs_region_menu:spawn" }] }]
     });
     const { container } = renderExpanded();
-    expect(container.textContent).not.toContain("unknown action type");
+    expect(container.textContent).not.toContain("is not an action the plugin knows");
     expect(container.textContent).toContain("Homestead Addon");
   });
 
@@ -141,7 +141,7 @@ describe("ValidationPanel", () => {
       ]
     });
     const { container } = renderExpanded();
-    expect(container.textContent).toContain("MODAL must have exactly 2 buttons");
+    expect(container.textContent).toContain("must have exactly 2 buttons");
   });
 
   it("says nothing about a SIMPLE form with zero buttons — the plugin allows it", () => {
@@ -155,7 +155,7 @@ describe("ValidationPanel", () => {
       buttons: []
     });
     const { container } = renderExpanded();
-    expect(container.textContent).toContain("No validation issues");
+    expect(container.textContent).toContain("No problems found");
     expect(container.textContent).not.toContain("button");
   });
 
@@ -168,7 +168,7 @@ describe("ValidationPanel", () => {
       components: []
     });
     const { container } = renderExpanded();
-    expect(container.textContent).toContain("No validation issues");
+    expect(container.textContent).toContain("No problems found");
     expect(container.textContent).not.toContain("component");
   });
 

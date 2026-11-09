@@ -1,30 +1,51 @@
 import React from "react";
 import { useDesignerStore } from "../core/store";
+import { BedrockFormType } from "../core/types";
+import { Icon, IconName } from "../components/Icon";
+
+export const FORM_TYPE_INFO: Record<BedrockFormType, { label: string; description: string; icon: IconName }> = {
+  SIMPLE: { label: "Menu", description: "A list of buttons", icon: "list" },
+  MODAL: { label: "Yes / No", description: "A message with two buttons", icon: "dialog" },
+  CUSTOM: { label: "Input form", description: "Fields the player fills in", icon: "sliders" }
+};
 
 export function FormTypePanel() {
-  const { activeForm, setBedrock } = useDesignerStore();
+  const { activeForm, setBedrock, setSelectedBedrockButtonId, setSelectedBedrockComponentId } = useDesignerStore();
   const bedrock = activeForm().bedrock;
   return (
-    <div className="space-y-2">
-      <div className="text-xs font-semibold text-brand-text uppercase tracking-wider">Form Type</div>
-      {bedrock && (
-        <select
-          className="ui-input w-full text-sm"
-          value={bedrock.type}
-          onChange={(e) =>
-            setBedrock(coerceBedrockType(bedrock, e.target.value as any))
-          }
-        >
-          <option value="SIMPLE">Simple Form - Button list</option>
-          <option value="MODAL">Modal Form - Yes/No dialog</option>
-          <option value="CUSTOM">Custom Form - Input components</option>
-        </select>
-      )}
+    <div role="radiogroup" aria-label="Form type" className="grid grid-cols-3 gap-1.5">
+      {(Object.keys(FORM_TYPE_INFO) as BedrockFormType[]).map((type) => {
+        const info = FORM_TYPE_INFO[type];
+        const checked = bedrock.type === type;
+        return (
+          <button
+            key={type}
+            type="button"
+            role="radio"
+            aria-checked={checked}
+            title={info.description}
+            onClick={() => {
+              if (checked) return;
+              setSelectedBedrockButtonId(null);
+              setSelectedBedrockComponentId(null);
+              setBedrock(coerceBedrockType(bedrock, type), `Changed form type to ${info.label}`);
+            }}
+            className={`flex flex-col items-center gap-1 rounded-md border px-1 py-2 text-[12px] ${
+              checked
+                ? "border-brand-accent bg-brand-accent/15 text-brand-text"
+                : "border-brand-border text-brand-muted hover:border-brand-borderStrong hover:text-brand-text"
+            }`}
+          >
+            <Icon name={info.icon} size={16} />
+            {info.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function coerceBedrockType(prev: any, type: "SIMPLE" | "MODAL" | "CUSTOM") {
+export function coerceBedrockType(prev: any, type: BedrockFormType) {
   const { buttons: _buttons, components: _components, ...shared } = prev;
   if (type === "SIMPLE") {
     return {

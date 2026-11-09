@@ -13,7 +13,9 @@ export const BUILTIN_PLACEHOLDERS = [
   { token: "{food}", description: "Player food level. Paper only — elsewhere a fixed 20", paperOnly: true }
 ] as const;
 
-const BUILTIN_TOKENS: Set<string> = new Set(BUILTIN_PLACEHOLDERS.map((p) => p.token));
+export const ONLINE_PLAYERS_TOKEN = "{online_players}";
+
+const BUILTIN_TOKENS: Set<string> = new Set([...BUILTIN_PLACEHOLDERS.map((p) => p.token), ONLINE_PLAYERS_TOKEN]);
 
 export function findUnknownBracePlaceholders(text: string): string[] {
   const found = text.match(/\{[a-z_][a-z0-9_]*\}/gi) ?? [];

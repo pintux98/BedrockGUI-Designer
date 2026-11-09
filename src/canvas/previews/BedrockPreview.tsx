@@ -1,527 +1,303 @@
 import React from "react";
-import { BedrockForm } from "../../core/types";
-import ReactMarkdown from "react-markdown";
-import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { BedrockButton, BedrockComponent, BedrockForm } from "../../core/types";
 import { useDesignerStore } from "../../core/store";
 import { MinecraftText } from "../../components/MinecraftText";
-import { hasMinecraftCodes } from "../../core/minecraftText";
 import { resolveImageForPreview } from "../../core/resolveImage";
+import { choiceList } from "../../core/componentMeta";
+import { ONLINE_PLAYERS_TOKEN } from "../../plugin/placeholders";
 import { InlineTextEditor } from "../InlineEditor";
+
+const SAMPLE_PLAYERS = ["Steve", "Alex"];
 
 function contentToString(content?: string | string[]): string {
   return Array.isArray(content) ? content.join("\n") : content ?? "";
 }
 
-export function BedrockPreview({ form }: { form: BedrockForm }) {
+export function BedrockPreview({
+  form,
+  conditionsMet = true
+}: {
+  form: BedrockForm;
+  conditionsMet?: boolean;
+}) {
   const { selectedBedrockButtonId, setSelectedBedrockButtonId, selectedBedrockComponentId, setSelectedBedrockComponentId, setBedrock } =
     useDesignerStore();
-  const buttonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
-  const componentRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
-  const listRef = React.useRef<HTMLDivElement | null>(null);
-  const customRef = React.useRef<HTMLDivElement | null>(null);
   const [editingTitle, setEditingTitle] = React.useState(false);
-  const [editingButtonText, setEditingButtonText] = React.useState<string | null>(null);
+  const [editingButton, setEditingButton] = React.useState<string | null>(null);
+  const refs = React.useRef<Record<string, HTMLElement | null>>({});
+  const selectedId = selectedBedrockButtonId ?? selectedBedrockComponentId;
 
   React.useEffect(() => {
-    if (!selectedBedrockButtonId) return;
-    const el = buttonRefs.current[selectedBedrockButtonId];
-    el?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [selectedBedrockButtonId]);
+    if (selectedId) refs.current[selectedId]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedId]);
 
-  React.useEffect(() => {
-    if (!selectedBedrockComponentId) return;
-    const el = componentRefs.current[selectedBedrockComponentId];
-    el?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [selectedBedrockComponentId]);
+  const selectButton = (id: string) => {
+    setSelectedBedrockComponentId(null);
+    setSelectedBedrockButtonId(id);
+  };
+  const selectComponent = (id: string) => {
+    setSelectedBedrockButtonId(null);
+    setSelectedBedrockComponentId(id);
+  };
+  const clearSelection = () => {
+    setSelectedBedrockButtonId(null);
+    setSelectedBedrockComponentId(null);
+  };
 
-  if (!form) return null;
+  const ring = (selected: boolean) =>
+    selected
+      ? "outline outline-2 outline-offset-2 outline-[rgb(var(--ui-accent))]"
+      : "hover:outline hover:outline-1 hover:outline-offset-2 hover:outline-[rgb(var(--ui-accent)/0.6)]";
 
-  const [assumeConditionsTrue, setAssumeConditionsTrue] = React.useState(false);
-  const droppableId = form.type === "SIMPLE" || form.type === "MODAL" ? "bedrock-buttons" : "bedrock-components";
-  const { isOver, setNodeRef } = useDroppable({ id: droppableId });
+  const content = form.type !== "CUSTOM" ? contentToString(form.content) : "";
+  const buttons =
+    form.type === "CUSTOM" ? [] : (form.buttons ?? []).map((b) => ({ base: b, display: buttonDisplay(b, conditionsMet) }));
 
-  const bgStyle = "bg-[#313233]"; // Ore UI dark background
-  const borderStyle = "border-[#48494a]"; // Ore UI border
-  const headerStyle = "bg-[#2b2c2d]"; // Header background
-
-  if (form.type === "SIMPLE" || form.type === "MODAL") {
-    const hasConditional =
-      "buttons" in form &&
-      Array.isArray(form.buttons) &&
-      form.buttons.some(
-        (b: any) =>
-          !!b?.showCondition ||
-          !!b?.alternativeText ||
-          !!b?.alternativeImage ||
-          !!b?.alternativeOnClick ||
-          (Array.isArray(b?.conditions) && !!b.conditions.length)
-      );
-    // One list, shared by the rendering and by SortableContext: the sortable ids must be
-    // exactly the rows that are on screen, in the order they are on screen.
-    const visibleButtons =
-      "buttons" in form && Array.isArray(form.buttons)
-        ? form.buttons
-            .map((b: any) => ({ base: b, display: getBedrockButtonDisplay(b, assumeConditionsTrue) }))
-            .filter((x) => !x.display.hidden)
-        : [];
-    return (
-      <div
-        ref={setNodeRef}
-        onClick={(e) => {
-          if (e.target !== e.currentTarget) return;
-          setSelectedBedrockButtonId(null);
-          setSelectedBedrockComponentId(null);
-        }}
-        className={`max-w-xl mx-auto shadow-2xl ${bgStyle} text-white font-minecraft ${isOver ? "ring-2 ring-brand-accent" : ""}`}
-        style={{ width: "min(520px, 100%)", border: "2px solid #48494a" }}
-      >
-        <div className={`h-10 flex items-center justify-between px-3 ${headerStyle} border-b-2 ${borderStyle}`}>
-          {editingTitle ? (
-            <div className="flex-1 mr-3">
-              <InlineTextEditor
-                value={form.title}
-                maxLength={64}
-                onSubmit={(v) => {
-                  setBedrock({ ...form, title: v }, "Updated title inline");
-                  setEditingTitle(false);
-                }}
-                onCancel={() => setEditingTitle(false)}
-                className="text-lg"
-              />
-            </div>
-          ) : (
-            <div
-              className="font-semibold text-lg truncate font-smooth-none cursor-text"
-              onDoubleClick={() => setEditingTitle(true)}
-              title="Double-click to edit"
-            >
-              <MinecraftText text={form.title} />
-            </div>
-          )}
-          <button className="text-white hover:text-red-400 font-bold" type="button" aria-label="Close preview">
-            ✕
-          </button>
-        </div>
-        <div className={`p-2 ${bgStyle}`}>
-          {hasConditional && (
-            <div className="flex items-center justify-between mb-3 px-1">
-              <div className="text-xs text-gray-400">Preview Conditions</div>
-              <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="accent-brand-accent"
-                  checked={assumeConditionsTrue}
-                  onChange={(e) => setAssumeConditionsTrue(e.target.checked)}
-                />
-                Assume True
-              </label>
-            </div>
-          )}
-          {form.type !== "MODAL" && "content" in form && form.content && (
-            <div className="text-gray-300 p-2 text-base mb-2 whitespace-pre-wrap font-smooth-none">
-              <MinecraftText text={contentToString(form.content)} />
-            </div>
-          )}
-
-          {form.type === "SIMPLE" && (
-            <div
-              ref={listRef}
-              className="max-h-80 overflow-y-auto pr-1 custom-scrollbar"
-              style={{ scrollbarGutter: "stable" as any }}
-            >
-              <SortableContext
-                items={visibleButtons.map((x) => `bedrock-preview-button-${x.base.id}`)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-1">
-                  {visibleButtons.map(({ base: b, display }) => (
-                    <PreviewSortableRow
-                      key={b.id}
-                      sortableId={`bedrock-preview-button-${b.id}`}
-                      handleLabel={`Reorder ${b.id}`}
-                      badge={b.id}
-                    >
-                      <button
-                        ref={(el) => {
-                          buttonRefs.current[b.id] = el;
-                        }}
-                        type="button"
-                        onClick={() => {
-                          setSelectedBedrockButtonId(b.id);
-                          setSelectedBedrockComponentId(null);
-                        }}
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          setEditingButtonText(b.id);
-                        }}
-                        className={`w-full flex items-center gap-3 bg-[#3a3b3c] border-2 px-3 py-2 text-white text-base font-smooth-none active:bg-[#2a2b2c] transition-colors ${
-                          selectedBedrockButtonId === b.id ? "border-brand-accent bg-[#4a4b4c]" : "border-[#1e1e1f]"
-                        }`}
-                      >
-                        <div className="w-8 flex items-center justify-center">
-                          {display.image ? <BedrockButtonImage image={display.image} /> : <div className="w-6 h-6" />}
-                        </div>
-                        <div className="flex-1 text-left whitespace-pre-wrap">
-                          {editingButtonText === b.id ? (
-                            <InlineTextEditor
-                              value={display.text}
-                              onSubmit={(v) => {
-                                const buttons = form.buttons.map((btn) =>
-                                  btn.id === b.id ? { ...btn, text: v } : btn
-                                );
-                                setBedrock({ ...form, buttons }, "Updated button text inline");
-                                setEditingButtonText(null);
-                              }}
-                              onCancel={() => setEditingButtonText(null)}
-                            />
-                          ) : (
-                            <MinecraftText text={display.text} />
-                          )}
-                        </div>
-                      </button>
-                    </PreviewSortableRow>
-                  ))}
-                </div>
-              </SortableContext>
-            </div>
-          )}
-
-          {form.type === "MODAL" && (
-            <div className="grid grid-cols-1 gap-1">
-              <div className="text-gray-300 p-2 text-base h-32 overflow-y-auto whitespace-pre-wrap font-smooth-none">
-                {"content" in form && form.content ? (
-                  hasMinecraftCodes(contentToString(form.content)) ? (
-                    <MinecraftText text={contentToString(form.content)} />
-                  ) : (
-                    <ReactMarkdown>{contentToString(form.content)}</ReactMarkdown>
-                  )
-                ) : (
-                  <div className="opacity-50">Content...</div>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-              {visibleButtons.map(({ base: b, display }) => (
-                <div key={b.id} className="relative">
-                  <PreviewIdBadge>{b.id}</PreviewIdBadge>
-                  <button
-                    ref={(el) => {
-                      buttonRefs.current[b.id] = el;
-                    }}
-                    type="button"
-                    onClick={() => {
-                      setSelectedBedrockButtonId(b.id);
-                      setSelectedBedrockComponentId(null);
-                    }}
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      setEditingButtonText(b.id);
-                    }}
-                    className={`w-full bg-[#3a3b3c] border-2 px-3 py-2 text-white text-base font-smooth-none active:bg-[#2a2b2c] ${
-                      selectedBedrockButtonId === b.id ? "border-brand-accent bg-[#4a4b4c]" : "border-[#1e1e1f]"
-                    }`}
-                  >
-                    {editingButtonText === b.id ? (
-                      <InlineTextEditor
-                        value={display.text}
-                        onSubmit={(v) => {
-                          const buttons = form.buttons.map((btn) =>
-                            btn.id === b.id ? { ...btn, text: v } : btn
-                          );
-                          setBedrock({ ...form, buttons }, "Updated button text inline");
-                          setEditingButtonText(null);
-                        }}
-                        onCancel={() => setEditingButtonText(null)}
-                      />
-                    ) : (
-                      <span className="whitespace-pre-wrap">
-                        <MinecraftText text={display.text} />
-                      </span>
-                    )}
-                  </button>
-                </div>
-              ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
   return (
     <div
-      ref={setNodeRef}
-      onClick={(e) => {
-        if (e.target !== e.currentTarget) return;
-        setSelectedBedrockButtonId(null);
-        setSelectedBedrockComponentId(null);
-      }}
-      className={`max-w-xl mx-auto shadow-2xl ${bgStyle} text-white font-minecraft ${isOver ? "ring-2 ring-brand-accent" : ""}`}
-      style={{ width: "min(520px, 100%)", border: "2px solid #48494a" }}
+      className="bedrock-form mx-auto w-full max-w-[480px] select-none"
+      onClick={(e) => e.target === e.currentTarget && clearSelection()}
     >
-      <div className={`h-10 flex items-center justify-between px-3 ${headerStyle} border-b-2 ${borderStyle}`}>
+      <div className="relative flex min-h-11 items-center justify-center px-10 py-2" style={{ background: "var(--bf-header)" }}>
         {editingTitle ? (
-          <div className="flex-1 mr-3">
-            <InlineTextEditor
-              value={form.title}
-              maxLength={64}
-              onSubmit={(v) => {
-                setBedrock({ ...form, title: v }, "Updated title inline");
-                setEditingTitle(false);
-              }}
-              onCancel={() => setEditingTitle(false)}
-              className="text-lg"
-            />
-          </div>
+          <InlineTextEditor
+            value={form.title}
+            maxLength={64}
+            className="w-full text-center text-[17px]"
+            onSubmit={(v) => {
+              setBedrock({ ...form, title: v }, "Updated title inline");
+              setEditingTitle(false);
+            }}
+            onCancel={() => setEditingTitle(false)}
+          />
         ) : (
           <div
-            className="font-semibold text-lg truncate font-smooth-none cursor-text"
+            className="cursor-text truncate text-[17px]"
+            style={{ color: "var(--bf-title)" }}
             onDoubleClick={() => setEditingTitle(true)}
             title="Double-click to edit"
           >
-            <MinecraftText text={form.title} />
+            {form.title ? <MinecraftText shadow text={form.title} /> : <span className="opacity-40">No title</span>}
           </div>
         )}
-        <button className="text-white hover:text-red-400 font-bold" type="button" aria-label="Close preview">
-          ✕
-        </button>
+        <span aria-hidden="true" className="bedrock-btn absolute right-2 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center text-[13px] leading-none">
+          ×
+        </span>
       </div>
-      <div className={`p-2 ${bgStyle}`}>
-        <div
-          ref={customRef}
-          className="max-h-96 overflow-y-auto pr-1 custom-scrollbar"
-          style={{ scrollbarGutter: "stable" as any }}
-        >
-          <SortableContext
-            items={(Array.isArray(form.components) ? form.components : []).map(
-              (c) => `bedrock-preview-component-${c.id}`
+
+      <div className="space-y-2 p-3" onClick={(e) => e.target === e.currentTarget && clearSelection()}>
+        {content && (
+          <div className={`whitespace-pre-wrap px-1 pb-1 text-[15px] leading-snug ${form.type === "MODAL" ? "min-h-20" : ""}`}>
+            <MinecraftText shadow text={content} />
+          </div>
+        )}
+
+        {form.type === "SIMPLE" && buttons.length === 0 && (
+          <p className="px-1 py-6 text-center text-[14px] opacity-60">No buttons yet. Use Add button on the left.</p>
+        )}
+
+        {form.type !== "CUSTOM" && (
+          <div className={`space-y-1.5 ${form.type === "SIMPLE" ? "max-h-[420px] overflow-y-auto pr-0.5" : ""}`}>
+            {buttons.map(({ base, display }) => (
+              <div
+                key={base.id}
+                ref={(el) => {
+                  refs.current[base.id] = el;
+                }}
+                role="button"
+                tabIndex={0}
+                data-button-id={base.id}
+                aria-label={`Select button ${base.id}`}
+                aria-pressed={selectedBedrockButtonId === base.id}
+                onClick={() => selectButton(base.id)}
+                onDoubleClick={() => setEditingButton(base.id)}
+                onKeyDown={(e) => {
+                  if (editingButton === base.id) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    selectButton(base.id);
+                  }
+                }}
+                className={`bedrock-btn relative flex min-h-12 w-full items-center px-2 py-1.5 text-[15px] ${ring(selectedBedrockButtonId === base.id)} ${
+                  display.hidden ? "opacity-35 [border-style:dashed]" : ""
+                }`}
+              >
+                {form.type === "SIMPLE" && (
+                  <span className="flex size-8 shrink-0 items-center justify-center">
+                    {display.image && <ButtonImage image={display.image} />}
+                  </span>
+                )}
+                <span className="flex-1 whitespace-pre-wrap px-1 text-center leading-tight">
+                  {editingButton === base.id ? (
+                    <InlineTextEditor
+                      value={base.text}
+                      className="w-full text-center"
+                      onSubmit={(v) => {
+                        setBedrock(
+                          { ...form, buttons: form.buttons.map((b) => (b.id === base.id ? { ...b, text: v } : b)) },
+                          "Updated button text inline"
+                        );
+                        setEditingButton(null);
+                      }}
+                      onCancel={() => setEditingButton(null)}
+                    />
+                  ) : (
+                    <MinecraftText shadow text={display.text} />
+                  )}
+                </span>
+                {form.type === "SIMPLE" && <span className="size-8 shrink-0" />}
+                {display.hidden && (
+                  <span className="absolute right-1.5 top-1 font-sans text-[10.5px] opacity-80">hidden</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {form.type === "CUSTOM" && (
+          <>
+            {!form.components?.length && (
+              <p className="px-1 py-6 text-center text-[14px] opacity-60">No fields yet. Use Add field on the left.</p>
             )}
-            strategy={verticalListSortingStrategy}
-          >
             <div className="space-y-3">
-              {Array.isArray(form.components) && form.components.map((c) => (
-                <PreviewSortableRow
+              {(form.components ?? []).map((c) => (
+                <div
                   key={c.id}
-                  sortableId={`bedrock-preview-component-${c.id}`}
-                  handleLabel={`Reorder ${c.id}`}
-                  badge={`${c.id} (${c.type})`}
+                  ref={(el) => {
+                    refs.current[c.id] = el;
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  data-component-id={c.id}
+                  aria-label={`Select field ${c.id}`}
+                  aria-pressed={selectedBedrockComponentId === c.id}
+                  onClick={() => selectComponent(c.id)}
+                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), selectComponent(c.id))}
+                  className={`cursor-pointer px-1 py-0.5 ${ring(selectedBedrockComponentId === c.id)}`}
                 >
-                  <div
-                    ref={(el) => {
-                      componentRefs.current[c.id] = el;
-                    }}
-                    onClick={() => {
-                      setSelectedBedrockComponentId(c.id);
-                      setSelectedBedrockButtonId(null);
-                    }}
-                    className={`bg-[#3a3b3c] border-2 p-3 cursor-pointer ${
-                      selectedBedrockComponentId === c.id ? "border-brand-accent" : "border-[#1e1e1f]"
-                    }`}
-                  >
-                    <BedrockComponentView type={c.type} props={c.props as any} />
-                  </div>
-                </PreviewSortableRow>
+                  <ComponentView component={c} />
+                </div>
               ))}
-              {!form.components?.length && (
-                <div className="text-sm text-gray-400 text-center py-8 border-2 border-dashed border-gray-600">Drag components here</div>
-              )}
             </div>
-          </SortableContext>
-        </div>
+            <div className="bedrock-btn mt-2 flex min-h-10 items-center justify-center text-[15px]" aria-hidden="true">
+              Submit
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-/**
- * The id caption that used to be gated behind the Canvas "Detailed Mode" checkbox.
- * It lives on the row wrapper rather than inside the <button> so it stays editor chrome
- * and never leaks into the button's text content or accessible name.
- */
-function PreviewIdBadge({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="absolute top-0 right-0 bg-black/50 text-[8px] px-1 text-gray-300 font-mono pointer-events-none z-10">
-      {children}
-    </div>
-  );
-}
+function ComponentView({ component }: { component: BedrockComponent }) {
+  const p = component.props as Record<string, any>;
+  const text = String(p.text ?? "");
+  const label = text ? <MinecraftText shadow text={text} /> : null;
 
-/**
- * A preview row that can be dragged to reorder. The preview is a fidelity mock, so the
- * grab handle is invisible at rest and only fades in on hover, keyboard focus or while
- * dragging; the row itself keeps its own click/double-click handlers, and the drag is
- * activated from the handle only, so selecting a button never turns into a drag.
- */
-function PreviewSortableRow({
-  sortableId,
-  handleLabel,
-  badge,
-  children
-}: {
-  sortableId: string;
-  handleLabel: string;
-  badge: string;
-  children: React.ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: sortableId
-  });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.6 : 1
-      }}
-      className="relative group"
-    >
-      {children}
-      <PreviewIdBadge>{badge}</PreviewIdBadge>
-      <span
-        {...attributes}
-        {...listeners}
-        aria-label={handleLabel}
-        title={handleLabel}
-        className={`absolute top-0 left-0 z-20 px-1 leading-none text-[10px] select-none bg-black/70 text-gray-200 cursor-grab active:cursor-grabbing outline-none transition-opacity ${
-          isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus:opacity-100"
-        }`}
-      >
-        ⋮⋮
-      </span>
-    </div>
-  );
-}
-
-function BedrockComponentView({ type, props }: { type: string; props: any }) {
-  const [localValue, setLocalValue] = React.useState<number | string | boolean | undefined>(undefined);
-  
-  // Reset local state when props change (specifically default)
-  React.useEffect(() => {
-    setLocalValue(undefined);
-  }, [props?.default]);
-
-  if (type === "label") {
-    return (
-      <div className="text-base text-white font-smooth-none">
-        <MinecraftText text={String(props?.text ?? "Label")} />
-      </div>
-    );
+  if (component.type === "label") {
+    return <div className="whitespace-pre-wrap text-[15px] leading-snug">{label ?? <span className="opacity-40">Empty label</span>}</div>;
   }
-  if (type === "input") {
+  if (component.type === "input") {
+    const value = String(p.default ?? "");
     return (
       <div className="space-y-1">
-        <div className="text-sm text-white font-smooth-none">
-          <MinecraftText text={String(props?.text ?? "Input")} />
-        </div>
-        <div className="bg-[rgb(30,30,30)] border border-gray-600 px-2 py-2 text-base text-white font-smooth-none">
-          <MinecraftText text={String(props?.placeholder ?? "Type here...")} />
+        <div className="text-[15px]">{label}</div>
+        <div className="bedrock-field px-2 py-1.5 text-[15px]">
+          {value ? <MinecraftText shadow text={value} /> : <span className="opacity-50">{String(p.placeholder ?? "")}</span>}
         </div>
       </div>
     );
   }
-  if (type === "dropdown") {
-    const opts = Array.isArray(props?.options) ? props.options : [];
+  if (component.type === "dropdown") {
+    const options = expandPlayers(choiceList(p.options));
     return (
       <div className="space-y-1">
-        <div className="text-sm text-white font-smooth-none">
-          <MinecraftText text={String(props?.text ?? "Dropdown")} />
-        </div>
-        <div className="bg-[rgb(30,30,30)] border border-gray-600 px-2 py-2 text-base text-white flex justify-between font-smooth-none">
-          <span>
-            <MinecraftText text={String(opts[(props?.default ?? 0)] ?? opts[0] ?? "Option 1")} />
-          </span>
-          <span className="text-gray-400">▼</span>
+        <div className="text-[15px]">{label}</div>
+        <div className="bedrock-btn flex items-center justify-between px-2 py-1.5 text-[15px]">
+          <MinecraftText shadow text={options[Number(p.default ?? 0)] ?? options[0] ?? ""} />
+          <span aria-hidden="true">▾</span>
         </div>
       </div>
     );
   }
-  if (type === "toggle") {
-    const checked = localValue !== undefined ? Boolean(localValue) : Boolean(props?.default);
+  if (component.type === "toggle") {
+    const on = p.default === true || p.default === "true";
     return (
-      <button
-        type="button"
-        className="w-full flex items-center justify-between cursor-pointer"
-        onClick={() => setLocalValue(!checked)}
-        aria-pressed={checked}
-      >
-        <div className="text-base text-white font-smooth-none text-left">
-          <MinecraftText text={String(props?.text ?? "Toggle")} />
-        </div>
-        <div className={`w-12 h-6 border-2 ${checked ? "bg-brand-accent border-brand-accent" : "bg-[rgb(58,58,58)] border-gray-500"}`}>
-          <div className={`w-4 h-4 bg-white mt-0.5 ${checked ? "ml-6" : "ml-1"} transition-all`} />
-        </div>
-      </button>
-    );
-  }
-  if (type === "slider") {
-    const min = Number(props?.min ?? 0);
-    const max = Number(props?.max ?? 10);
-    const step = Number(props?.step ?? 1);
-    const def = Number(props?.default ?? min);
-    const current = localValue !== undefined ? Number(localValue) : def;
-    const pct = max > min ? ((current - min) / (max - min)) * 100 : 0;
-    
-    return (
-      <div className="space-y-1">
-        <div className="text-base text-white font-smooth-none">
-          <MinecraftText text={String(props?.text ?? "Slider")} />
-        </div>
-        <div className="h-4 bg-[rgb(30,30,30)] border border-gray-600 relative">
-          <div className="h-full bg-brand-accent absolute top-0 left-0" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
-          <div className="w-2 h-5 bg-white absolute top-[-2px] border border-gray-500" style={{ left: `${Math.max(0, Math.min(100, pct))}%`, transform: 'translateX(-50%)' }} />
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={Number.isFinite(step) && step > 0 ? step : 1}
-            value={Number.isFinite(current) ? current : def}
-            onChange={(e) => setLocalValue(Number(e.target.value))}
-            aria-label={String(props?.text ?? "Slider")}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          />
-        </div>
-        <div className="text-right text-xs text-white font-mono">{current}</div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[15px]">{label}</div>
+        <span className="bedrock-field relative h-6 w-12 shrink-0" style={{ background: on ? "var(--bf-fill)" : undefined }}>
+          <span className="bedrock-btn absolute top-0 h-5 w-5" style={{ left: on ? "calc(100% - 20px)" : 0 }} />
+        </span>
       </div>
     );
   }
-  return <div className="text-sm text-gray-400">{String(type)}</div>;
+  if (component.type === "slider" || component.type === "step_slider") {
+    let pct = 0;
+    let shown = "";
+    let ticks = 0;
+    if (component.type === "slider") {
+      const min = Number(p.min ?? 0);
+      const max = Number(p.max ?? 10);
+      const value = Number(p.default ?? min);
+      pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
+      shown = String(value);
+    } else {
+      const steps = expandPlayers(choiceList(p.steps));
+      const index = Math.min(Math.max(Number(p.default ?? 0), 0), Math.max(steps.length - 1, 0));
+      pct = steps.length > 1 ? (index / (steps.length - 1)) * 100 : 0;
+      shown = steps[index] ?? "";
+      ticks = steps.length;
+    }
+    pct = Math.max(0, Math.min(100, pct));
+    return (
+      <div className="space-y-1.5">
+        <div className="text-[15px]">
+          {label}
+          {label && ": "}
+          <MinecraftText shadow text={shown} />
+        </div>
+        <div className="bedrock-field relative h-3">
+          <div className="absolute inset-y-0 left-0" style={{ width: `${pct}%`, background: "var(--bf-fill)" }} />
+          {ticks > 1 &&
+            Array.from({ length: ticks }, (_, i) => (
+              <span key={i} className="absolute top-0 h-full w-0.5 bg-black/40" style={{ left: `${(i / (ticks - 1)) * 100}%` }} />
+            ))}
+          <span className="bedrock-btn absolute -top-1.5 h-5 w-3 -translate-x-1/2" style={{ left: `${pct}%` }} />
+        </div>
+      </div>
+    );
+  }
+  return <div className="text-[15px] opacity-60">{component.type}</div>;
 }
 
-function BedrockButtonImage({ image }: { image: string }) {
+function expandPlayers(list: string[]): string[] {
+  return list.flatMap((o) => (o.trim().toLowerCase() === ONLINE_PLAYERS_TOKEN ? SAMPLE_PLAYERS : [o]));
+}
+
+function ButtonImage({ image }: { image: string }) {
   const assets = useDesignerStore((s) => s.project.assets);
   const { src, label } = resolveImageForPreview(image, assets);
-  if (src) return <img src={src} alt="" title={label} className="w-7 h-7 image-rendering-pixelated" />;
-  const initials = image.trim().slice(0, 2).toUpperCase() || "IMG";
+  if (src) return <img src={src} alt="" title={label} className="image-rendering-pixelated size-7" />;
   return (
-    <div
+    <span
       title={label}
-      className="w-7 h-7 bg-[#5b5b5b] border border-[#8b8b8b] flex items-center justify-center text-[9px] text-white"
+      className="flex size-7 items-center justify-center border-2 border-[#373737] bg-[#8b8b8b] font-sans text-[9px] font-semibold leading-none text-white"
     >
-      {initials}
-    </div>
+      {image.replace(/^.*[/:]/, "").trim().slice(0, 2).toUpperCase()}
+    </span>
   );
 }
 
-function getBedrockButtonDisplay(button: any, assumeTrue: boolean): { text: string; image?: string; hidden: boolean } {
-  const baseText = String(button?.text ?? "");
-  const baseImage = button?.image ? String(button.image) : undefined;
-  const hasShow = typeof button?.showCondition === "string" && button.showCondition.trim().length;
-  const altText = button?.alternativeText ? String(button.alternativeText) : undefined;
-  const altImage = button?.alternativeImage ? String(button.alternativeImage) : undefined;
-
-  const rules = Array.isArray(button?.conditions) ? button.conditions : [];
-  const pick = (prop: string) => rules.find((r: any) => r?.property === prop)?.value;
-
-  if (assumeTrue) {
-    const text = (pick("text") ?? baseText) as string;
-    const image = (pick("image") ?? baseImage) as string | undefined;
-    return { text, image, hidden: false };
+function buttonDisplay(button: BedrockButton, conditionsMet: boolean): { text: string; image?: string; hidden: boolean } {
+  const rules = button.conditions ?? [];
+  const pick = (prop: string) => rules.find((r) => r.property === prop)?.value;
+  if (conditionsMet) {
+    return { text: pick("text") ?? button.text, image: pick("image") ?? button.image, hidden: false };
   }
-
-  const text = altText ?? baseText;
-  const image = altImage ?? baseImage;
-  const hidden = hasShow && !altText && !altImage;
-  return { text, image, hidden };
+  const hasShow = Boolean(button.showCondition?.trim());
+  return {
+    text: button.alternativeText ?? button.text,
+    image: button.alternativeImage ?? button.image,
+    hidden: hasShow && !button.alternativeText && !button.alternativeImage
+  };
 }

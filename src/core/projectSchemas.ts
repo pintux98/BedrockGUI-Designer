@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Project } from "./project";
+import { PLUGIN_TARGET } from "../plugin";
 import { bedrockCustomSchema, bedrockModalSchema, bedrockSimpleSchema } from "./schemas";
 
 export const assetsSchema = z.object({
@@ -11,13 +12,13 @@ export const assetsSchema = z.object({
 export const formDocSchema = z.object({
   id: z.string().min(1),
   fileName: z.string().min(1),
-  bedrock: z.union([bedrockSimpleSchema, bedrockModalSchema, bedrockCustomSchema]),
-  javaRaw: z.unknown().optional()
+  bedrock: z.union([bedrockSimpleSchema, bedrockModalSchema, bedrockCustomSchema])
 });
 
 export const projectSchema = z
   .object({
-    pluginTarget: z.literal("2.0.11"),
+    name: z.string().optional(),
+    pluginTarget: z.enum(["2.0.11", PLUGIN_TARGET]).transform(() => PLUGIN_TARGET),
     configVersion: z.literal(1),
     assets: assetsSchema,
     platformTarget: z.enum(["paper", "velocity", "bungee"]),

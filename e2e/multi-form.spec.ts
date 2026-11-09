@@ -67,16 +67,15 @@ test("adds a form and switches the whole editor between forms", async ({ page })
 
   await page.getByRole("button", { name: "Add form" }).click();
   await expect(formRows(page)).toHaveText(["main_menu", "form_2"]);
-  // Adding a form must not silently steal the selection.
-  await expectActiveForm(page, "main_menu", ["form_2"]);
+  await expectActiveForm(page, "form_2", ["main_menu"]);
+  await expect(page.locator(CANVAS_TITLE)).toHaveText("New Form");
+  await expect(page.locator(TITLE_INPUT)).toHaveValue("New Form");
 
-  // Give the active form a title of its own so switching is observable.
+  await formRow(page, "main_menu").click();
   await setTitle(page, "Main Menu");
 
   await formRow(page, "form_2").click();
   await expectActiveForm(page, "form_2", ["main_menu"]);
-  // Not just the button state: the canvas and the properties panel must both
-  // be showing the newly selected form.
   await expect(page.locator(CANVAS_TITLE)).toHaveText("New Form");
   await expect(page.locator(TITLE_INPUT)).toHaveValue("New Form");
 
@@ -91,6 +90,7 @@ test("keeps an edit on the form it was made on", async ({ page }) => {
   await page.getByRole("button", { name: "Add form" }).click();
   await expect(formRows(page)).toHaveText(["main_menu", "form_2"]);
 
+  await formRow(page, "main_menu").click();
   await setTitle(page, "Alpha");
 
   await formRow(page, "form_2").click();

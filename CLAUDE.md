@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A single-page visual designer (React 19 + TypeScript + Vite + Tailwind) for authoring **Minecraft Bedrock GUI forms** for the BedrockGUI server plugin. The user designs a form visually and the app exports a YAML config that the plugin consumes. The app is client-only and deploys to Cloudflare.
 
-Note: the project was originally dual-platform (Java + Bedrock). Java support has been removed, and the `Platform` type with it — Bedrock is the only target. Do not reintroduce a Java code path.
+Note: the project was originally dual-platform (Java + Bedrock). Java support has been removed, and the `Platform` type with it — Bedrock is the only target. Do not reintroduce a Java code path, and offer no condition that tells Bedrock from Java players (`bedrock_player`/`java_player`): every form viewer is a Bedrock player.
 
 ## Commands
 
@@ -25,7 +25,7 @@ npm run verify       # the full gate: typecheck + test + build + check:bundle + 
 Run a single unit test:
 ```bash
 npx vitest run src/tests/golden-roundtrip.spec.ts   # one file
-npx vitest run -t "has all seven fixtures"          # by test name
+npx vitest run -t "has all eight fixtures"          # by test name
 ```
 Run a single e2e test: `npx playwright test e2e/basic.spec.ts -g "name"`.
 
@@ -36,20 +36,22 @@ Unit/integration specs live in `src/tests/*.spec.{ts,tsx}` (config: `vitest.conf
 ## Architecture
 
 ### The plugin contract — `src/plugin/`
-`src/plugin/` is the single versioned source of truth for BedrockGUI **2.0.11** (`PLUGIN_TARGET` in `src/plugin/index.ts`) and is the file a newcomer most needs to read first. It is data-only — it imports nothing from the app (only `js-yaml` and its own static data tables) — and everything else in the codebase derives from it:
+`src/plugin/` is the single versioned source of truth for BedrockGUI **2.0.12** (`PLUGIN_TARGET` in `src/plugin/index.ts`) and is the file a newcomer most needs to read first. It is data-only — it imports nothing from the app (only `js-yaml` and its own static data tables) — and everything else in the codebase derives from it:
 - `actions.ts` — the **14** real action types, all of which the picker always offers (`command`, `open`, `message`, `delay`, `server`, `broadcast`, `inventory`, `sound`, `economy`, `title`, `actionbar`, `conditional`, `random`, `bungee`), each with a capability gate (`always` / `commandExecutor` / `sound` / `economy` / `title`) resolved per platform. **There is no `url` action** — it was removed from the plugin and must never be reintroduced; the designer shipped it by mistake until this rewrite.
 - `grammar.ts` — parses and serializes the `type { … }` action-block text (`parseActionBlock` / `serializeActionBlock`), including the nested `conditional` and `random` shapes and the `bungee` subchannel form. `VisualActionEditor` and `src/core/validateProject.ts` both consume it. An `ActionInstance` still round-trips through YAML via its `raw` string; the grammar is what structures that string for the typed editors.
 - `conditions.ts` — operators and validation for `show_condition` / conditional-check strings (`permission:`, `placeholder:`, `plugin:`, `bedrock_player:`, `java_player:`, `not:`).
-- `placeholders.ts`, `images.ts`, `addons.ts`, `keys.ts`, `limits.ts`, `platforms.ts` — builtin placeholder tokens, button-image classification, the addon **action types** (see below), the camelCase→snake_case key tables, plugin-enforced limits, and platform capability gating, respectively. `parse/form.ts` and `serialize/form.ts` read every plugin key name from `keys.ts`, including the `bedrock`/`java` document envelope in `DOCUMENT_KEYS`. Renaming a constant breaks the golden tests — except for `permission`, `description` and `alternativeOnClick`, which appear in no fixture and are pinned instead by `src/tests/plugin/keys.spec.ts` plus direct parse/serialize tests. `CONFIG_KEYS` is declared but not yet wired: `parse/config.ts` still spells those keys inline.
+- `placeholders.ts`, `images.ts`, `addons.ts`, `keys.ts`, `limits.ts`, `platforms.ts` — builtin placeholder tokens, button-image classification, the addon **action types** (see below), the camelCase→snake_case key tables, plugin-enforced limits, and platform capability gating, respectively. `parse/form.ts` and `serialize/form.ts` read every plugin key name from `keys.ts`, including the `bedrock` document envelope in `DOCUMENT_KEYS`. Renaming a constant breaks the golden tests — except for `permission`, `description` and `alternativeOnClick`, which appear in no fixture and are pinned instead by `src/tests/plugin/keys.spec.ts` plus direct parse/serialize tests. `CONFIG_KEYS` is declared but not yet wired: `parse/config.ts` still spells those keys inline.
 
 **Addon ids are action types, not menu names.** `addons.ts` lists what each addon registers via `registerActionHandler` — `bw_shop_main`, `hs_region_menu`, `pd_duel` and the rest. They are written as their own action in **colon form** — `bw_shop_main:` , or `bw_shop_cat:<value>` where the handler reads one — never as an `open` target, and never in brace form: `ActionExecutor.parseNewFormat` returns null when a `{ }` block holds no `- "…"` entry, and the addons' own `getUsageExamples()` return the colon shape. Beware: `open` resolves through `FormMenuUtil.hasMenu`, which knows only the forms declared under `forms:` in `config.yml`, so `open { - "bw_shop_main" }` fails at runtime **even with the addon installed**. The contract called this field `formIds` until the whole-branch review; the data was right and the noun was wrong, and every consumer inherited the error — the designer both offered a construct that always fails and rejected the one that works. Keep the naming honest.
 
 ### Data model
-`src/core/project.ts` defines the top-level model: a `Project` (`pluginTarget`, `configVersion: 1`, `assets`, `platformTarget` — **vestigial**: validated and persisted, but nothing sets it any more and nothing reads it, kept only so saved projects still parse, `activeFormId`) holds many `FormDoc`s (`id`, `fileName`, `bedrock: BedrockForm`, optional `javaRaw` — an opaque `java:` block preserved verbatim through parse/serialize for forms that still carry one, never interpreted). `FormSwitcher` in the left sidebar edits many forms in one project. `src/core/projectSchemas.ts` (`parseProject`) validates a whole `Project`, built on the per-shape Zod schemas in `src/core/schemas.ts`.
+`src/core/project.ts` defines the top-level model: a `Project` (`name`, `pluginTarget`, `configVersion: 1`, `assets`, `platformTarget` — **vestigial**: validated and persisted, but nothing sets it any more and nothing reads it, kept only so saved projects still parse, `activeFormId`) holds many `FormDoc`s (`id`, `fileName`, `bedrock: BedrockForm`, and nothing else: a leftover `java:` block in an imported file is dropped, because the plugin no longer reads one). `FormSwitcher` in the left sidebar edits many forms in one project. `src/core/projectSchemas.ts` (`parseProject`) validates a whole `Project`, built on the per-shape Zod schemas in `src/core/schemas.ts`.
 
 `src/core/types.ts` is the canonical per-form model. `BedrockForm` is a discriminated union on `type`:
 - `SIMPLE` / `MODAL` → `buttons: BedrockButton[]`. **MODAL is not normalized to 2 buttons.** The parser keeps whatever the file says, and `ValidationPanel` reports a mismatch as an error — deliberately, so a real config problem isn't hidden.
-- `CUSTOM` → `components: BedrockComponent[]` (`input | slider | dropdown | toggle`, free-form `props`)
+- `CUSTOM` → `components: BedrockComponent[]` (`label | input | dropdown | toggle | slider | step_slider`, free-form `props`). Dropdown `options` and step slider `steps` may hold `{online_players}` (`ONLINE_PLAYERS_TOKEN`).
+
+2.0.12 added `cooldown`, `open_condition`, `open_condition_message` and `on_close` on the form, and `cooldown` on buttons only — not `open_condition`/`on_close`, whatever the plugin commit message says.
 
 Both buttons and components carry `ActionInstance[]` (onClick / action), and the form can have top-level `globalActions`.
 
@@ -72,25 +74,31 @@ The old single `src/core/yaml.ts` is gone, split into `src/parse/{form,config,le
 - `serialize/blockScalar.ts` (`applyBlockScalars`) — post-processes js-yaml's escaped multi-line strings into `|`/`|-` block scalars.
 - `js-yaml` is at **5.x** and ESM-only: `import * as yaml from "js-yaml"`; the dump option is `quoteStyle: "double"`.
 
-**Golden tests are the authority.** `src/tests/fixtures/plugin-forms/` holds byte-exact copies of the seven form files BedrockGUI 2.0.11 actually ships, and `src/tests/golden-roundtrip.spec.ts` parses and re-serializes each. Note what it does and does not check: it compares **semantically** (`yaml.load` on both sides), so it catches a dropped or renamed key but not a change in key order or formatting — `src/tests/block-scalar.spec.ts` is the only guard on output shape. Its idempotence assertion cannot catch a key rename at all, since parse and serialize share the constant and go wrong together; only the comparison against the original fixture can. Changing parse or serialize means keeping those green — never edit the fixtures to make a test pass.
+**Golden tests are the authority.** `src/tests/fixtures/plugin-forms/` holds byte-exact copies of the eight form files BedrockGUI 2.0.12 actually ships (`common/src/main/resources/forms/` in the plugin repo), and `src/tests/golden-roundtrip.spec.ts` parses and re-serializes each. Note what it does and does not check: it compares **semantically** (`yaml.load` on both sides), so it catches a dropped or renamed key but not a change in key order or formatting — `src/tests/block-scalar.spec.ts` is the only guard on output shape. Its idempotence assertion cannot catch a key rename at all, since parse and serialize share the constant and go wrong together; only the comparison against the original fixture can. Changing parse or serialize means keeping those green — never edit the fixtures to make a test pass.
 
 ### Actions system
 `src/actions/` (`ActionPicker`, `ActionBlock`, `VisualActionEditor`) is the visual editing UI and reads `src/plugin/actions.ts` directly — there is no separate `registry.ts` / `types.ts` / `ActionEditor.tsx` layer. `VisualActionEditor` parses and rebuilds each block through `grammar.ts`, and dispatches to the typed editors in `src/actions/editors/` (`LinesEditor`, `ConditionalEditor`, `RandomEditor`, `BungeeEditor`, `RawEditor`) on the parsed `ParsedAction.kind`.
 
 ### Validation
-`src/core/schemas.ts` holds the Zod schemas mirroring the per-form model shapes (used by `projectSchemas.ts` and for legacy-project migration in `src/core/migrate.ts`). The drop rule (e.g. components only droppable on CUSTOM forms) is inlined in `src/app/DndHost.tsx`, not a separate module. The live validation surfaced to the user is in `src/panels/ValidationPanel.tsx`, which defers to `src/plugin/` for its checks — known action ids from `actions.ts`, condition syntax from `conditions.ts`, image-source classification from `images.ts`, and the modal button count from `limits.ts` — rather than hand-maintaining duplicates. Above the per-form issues it renders a **Project** section from `src/core/validateProject.ts`: unresolvable `open` targets, addon action ids misused as `open` targets, `open` arguments that are not usable menu names, duplicate file names, and forms nothing can reach.
+`src/core/schemas.ts` holds the Zod schemas mirroring the per-form model shapes (used by `projectSchemas.ts` and for legacy-project migration in `src/core/migrate.ts`). The live validation surfaced to the user is in `src/panels/ValidationPanel.tsx`, which defers to `src/plugin/` for its checks — known action ids from `actions.ts`, condition syntax from `conditions.ts`, image-source classification from `images.ts`, and the modal button count from `limits.ts` — rather than hand-maintaining duplicates. Above the per-form issues it renders a **Project** section from `src/core/validateProject.ts`: unresolvable `open` targets, addon action ids misused as `open` targets, `open` arguments that are not usable menu names, duplicate file names, and forms nothing can reach.
 
 `validateProject` mirrors `OpenFormActionHandler` rather than assuming every line of an `open` block is a menu. The plugin opens a chain only when **every** value is a valid, registered menu name; otherwise the first value is the menu and the rest are arguments passed to it. Reporting an argument as a missing menu would put an error on a correct config, so a tail that does not fully resolve is ignored entirely.
 
 ### UI composition
-`App.tsx` → `DesignerShell.tsx` is a responsive 3-pane layout:
-- Left: `FormSwitcher` (the project's forms) + `FormTypePanel` + `Palette` (component tabs) / `HistoryPanel`
+`App.tsx` → `DesignerShell.tsx` is a three-column layout:
+- Left: `FormSwitcher` (the project's forms) + `Outline` (the active form's buttons or fields, drag to reorder, Add button / Add field)
 - Center: `Canvas` (live `BedrockPreview`) + `ValidationPanel`
-- Right: `PropertiesPanel` / `YamlEditorPanel` (live YAML view)
+- Right: tabs Edit (`PropertiesPanel`) / YAML (`YamlEditorPanel`) / History (`HistoryPanel`)
 
-Drag-and-drop is `@dnd-kit`, wired through `src/app/DndHost.tsx`. Below 768px the layout collapses to a bottom tab bar (Tools / Preview / Props); `MobileWarning` also gates very small screens. Tailwind uses `brand-*` semantic color tokens (`brand-bg`, `brand-surface`, `brand-accent`, …).
+`PropertiesPanel` is an inspector of the **selection**, not a list: no selection shows form settings (including `FormTypePanel`), a selected button shows `ButtonInspector`, a selected field shows `ComponentInspector`. Selection lives in `selectionSlice` and is set from the preview, the outline, and the inspector's back button. Field type labels, icons and default props for new fields are in `src/core/componentMeta.ts`; `DndHost.computeDropResult` reads them, and the outline's Add buttons call it.
 
-Minecraft formatting is parsed in `src/core/minecraftText.ts` and rendered by the `MinecraftText` component — legacy `§`/`&` codes, `&#RRGGBB` hex, and MiniMessage tags (`<red>`, `<bold>`, `<#00FF00>`). Use these rather than re-implementing colour parsing. `hasMinecraftCodes` from the same module is what `BedrockPreview` uses to route between `MinecraftText` and `ReactMarkdown`, so a new syntax has to be taught to both or it renders as raw markup.
+Drag-and-drop is `@dnd-kit`, wired through `src/app/DndHost.tsx`; the only sortable surface is the outline. Below 768px the layout collapses to a bottom tab bar (Forms / Preview / Edit). Tailwind uses `brand-*` semantic color tokens (`brand-bg`, `brand-surface`, `brand-accent`, …) defined in `src/styles.css`; editor text is Geist / Geist Mono.
+
+The preview's look is `.bedrock-form` / `.bedrock-btn` / `.bedrock-field` in `src/styles.css`: a dark window with light buttons, in Noto Sans (Bedrock's smooth font). That pairing is deliberate. The shipped forms put `§7` on the window and `§8` subtitles on buttons, and measured contrast shows no single background serves both. `MinecraftText` takes a `shadow` prop that draws Minecraft's drop shadow (each channel ÷ 4), which keeps light colours readable on the light buttons. Bedrock renders no Markdown, so neither does the preview.
+
+Minecraft formatting is parsed in `src/core/minecraftText.ts` and rendered by the `MinecraftText` component — legacy `§`/`&` codes, `&#RRGGBB` hex, and MiniMessage tags (`<red>`, `<bold>`, `<#00FF00>`). Use these rather than re-implementing colour parsing.
+
+The working project autosaves to `localStorage` (`bedrockgui.designer.draft`) and is restored on load in `src/main.tsx`. Named saves (Ctrl+S, the project menu) are separate `project_<name>` entries; `Project.name` is the project's own name and is never a form id.
 
 Button images resolve through `src/core/resolveImage.ts`, which classifies with `images.ts` and mirrors the plugin's `mapImageSource`: URLs, player heads, Mojang texture URLs and base64 skin blobs get a `src`; materials, potions and texture paths get a label instead, because the designer ships no Bedrock texture atlas.
 

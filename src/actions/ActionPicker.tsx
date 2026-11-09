@@ -1,7 +1,9 @@
 import React from "react";
-import { ACTIONS, ACTION_IDS, actionPlatformNote } from "../plugin";
+import { ACTIONS, actionPlatformNote } from "../plugin";
 import { ADDONS, AddonDef, addonActionTakesArgument } from "../plugin/addons";
 import { ActionKind, RAW_ACTION_INFO } from "./actionInfo";
+import { ACTION_GROUPS, ACTION_TITLES } from "./actionWizard";
+import { Icon } from "../components/Icon";
 
 interface ActionPickerProps {
   onSelect: (type: ActionKind) => void;
@@ -12,18 +14,6 @@ function infoFor(id: ActionKind) {
   return id === "raw" ? RAW_ACTION_INFO : ACTIONS[id];
 }
 
-/**
- * Every action, always.
- *
- * This list used to be `actionsForPlatform(project.platformTarget)`, which quietly
- * dropped `sound` and `economy` from the picker whenever the project carried a
- * `velocity` or `bungee` target — two of the fourteen simply were not there, with
- * nothing on screen to say why. A form file is the same file on every platform, so
- * the capability difference is a warning to read (see `actionPlatformNote`), not a
- * reason to hide an action.
- */
-const CORE_ORDER: ActionKind[] = [...ACTION_IDS, "raw"];
-
 function matches(haystack: string[], query: string): boolean {
   return haystack.some((h) => h.toLowerCase().includes(query));
 }
@@ -31,105 +21,90 @@ function matches(haystack: string[], query: string): boolean {
 export function ActionPicker({ onSelect, onClose }: ActionPickerProps) {
   const [search, setSearch] = React.useState("");
   const [openAddons, setOpenAddons] = React.useState<Record<string, boolean>>({});
-  const ref = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onClose]);
-
-  React.useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
+    const handleEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", handleEsc);
     return () => document.removeEventListener("keydown", handleEsc);
   }, [onClose]);
 
   const q = search.trim().toLowerCase();
   const searching = q.length > 0;
-
-  const filtered = CORE_ORDER.filter((id) => {
+  const keep = (id: ActionKind) => {
     const info = infoFor(id);
-    return matches([info.label, id, info.description], q);
-  });
+    return matches([ACTION_TITLES[id].title, ACTION_TITLES[id].hint, info.label, id, info.description], q);
+  };
 
-  /** One entry per addon, carrying only the ids the current search leaves. */
+  const groups = [...ACTION_GROUPS, { title: "Something else", icon: "pencil" as const, ids: ["raw" as ActionKind] }]
+    .map((g) => ({ ...g, ids: g.ids.filter(keep) }))
+    .filter((g) => g.ids.length);
+
   const addonSections = ADDONS.map((addon) => ({
     addon,
     ids: addon.actionIds.filter((id) => matches([id, addon.name], q))
   })).filter((section) => section.ids.length > 0);
 
-  const nothingMatched = filtered.length === 0 && addonSections.length === 0;
-
-  /**
-   * `createDefaultAction` turns an addon id into a raw block holding the colon form
-   * (see actionInfo.ts), so an addon action rides the same `onSelect` the core rows
-   * use. The cast is the one place the id crosses into `ActionKind`.
-   */
-  const selectAddonAction = (id: string) => onSelect(id as ActionKind);
+  const nothingMatched = groups.length === 0 && addonSections.length === 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/40" onClick={onClose}>
-      <div
-        ref={ref}
-        className="ui-panel w-full max-w-md p-0 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-3 py-2 border-b border-brand-border bg-brand-surface">
-          <div className="text-xs font-medium text-brand-text mb-2">Add Action</div>
-          <input
-            className="ui-input text-xs"
-            placeholder="Search actions..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            autoFocus
-          />
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/55 px-3 pt-[8vh]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-label="Add action" className="ui-menu flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden p-0">
+        <div className="border-b border-brand-border p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-[15px] font-semibold">What should happen?</h2>
+            <button type="button" className="ui-icon-btn" aria-label="Close" onClick={onClose}>
+              <Icon name="x" size={15} />
+            </button>
+          </div>
+          <input className="ui-input" placeholder="Search actions..." value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
         </div>
-        <div className="max-h-72 overflow-y-auto custom-scrollbar p-1">
-          {filtered.map((id) => {
-            const info = infoFor(id);
-            const note = id === "raw" ? undefined : actionPlatformNote(id);
-            return (
-              <button
-                key={id}
-                data-action-id={id}
-                data-paper-only={note ? "true" : "false"}
-                className="w-full flex items-start gap-3 px-3 py-2 text-left hover:bg-brand-surface-raised rounded transition-colors"
-                onClick={() => onSelect(id)}
-              >
-                <span className="text-lg mt-0.5">{info.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-medium text-brand-text">{info.label}</div>
-                  <div className="text-[10px] text-brand-muted">{info.description}</div>
-                  {note && <div className="text-[10px] text-brand-warning">{note}</div>}
-                  <pre className="text-[9px] text-brand-accent/70 font-mono mt-1 whitespace-pre-wrap">{info.formatExample}</pre>
-                </div>
-                <span className="text-[10px] text-brand-muted font-mono mt-0.5">{id}</span>
-              </button>
-            );
-          })}
+        <div className="overflow-y-auto p-2">
+          {groups.map((group) => (
+            <section key={group.title} className="mb-2">
+              <h3 className="flex items-center gap-1.5 px-2 pb-1 pt-1.5 text-[12px] font-medium text-brand-muted">
+                <Icon name={group.icon} size={13} />
+                {group.title}
+              </h3>
+              <div className="grid gap-1 sm:grid-cols-2">
+                {group.ids.map((id) => {
+                  const note = id === "raw" ? undefined : actionPlatformNote(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      data-action-id={id}
+                      data-paper-only={note ? "true" : "false"}
+                      className="rounded-md border border-brand-border bg-brand-surface px-3 py-2 text-left hover:border-brand-accent hover:bg-brand-accent/10"
+                      onClick={() => onSelect(id)}
+                    >
+                      <span className="block text-[13px] font-medium">{ACTION_TITLES[id].title}</span>
+                      <span className="block text-[12px] text-brand-muted">{ACTION_TITLES[id].hint}</span>
+                      {note && <span className="mt-0.5 block text-[11.5px] text-brand-warning">{note}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
 
+          {addonSections.length > 0 && (
+            <h3 className="flex items-center gap-1.5 px-2 pb-1 pt-1.5 text-[12px] font-medium text-brand-muted">
+              <Icon name="plus" size={13} />
+              From addons
+            </h3>
+          )}
           {addonSections.map(({ addon, ids }) => (
             <AddonSection
               key={addon.id}
               addon={addon}
               ids={ids}
-              /* A search is a request to see what matched, so it opens the sections itself. */
               expanded={searching || openAddons[addon.id] === true}
               onToggle={() => setOpenAddons((s) => ({ ...s, [addon.id]: !s[addon.id] }))}
-              onSelect={selectAddonAction}
+              onSelect={(id) => onSelect(id as ActionKind)}
             />
           ))}
 
-          {nothingMatched && (
-            <div className="px-3 py-4 text-xs text-brand-muted text-center">No actions match "{search}"</div>
-          )}
+          {nothingMatched && <div className="px-3 py-6 text-center text-[13px] text-brand-muted">No actions match "{search}"</div>}
         </div>
       </div>
     </div>
@@ -151,24 +126,23 @@ function AddonSection({
 }) {
   const listId = React.useId();
   return (
-    <div className="mt-1 border-t border-brand-border pt-1" data-addon-section={addon.id}>
+    <div data-addon-section={addon.id}>
       <button
         type="button"
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-brand-surface-raised rounded transition-colors"
+        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-brand-surface"
         onClick={onToggle}
         aria-expanded={expanded}
         aria-controls={listId}
       >
-        <span className="text-[10px] text-brand-muted w-3">{expanded ? "▼" : "▶"}</span>
-        <span className="text-xs font-medium text-brand-text flex-1">{addon.name}</span>
-        <span className="text-[10px] text-brand-muted">{ids.length} actions</span>
+        <Icon name={expanded ? "chevronDown" : "chevronRight"} size={14} className="text-brand-muted" />
+        <span className="flex-1 text-[13px] font-medium">{addon.name}</span>
+        <span className="text-[12px] text-brand-muted">{ids.length} actions</span>
       </button>
       {expanded && (
-        <div id={listId}>
-          <div className="px-3 pb-1 text-[10px] text-brand-muted">
-            Needs <code className="font-mono">{addon.jar}</code> installed. Without it the action
-            fails with "Unknown action type".
-          </div>
+        <div id={listId} className="pb-1 pl-6">
+          <p className="px-2 pb-1 text-[12px] text-brand-muted">
+            Needs <code className="font-mono-ui">{addon.jar}</code> installed. Without it the action fails with "Unknown action type".
+          </p>
           {ids.map((id) => {
             const takesValue = addonActionTakesArgument(id);
             return (
@@ -178,18 +152,16 @@ function AddonSection({
                 data-action-id={id}
                 data-addon={addon.id}
                 data-takes-value={takesValue ? "true" : "false"}
-                className="w-full flex items-start gap-3 px-3 py-1.5 text-left hover:bg-brand-surface-raised rounded transition-colors"
+                className="flex w-full items-start gap-3 rounded-md px-2 py-1.5 text-left hover:bg-brand-surface"
                 onClick={() => onSelect(id)}
               >
-                <span className="flex-1 min-w-0">
-                  <span className="block text-xs font-mono text-brand-text">{id}</span>
-                  <span className="block text-[10px] text-brand-muted">
-                    {takesValue
-                      ? "Takes a value after the colon (some handlers treat it as optional)."
-                      : "Takes no value."}
+                <span className="min-w-0 flex-1">
+                  <span className="block font-mono-ui text-[12.5px]">{id}</span>
+                  <span className="block text-[12px] text-brand-muted">
+                    {takesValue ? "Takes a value after the colon (some handlers treat it as optional)." : "Takes no value."}
                   </span>
                 </span>
-                <span className="text-[10px] text-brand-muted mt-0.5 whitespace-nowrap">needs {addon.name}</span>
+                <span className="mt-0.5 whitespace-nowrap text-[11.5px] text-brand-muted">needs {addon.name}</span>
               </button>
             );
           })}

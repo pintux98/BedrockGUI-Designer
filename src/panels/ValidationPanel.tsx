@@ -1,269 +1,88 @@
 import React from "react";
 import { useDesignerStore } from "../core/store";
-import { ActionInstance } from "../core/types";
-import { validateProject } from "../core/validateProject";
-import { isActionId, classifyImage, validateCondition, findAddonForActionId, LIMITS } from "../plugin";
-
-type Issue = { level: "error" | "warning"; message: string };
+import { useValidation } from "../core/useValidation";
+import type { FormIssue } from "../core/validateForm";
+import { Icon } from "../components/Icon";
 
 export function ValidationPanel() {
-  const { activeForm, project } = useDesignerStore();
-  const active = activeForm();
-  const issues = React.useMemo(() => validateState(active as any), [active]);
-  const projectIssues = React.useMemo(() => validateProject(project), [project]);
-  const errors = issues.filter((i) => i.level === "error");
-  const warnings = issues.filter((i) => i.level === "warning");
-  const projectErrors = projectIssues.filter((i) => i.level === "error");
-  const projectWarnings = projectIssues.filter((i) => i.level === "warning");
-  const errorCount = errors.length + projectErrors.length;
-  const warningCount = warnings.length + projectWarnings.length;
+  const { project, setActiveForm, setSelectedBedrockButtonId, setSelectedBedrockComponentId } = useDesignerStore();
+  const { byForm, project: projectIssues, errorCount, warningCount } = useValidation();
   const [expanded, setExpanded] = React.useState(false);
+  const activeId = project.activeFormId;
+  const total = errorCount + warningCount;
 
-  if (!issues.length && !projectIssues.length) {
+  const go = (formId: string, issue: FormIssue) => {
+    setActiveForm(formId);
+    setSelectedBedrockButtonId(issue.target?.kind === "button" ? issue.target.id : null);
+    setSelectedBedrockComponentId(issue.target?.kind === "component" ? issue.target.id : null);
+  };
+
+  if (!total) {
     return (
-      <div className="h-8 bg-brand-surface border-t border-brand-border flex items-center px-4 text-xs text-brand-muted">
-        <span className="text-green-500 mr-2">✓</span> No validation issues
+      <div className="flex min-h-8 shrink-0 items-center gap-2 border-t border-brand-border bg-brand-surface px-4 text-[12.5px] text-brand-muted">
+        <Icon name="check" size={14} className="text-brand-success" />
+        No problems found in any form
       </div>
     );
   }
 
+  const groups = [
+    ...(projectIssues.length ? [{ id: "", title: "Project", issues: projectIssues }] : []),
+    ...[activeId, ...project.forms.map((f) => f.id).filter((id) => id !== activeId)]
+      .filter((id) => byForm[id]?.length)
+      .map((id) => ({ id, title: id === activeId ? `${id} (open)` : id, issues: byForm[id] }))
+  ];
+  const first = groups[0]?.issues[0];
+
   return (
-    <div className="flex flex-col bg-brand-surface border-t border-brand-border min-w-0">
+    <div className="flex min-w-0 shrink-0 flex-col border-t border-brand-border bg-brand-surface">
       {expanded && (
-        <div className="max-h-48 overflow-y-auto p-2 border-b border-brand-border bg-brand-surface2">
-          {projectIssues.length > 0 && (
-            <div className="text-[10px] uppercase tracking-wide text-brand-muted mb-1">Project</div>
-          )}
-          {projectErrors.map((e, idx) => (
-            <div key={`pe-${idx}`} className="flex gap-2 text-xs text-red-400 bg-red-900/10 p-1 mb-1 border border-red-900/30 whitespace-pre-wrap break-words">
-              <span className="font-bold shrink-0">!</span> {e.message}
-            </div>
-          ))}
-          {projectWarnings.map((w, idx) => (
-            <div key={`pw-${idx}`} className="flex gap-2 text-xs text-yellow-300 bg-yellow-900/10 p-1 mb-1 border border-yellow-900/30 whitespace-pre-wrap break-words">
-              <span className="font-bold shrink-0">?</span> {w.message}
-            </div>
-          ))}
-          {projectIssues.length > 0 && issues.length > 0 && (
-            <div className="text-[10px] uppercase tracking-wide text-brand-muted mb-1 mt-2">This form</div>
-          )}
-          {errors.map((e, idx) => (
-            <div key={`e-${idx}`} className="flex gap-2 text-xs text-red-400 bg-red-900/10 p-1 mb-1 border border-red-900/30 whitespace-pre-wrap break-words">
-              <span className="font-bold shrink-0">!</span> {e.message}
-            </div>
-          ))}
-          {warnings.map((w, idx) => (
-            <div key={`w-${idx}`} className="flex gap-2 text-xs text-yellow-300 bg-yellow-900/10 p-1 mb-1 border border-yellow-900/30 whitespace-pre-wrap break-words">
-              <span className="font-bold shrink-0">?</span> {w.message}
-            </div>
+        <div className="max-h-56 overflow-y-auto border-b border-brand-border bg-brand-surface2 px-2 py-1.5">
+          {groups.map((g) => (
+            <section key={g.id || "project"} className="mb-1.5">
+              <h3 className="px-2 py-1 font-mono-ui text-[12px] text-brand-muted">{g.title}</h3>
+              {g.issues.map((issue, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  disabled={!g.id}
+                  onClick={() => g.id && go(g.id, issue)}
+                  className="flex w-full items-start gap-2 rounded-md px-2 py-1 text-left text-[12.5px] enabled:hover:bg-brand-surface-raised"
+                >
+                  <Icon
+                    name="alert"
+                    size={14}
+                    className={`mt-0.5 ${issue.level === "error" ? "text-brand-danger" : "text-brand-warning"}`}
+                  />
+                  <span className="sr-only">{issue.level === "error" ? "Error:" : "Warning:"}</span>
+                  <span className="min-w-0 break-words">{issue.message}</span>
+                </button>
+              ))}
+            </section>
           ))}
         </div>
       )}
-      <div 
-        className="h-8 flex items-center px-4 text-xs cursor-pointer hover:bg-brand-surface2 transition-colors justify-between overflow-hidden"
+      <button
+        type="button"
+        aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
+        className="flex min-h-8 items-center gap-3 overflow-hidden px-4 text-left text-[12.5px] hover:bg-brand-surface-raised"
       >
-        <div className="flex items-center gap-4 min-w-0 flex-1">
-          <div className="font-bold text-brand-text shrink-0">Validation</div>
-          {errorCount > 0 && (
-            <div className="flex items-center gap-1 text-red-400 shrink-0">
-              <span className="font-bold">{errorCount}</span> Errors
-            </div>
-          )}
-          {warningCount > 0 && (
-            <div className="flex items-center gap-1 text-yellow-400 shrink-0">
-              <span className="font-bold">{warningCount}</span> Warnings
-            </div>
-          )}
-          <div className="text-brand-muted truncate ml-4 opacity-75 min-w-0 flex-1">
-            {errors[0]?.message ?? projectErrors[0]?.message ?? warnings[0]?.message ?? projectWarnings[0]?.message}
-          </div>
-        </div>
-        <div className="text-brand-muted shrink-0 ml-2">
-          {expanded ? "▼" : "▲"}
-        </div>
-      </div>
+        {errorCount > 0 && (
+          <span className="flex shrink-0 items-center gap-1 text-brand-danger">
+            <Icon name="alert" size={14} />
+            {errorCount} {errorCount === 1 ? "error" : "errors"}
+          </span>
+        )}
+        {warningCount > 0 && (
+          <span className="flex shrink-0 items-center gap-1 text-brand-warning">
+            <Icon name="alert" size={14} />
+            {warningCount} {warningCount === 1 ? "warning" : "warnings"}
+          </span>
+        )}
+        <span className="min-w-0 flex-1 truncate text-brand-muted">{first?.message}</span>
+        <Icon name={expanded ? "chevronDown" : "up"} size={14} className="shrink-0 text-brand-muted" />
+      </button>
     </div>
   );
 }
-
-function validateState(state: any): Issue[] {
-  const out: Issue[] = [];
-
-  if (state.bedrock) {
-    const b = state.bedrock;
-    if (b.type === "MODAL" && Array.isArray(b.buttons) && b.buttons.length !== LIMITS.modalButtonCount) {
-      out.push({ level: "error", message: `Bedrock MODAL must have exactly ${LIMITS.modalButtonCount} buttons.` });
-    }
-    // No minimum button or component count is checked: the plugin has none.
-    // ConfigValidator.validateButtons (ConfigValidator.java:97-104) warns about an
-    // empty button list only for MODAL, and validateFormTypeSpecific's CUSTOM branch
-    // is `case "custom": break;`. An empty SIMPLE or CUSTOM form loads and opens.
-    if (b.commandIntercept && typeof b.commandIntercept === "string" && b.commandIntercept.trim().length < 2) {
-      out.push({ level: "warning", message: "command_intercept looks too short." });
-    }
-
-    if (b.type === "SIMPLE" || b.type === "MODAL") {
-      for (const btn of b.buttons ?? []) {
-        if (!btn?.text || !String(btn.text).trim()) {
-          out.push({ level: "error", message: `Button '${btn?.id ?? "?"}': text is required.` });
-        }
-        if (btn?.image && classifyImage(btn.image).kind === "unknown") {
-          out.push({ level: "warning", message: `Button '${btn.id}': image source looks invalid.` });
-        }
-        if (btn?.showCondition && validateCondition(btn.showCondition, "colon").length) {
-          out.push({ level: "warning", message: `Button '${btn.id}': show_condition looks invalid.` });
-        }
-        for (const rule of btn?.conditions ?? []) {
-          if (!rule.condition || !rule.property) continue;
-          if (validateCondition(rule.condition, "colon").length) {
-            out.push({ level: "warning", message: `Button '${btn.id}': override condition '${rule.id}' looks invalid.` });
-          }
-        }
-        out.push(...validateActionBlocks(`Button '${btn.id}' onClick`, btn?.onClick));
-      }
-    }
-
-    for (const comp of b.components ?? []) {
-      out.push(...validateActionBlocks(`Component '${comp.id}' onClick`, comp?.action));
-    }
-
-    out.push(...validateActionBlocks("Global actions", state.bedrock.globalActions));
-    out.push(...detectCircularOpenReferences(state.id ?? "example", collectAllActionBlocks(state)));
-  }
-
-  return out;
-}
-
-function validateActionBlocks(label: string, actions?: ActionInstance[]): Issue[] {
-  const out: Issue[] = [];
-  for (const a of actions ?? []) {
-    const raw = typeof a?.raw === "string" ? a.raw.trim() : typeof a?.params === "string" ? a.params.trim() : "";
-    if (!raw) continue;
-    const type = extractActionType(raw);
-    if (!type) {
-      out.push({ level: "warning", message: `${label}: could not detect action type for '${shorten(raw)}'.` });
-      continue;
-    }
-    if (!isActionId(type)) {
-      /**
-       * An addon action type is a real, correct action — addons register handlers
-       * alongside the 14 builtins (FormMenuUtil.java:1163) — so `bw_shop_main { }` is
-       * not an unknown type. It does depend on that addon being installed, which is
-       * the only thing worth saying about it.
-       */
-      const addon = findAddonForActionId(type);
-      if (addon) {
-        out.push({
-          level: "warning",
-          message: `${label}: '${type}' is supplied by the ${addon.name} (${addon.jar}) — it only runs on servers with that addon installed.`
-        });
-      } else {
-        out.push({ level: "warning", message: `${label}: unknown action type '${type}'.` });
-      }
-    }
-    if (raw.includes(":") && !raw.includes("{") && !raw.includes("}")) {
-      out.push({ level: "warning", message: `${label}: legacy action format detected '${shorten(raw)}'.` });
-    }
-    const open = (raw.match(/\{/g) ?? []).length;
-    const close = (raw.match(/\}/g) ?? []).length;
-    if (open !== close) {
-      out.push({ level: "warning", message: `${label}: braces may be unbalanced for '${type}'.` });
-    }
-    if (type === "conditional") {
-      const check = extractConditionalCheck(raw);
-      if (!check) {
-        out.push({ level: "warning", message: `${label}: conditional action is missing a check.` });
-      } else {
-        for (const problem of validateCondition(check, "symbol")) {
-          out.push({ level: "warning", message: `${label}: conditional check ${problem}` });
-        }
-      }
-    }
-  }
-  return out;
-}
-
-function extractActionType(raw: string): string | undefined {
-  const s = raw.trim();
-  const brace = s.indexOf("{");
-  if (brace > 0) return s.slice(0, brace).trim().toLowerCase();
-  const colon = s.indexOf(":");
-  if (colon > 0) return s.slice(0, colon).trim().toLowerCase();
-  return undefined;
-}
-
-function shorten(s: string) {
-  const t = s.replace(/\s+/g, " ").trim();
-  return t.length > 60 ? `${t.slice(0, 57)}...` : t;
-}
-
-function extractConditionalCheck(raw: string): string | undefined {
-  const open = raw.indexOf("{");
-  const close = raw.lastIndexOf("}");
-  if (open === -1 || close === -1 || close <= open) return undefined;
-  const inner = raw.slice(open + 1, close);
-  const match = inner.match(/check\s*:\s*(.+)/i);
-  if (!match) return undefined;
-  return match[1].trim().replace(/^"+|"+$/g, "");
-}
-
-function collectAllActionBlocks(state: any): string[] {
-  const out: string[] = [];
-  const push = (a?: ActionInstance[]) => {
-    for (const x of a ?? []) {
-      const raw = typeof x?.raw === "string" ? x.raw.trim() : typeof x?.params === "string" ? x.params.trim() : "";
-      if (raw) out.push(raw);
-    }
-  };
-  if (state.bedrock) {
-    if (state.bedrock.type === "SIMPLE" || state.bedrock.type === "MODAL") {
-      for (const b of state.bedrock.buttons ?? []) push(b.onClick);
-    }
-    for (const c of state.bedrock.components ?? []) push(c.action);
-  }
-  push(state.bedrock?.globalActions);
-  return out;
-}
-
-function detectCircularOpenReferences(menuName: string, blocks: string[]): Issue[] {
-  const edges = new Map<string, Set<string>>();
-  edges.set(menuName, new Set());
-  for (const b of blocks) {
-    const type = extractActionType(b);
-    if (type !== "open") continue;
-    const target = extractFirstQuotedValue(b) ?? extractOpenColonValue(b);
-    if (!target) continue;
-    edges.get(menuName)!.add(target.toLowerCase());
-  }
-  const visited = new Set<string>();
-  const stack = new Set<string>();
-  const issues: Issue[] = [];
-
-  const dfs = (n: string) => {
-    if (stack.has(n)) {
-      issues.push({ level: "warning", message: `Possible circular open-form reference detected involving '${n}'.` });
-      return;
-    }
-    if (visited.has(n)) return;
-    visited.add(n);
-    stack.add(n);
-    for (const nxt of edges.get(n) ?? []) dfs(nxt);
-    stack.delete(n);
-  };
-
-  dfs(menuName.toLowerCase());
-  return issues;
-}
-
-function extractFirstQuotedValue(block: string): string | undefined {
-  const m = block.match(/-\s*\"((?:[^\"\\\\]|\\\\.)*)\"/);
-  return m?.[1];
-}
-
-function extractOpenColonValue(block: string): string | undefined {
-  const m = block.match(/^\s*open\s*:\s*(.+)\s*$/i);
-  if (!m?.[1]) return undefined;
-  return m[1].trim().replace(/^\"|\"$/g, "");
-}
-

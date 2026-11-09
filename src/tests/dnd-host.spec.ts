@@ -18,9 +18,9 @@ const simpleForm: BedrockForm = {
 };
 
 describe("computeDropResult", () => {
-  it("ignores a drop with type: label onto a CUSTOM form and creates no component", () => {
+  it("creates a label component on a CUSTOM form", () => {
     const result = computeDropResult(customForm, "bedrock-components", "label");
-    expect(result).toBeNull();
+    expect(result?.type === "CUSTOM" && result.components.at(-1)?.type).toBe("label");
   });
 
   it("ignores a drop with an unknown type onto a CUSTOM form", () => {

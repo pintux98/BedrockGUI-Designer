@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React from "react";
 import { createPortal } from "react-dom";
 import {
   CollisionDetection,
@@ -15,7 +15,7 @@ import {
 import { useDesignerStore } from "../core/store";
 import { BedrockForm, isBedrockComponentType } from "../core/types";
 import { nextSequentialId } from "../core/ids";
-import { IconTile } from "../components/IconTile";
+import { COMPONENT_META } from "../core/componentMeta";
 import { arrayMove } from "@dnd-kit/sortable";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 
@@ -109,8 +109,6 @@ export function DndHost({ children }: { children: React.ReactNode }) {
   const bedrock = activeForm().bedrock;
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [activeLabel, setActiveLabel] = React.useState<string | null>(null);
-  const [activeMaterial, setActiveMaterial] = React.useState<string | null>(null);
-  const [activeIconUrl, setActiveIconUrl] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -118,19 +116,6 @@ export function DndHost({ children }: { children: React.ReactNode }) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const overlay = useMemo(() => {
-    if (activeMaterial) {
-      return <IconTile id={activeMaterial} name={activeLabel ?? activeMaterial} iconUrl={activeIconUrl ?? undefined} />;
-    }
-    if (activeLabel) {
-      return (
-        <div className="px-2 py-1 bg-gray-700 rounded text-xs border border-gray-500">
-          {activeLabel}
-        </div>
-      );
-    }
-    return null;
-  }, [activeIconUrl, activeLabel, activeMaterial]);
 
   const onDragEnd = (event: DragEndEvent) => {
     const over = event.over?.id?.toString();
@@ -138,8 +123,6 @@ export function DndHost({ children }: { children: React.ReactNode }) {
     const data = event.active.data.current as any;
     setActiveId(null);
     setActiveLabel(null);
-    setActiveMaterial(null);
-    setActiveIconUrl(null);
     if (!over) return;
     if (!active) return;
 
@@ -169,23 +152,19 @@ export function DndHost({ children }: { children: React.ReactNode }) {
         setActiveId(e.active.id.toString());
         const d = e.active.data.current as any;
         setActiveLabel(d?.label ?? null);
-        setActiveMaterial(d?.material ?? null);
-        setActiveIconUrl(d?.iconUrl ?? null);
       }}
       onDragEnd={onDragEnd}
       onDragCancel={() => {
         setActiveId(null);
         setActiveLabel(null);
-        setActiveMaterial(null);
-        setActiveIconUrl(null);
       }}
     >
       {children}
       {createPortal(
         <DragOverlay dropAnimation={null} zIndex={9999}>
-          {activeId && (
-            <div className="pointer-events-none">
-              {overlay}
+          {activeId && activeLabel && (
+            <div className="pointer-events-none rounded-md border border-brand-borderStrong bg-brand-surface-raised px-2.5 py-1 text-[13px] shadow-lg">
+              {activeLabel}
             </div>
           )}
         </DragOverlay>,
@@ -193,14 +172,6 @@ export function DndHost({ children }: { children: React.ReactNode }) {
       )}
     </DndContext>
   );
-}
-
-function defaultBedrockComponentProps(type: string) {
-  if (type === "input") return { text: "Input", placeholder: "Type here...", default: "" };
-  if (type === "dropdown") return { text: "Dropdown", options: ["Option 1", "Option 2"], default: 0 };
-  if (type === "toggle") return { text: "Toggle", default: false };
-  if (type === "slider") return { text: "Slider", min: 0, max: 10, step: 1, default: 5 };
-  return {};
 }
 
 export function computeDropResult(
@@ -215,7 +186,7 @@ export function computeDropResult(
   if (overId === "bedrock-components" && bedrock.type === "CUSTOM") {
     if (!isBedrockComponentType(dropType)) return null;
     const id = nextSequentialId("component", bedrock.components.map((c) => c.id));
-    const props = defaultBedrockComponentProps(dropType);
+    const props = structuredClone(COMPONENT_META[dropType].defaults);
     return { ...bedrock, components: [...bedrock.components, { id, type: dropType, props }] };
   }
   return null;

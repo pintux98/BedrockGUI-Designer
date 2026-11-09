@@ -1,17 +1,12 @@
 /**
- * The form-file envelope: the two top-level keys that wrap a single form file.
- *
- * When `forms.<key>.file` names a separate file, `FormMenuUtil.loadFormMenus`
- * rebases its lookups onto exactly these two literals —
- * `bedrockBase = "bedrock"` / `javaBase = "java"` (FormMenuUtil.java:124-125).
- * Every FORM_KEYS entry hangs off the `bedrock` one. The `java` block is
- * carried through parse/serialize verbatim and never interpreted.
+ * The form-file envelope: the top-level key that wraps a single form file.
+ * Every FORM_KEYS entry hangs off it. The plugin no longer reads a `java` block,
+ * so the designer drops one on import.
  *
  * Consumers: `src/parse/form.ts`, `src/serialize/form.ts`.
  */
 export const DOCUMENT_KEYS = {
-  bedrock: "bedrock",
-  java: "java"
+  bedrock: "bedrock"
 } as const;
 
 export const FORM_KEYS = {
@@ -24,7 +19,11 @@ export const FORM_KEYS = {
   commandIntercept: "command_intercept",
   buttons: "buttons",
   components: "components",
-  globalActions: "global_actions"
+  globalActions: "global_actions",
+  cooldown: "cooldown",
+  openCondition: "open_condition",
+  openConditionMessage: "open_condition_message",
+  onClose: "on_close"
 } as const;
 
 export const CONDITION_KEYS = {
@@ -41,7 +40,8 @@ export const BUTTON_KEYS = {
   alternativeText: "alternative_text",
   alternativeImage: "alternative_image",
   alternativeOnClick: "alternative_onClick",
-  conditions: "conditions"
+  conditions: "conditions",
+  cooldown: "cooldown"
 } as const;
 
 export const COMPONENT_KEYS = {
@@ -53,6 +53,7 @@ export const COMPONENT_KEYS = {
   max: "max",
   step: "step",
   options: "options",
+  steps: "steps",
   action: "action"
 } as const;
 

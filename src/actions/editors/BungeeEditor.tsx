@@ -23,7 +23,7 @@ export function BungeeEditor({ action, onChange }: BungeeEditorProps) {
   return (
     <div className="space-y-2">
       <div>
-        <label htmlFor={subchannelId} className="block text-[10px] text-brand-muted mb-1">
+        <label htmlFor={subchannelId} className="block text-[11.5px] text-brand-muted mb-1">
           Subchannel
         </label>
         <BufferedInput
@@ -36,7 +36,7 @@ export function BungeeEditor({ action, onChange }: BungeeEditorProps) {
       </div>
       <div>
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] text-brand-muted">Args</span>
+          <span className="text-[11.5px] text-brand-muted">Args</span>
           <button type="button" className="ui-btn-ghost px-2 py-1 text-xs" onClick={addArg}>
             + Add arg
           </button>

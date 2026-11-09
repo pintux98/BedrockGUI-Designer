@@ -14,19 +14,15 @@ import { BUTTON_KEYS, CONFIG_KEYS, DOCUMENT_KEYS, FORM_KEYS } from "../../plugin
  */
 
 describe("the form-file envelope", () => {
-  it("names the two top-level keys exactly as FormMenuUtil rebases onto them", () => {
-    // FormMenuUtil.java:124-125 — when forms.<key>.file names a separate file:
-    //   bedrockBase = "bedrock";
-    //   javaBase = "java";
+  it("names the top-level key the form lives under", () => {
     expect(DOCUMENT_KEYS.bedrock).toBe("bedrock");
-    expect(DOCUMENT_KEYS.java).toBe("java");
   });
 
   it("exposes the envelope as its own table, not as entries of FORM_KEYS", () => {
     // FORM_KEYS describes what lives *inside* `bedrock:`; the envelope wraps it.
     expect(Object.keys(FORM_KEYS)).not.toContain("bedrock");
     expect(Object.keys(FORM_KEYS)).not.toContain("java");
-    expect(Object.keys(DOCUMENT_KEYS)).toEqual(["bedrock", "java"]);
+    expect(Object.keys(DOCUMENT_KEYS)).toEqual(["bedrock"]);
   });
 });
 

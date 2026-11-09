@@ -9,9 +9,9 @@ describe("project model", () => {
     expect(project.forms[0].bedrock.type).toBe("SIMPLE");
   });
 
-  it("targets plugin 2.0.11 with config version 1", () => {
+  it("targets plugin 2.0.12 with config version 1", () => {
     const project = createEmptyProject();
-    expect(project.pluginTarget).toBe("2.0.11");
+    expect(project.pluginTarget).toBe("2.0.12");
     expect(project.configVersion).toBe(1);
   });
 
